@@ -68,4 +68,3 @@ COM is a testament that you don't need a supercomputer to build powerful AI agen
 COM: Small Brain, Big Deeds.
 Developed with ❤️ for the Low-Spec Community.
 ------------------------------
-Apakah Anda ingin saya menambahkan bagian "Technical Theory" (seperti menyebutkan pengaruh Backpropagation atau arsitektur Neural Network) ke dalam README ini agar terlihat lebih edukatif?
