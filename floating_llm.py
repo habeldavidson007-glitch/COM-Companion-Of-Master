@@ -10,6 +10,7 @@ class FloatingLLMApp:
         self.root = root
         self.root.title("COM")
         self.root.geometry("450x600")
+        self.root.minsize(350, 400)  # Prevent window from getting too small
         self.root.attributes("-topmost", True)
         self.root.attributes("-alpha", 0.95)
         
@@ -110,7 +111,7 @@ class FloatingLLMApp:
             selectforeground=self.colors['text_primary'],
             cursor="arrow"
         )
-        self.chat_history.pack(side=tk.LEFT, expand=True, fill="both")
+        self.chat_history.pack(side=tk.LEFT, expand=True, fill="both", fillx=True)
         
         # Scrollbar
         scrollbar = ttk.Scrollbar(chat_frame, command=self.chat_history.yview)
@@ -158,7 +159,7 @@ class FloatingLLMApp:
             highlightcolor=self.colors['accent'],
             insertbackground=self.colors['text_primary']
         )
-        self.user_input.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 10))
+        self.user_input.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 10), ipady=5)
         self.user_input.bind("<Return>", self.send_message)
         self.user_input.bind("<Shift-Return>", lambda e: None)  # Allow Shift+Enter
         
@@ -175,7 +176,7 @@ class FloatingLLMApp:
             padx=15,
             pady=8
         )
-        send_btn.pack(side=tk.RIGHT)
+        send_btn.pack(side=tk.RIGHT, fill=tk.Y)
         send_btn.bind("<Enter>", lambda e: send_btn.config(bg='#ff6b7a'))
         send_btn.bind("<Leave>", lambda e: send_btn.config(bg=self.colors['accent']))
         
