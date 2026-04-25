@@ -53,14 +53,18 @@ class COMAssistant:
     }
     
     # System prompt with identity enforcement, CoT instruction, and few-shot examples
-    SYSTEM_PROMPT = """You are COM (Companion of Master), a helpful AI assistant. 
-IMPORTANT: You must ALWAYS identify yourself as "COM" or "Companion of Master". 
-NEVER say you are "Qwen", "AI Assistant", or any other name. You are COM.
+    SYSTEM_PROMPT = """You are COM (Companion of Master), a helpful AI assistant created to serve your Master.
+CRITICAL IDENTITY RULES:
+1. You MUST ALWAYS identify yourself as "COM" or "Companion of Master".
+2. NEVER say you are "Qwen", "AI Assistant", "Alibaba", or any other name.
+3. You are COM, a personal companion assistant. Nothing else.
+4. If asked who created you, say "I am COM, designed to assist my Master."
 
 Think step-by-step internally to solve problems, but only output your final answer.
 Do not show your reasoning process - only provide the clean final response.
+Keep responses concise, friendly, and helpful.
 
-Here are some examples of how to respond:
+Here are examples of how to respond:
 
 Example 1:
 User: What is 2 + 2?
@@ -70,7 +74,7 @@ Example 2:
 User: Tell me a short joke.
 COM: Why don't scientists trust atoms? Because they make up everything!
 
-Remember: Be concise, helpful, and always identify as COM."""
+Remember: Be concise, helpful, and ALWAYS identify as COM."""
 
     def __init__(self, root):
         self.root = root
@@ -119,6 +123,7 @@ Remember: Be concise, helpful, and always identify as COM."""
         self.full_history = []  # For persistent storage
         self.typing_animation_id = None
         self.tts_engine = None
+        self.tts_lock = threading.Lock()  # Lock for TTS thread safety
         
         # Initialize TTS engine if available
         if TTS_AVAILABLE:
@@ -267,9 +272,10 @@ Remember: Be concise, helpful, and always identify as COM."""
         self.input_field.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 10))
         self.input_field.bind("<Return>", self.on_enter_pressed)
         
-        # Placeholder text
+        # Placeholder text (with dim color to indicate it's a placeholder)
         self.placeholder_text = "Type your message... (Enter to send)"
         self.input_field.insert(0, self.placeholder_text)
+        self.input_field.config(fg=self.COLORS['text_dim'])
         self.input_field.bind("<FocusIn>", self.on_focus_in)
         self.input_field.bind("<FocusOut>", self.on_focus_out)
         self.showing_placeholder = True
@@ -331,12 +337,14 @@ Remember: Be concise, helpful, and always identify as COM."""
         """Handle input field focus in"""
         if self.showing_placeholder:
             self.input_field.delete(0, tk.END)
+            self.input_field.config(fg=self.COLORS['text_primary'])
             self.showing_placeholder = False
             
     def on_focus_out(self, event):
         """Handle input field focus out"""
         if not self.input_field.get():
             self.input_field.insert(0, self.placeholder_text)
+            self.input_field.config(fg=self.COLORS['text_dim'])
             self.showing_placeholder = True
             
     def on_enter_pressed(self, event):
@@ -537,16 +545,19 @@ COM:"""
             return
             
         query = self.input_field.get().strip()
-        if not query or self.showing_placeholder:
+        # Don't send if empty or showing placeholder
+        if not query or (self.showing_placeholder and query == self.placeholder_text):
             return
-            
-        # Add user message to display
-        self.add_message("user", query)
         
-        # Clear input
+        # Clear input field immediately and reset placeholder state
         self.input_field.delete(0, tk.END)
+        self.input_field.config(fg=self.COLORS['text_primary'])
         self.showing_placeholder = True
         self.input_field.insert(0, self.placeholder_text)
+        self.input_field.config(fg=self.COLORS['text_dim'])
+        
+        # Add user message to display
+        self.add_message("user", query)
         
         # Update state
         self.is_generating = True
@@ -600,12 +611,12 @@ COM:"""
             # Persist history
             self.save_history()
             
-            # Update UI
+            # Update UI (must be done on main thread)
             self.root.after(0, lambda: self.add_message("assistant", assistant_response))
             self.root.after(0, lambda: self.update_status(f"COM | Model: {self.MODEL_NAME} | Ready", "success"))
             self.root.after(0, lambda: self.stop_typing_animation())
             
-            # Speak response if TTS enabled
+            # Speak response if TTS enabled (synchronously in this thread, but with lock)
             if self.tts_enabled and self.tts_engine:
                 self.speak_response(assistant_response)
                 
@@ -640,22 +651,20 @@ COM:"""
         self.is_generating = False
         
     def speak_response(self, text):
-        """Speak the response using TTS"""
-        def speak():
-            if self.tts_engine:
+        """Speak the response using TTS (with lock to prevent concurrent speech)"""
+        with self.tts_lock:
+            if self.tts_engine and self.tts_enabled:
                 try:
-                    # Clean text for speech
-                    clean_text = re.sub(r'[^\w\s.,!?]', '', text)
-                    if len(clean_text) > 200:
-                        clean_text = clean_text[:200] + "..."
-                    self.tts_engine.say(clean_text)
-                    self.tts_engine.runAndWait()
-                except Exception:
-                    pass
-                    
-        thread = threading.Thread(target=speak)
-        thread.daemon = True
-        thread.start()
+                    # Clean text for speech (remove special chars, limit length)
+                    clean_text = re.sub(r'[^\w\s.,!?-]', '', text)
+                    # Truncate long responses for TTS
+                    if len(clean_text) > 250:
+                        clean_text = clean_text[:250] + "..."
+                    if clean_text.strip():
+                        self.tts_engine.say(clean_text)
+                        self.tts_engine.runAndWait()
+                except Exception as e:
+                    print(f"TTS error: {e}")
         
     def toggle_tts(self):
         """Toggle text-to-speech on/off"""
