@@ -1,3 +1,40 @@
 ```
-thuki_ref/
+# Compiled Python files
+*.pyc
+__pycache__/
+
+# Dependencies
+venv/
+.venv/
+.env
+.env.local
+.env.*
+
+# Logs
+*.log
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Build artifacts
+dist/
+build/
+target/
+*.out
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Python specific
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg-info/
 ```
