@@ -266,7 +266,7 @@ class COMApp:
         self.chat_win = tk.Toplevel(self.root)
         self.chat_win.overrideredirect(True)
         self.chat_win.attributes("-topmost", True)
-        self.chat_win.attributes("-alpha", 0.0)   # start hidden
+        self.chat_win.attributes("-alpha", 1.0)   # Set to full opacity by default
         self.chat_win.configure(bg=C_NAVY)
         self.chat_win.withdraw()
 
@@ -316,8 +316,8 @@ class COMApp:
             font=("Segoe UI", 10),
             wrap="word", border=0,
             highlightthickness=0,
-            cursor="arrow",
-            state="disabled",
+            cursor="xterm",
+            state="normal",
             padx=4, pady=4
         )
         scroll = tk.Scrollbar(history_frame, command=self.chat_history.yview,
@@ -458,11 +458,14 @@ class COMApp:
         self.chat_visible = True
         self._reset_activity()
         self._reposition_chat()
+        # First show the window (deiconify), then set alpha for fade-in
         self.chat_win.deiconify()
-        self._fade_in_chat()
+        self.chat_win.attributes("-alpha", 0.0)  # Start fully transparent
         self.chat_win.lift()
         # Force focus to input field after fade completes
         self.root.after(300, self._focus_input)
+        # Start fade-in animation
+        self._fade_in_chat()
 
     def _focus_input(self):
         """Ensure input field gets focus."""
@@ -477,10 +480,12 @@ class COMApp:
     def _fade_in_chat(self, alpha=0.0):
         if not self.chat_visible:
             return
+        # Ensure window is visible during fade-in
+        self.chat_win.deiconify()
         alpha = min(alpha + 0.08, 0.96)
         self.chat_win.attributes("-alpha", alpha)
         if alpha < 0.96:
-            self.root.after(20, lambda: self._fade_in_chat(alpha))
+            self.root.after(20, lambda a=alpha: self._fade_in_chat(a))
 
     def _fade_out_chat(self, alpha=None):
         if alpha is None:
@@ -590,6 +595,9 @@ class COMApp:
         try:
             full_response = ""
             
+            # First, insert COM label before streaming starts
+            self.root.after(0, self._start_com_bubble)
+            
             def stream_callback(chunk):
                 nonlocal full_response
                 full_response += chunk
@@ -617,34 +625,26 @@ class COMApp:
     # ═══════════════════════════════════════════════════════
 
     def _append_message(self, role, text):
-        self.chat_history.config(state="normal")
         if role == "user":
             self.chat_history.insert("end", "\nYou  ", "user_name")
             self.chat_history.insert("end", f"{text}\n", "user_text")
         else:
             self.chat_history.insert("end", "\nCOM  ", "com_name")
             self.chat_history.insert("end", f"{text}\n", "com_text")
-        self.chat_history.config(state="disabled")
         self.chat_history.see("end")
 
     def _start_com_bubble(self):
         """Insert COM label before streaming starts."""
-        self.chat_history.config(state="normal")
         self.chat_history.insert("end", "\nCOM  ", "com_name")
-        self.chat_history.config(state="disabled")
         self.chat_history.see("end")
         self.typing_label.config(text="")
 
     def _stream_chunk(self, chunk):
-        self.chat_history.config(state="normal")
         self.chat_history.insert("end", chunk, "com_text")
-        self.chat_history.config(state="disabled")
         self.chat_history.see("end")
 
     def _finish_response(self):
-        self.chat_history.config(state="normal")
         self.chat_history.insert("end", "\n", "com_text")
-        self.chat_history.config(state="disabled")
         self.is_streaming = False
         self._set_status("ready", C_SUCCESS)
         self.typing_label.config(text="")
@@ -653,9 +653,7 @@ class COMApp:
         self.root.after(100, self._focus_input)
 
     def _append_system(self, text):
-        self.chat_history.config(state="normal")
         self.chat_history.insert("end", f"\n{text}\n", "system")
-        self.chat_history.config(state="disabled")
         self.chat_history.see("end")
 
     def _set_status(self, state, color):
