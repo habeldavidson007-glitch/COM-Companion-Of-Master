@@ -6,9 +6,14 @@ Model: qwen2.5:0.5b-instruct-q4_K_M (~500MB RAM)
 
 import json
 import hashlib
+import time
 from datetime import datetime
 from collections import deque
 from typing import Optional, List, Dict, Tuple
+
+from .intent_router import IntentRouter
+from .context_compressor import ContextCompressor
+from .session_logger import SessionLogger
 
 # ================================================================
 # PHASE 1 — MODE CLASSIFIER
@@ -212,11 +217,11 @@ class OllamaClient:
     
     def generate(self, messages: List[Dict], max_tokens: int = 256, 
                 temperature: float = 0.7) -> str:
-        """Non-streaming generation"""
-        full_response = ""
-        self.generate_stream(messages, callback=lambda x: None,
+        """Non-streaming generation - FIXED to actually return response"""
+        result = []
+        self.generate_stream(messages, callback=lambda x: result.append(x),
                            max_tokens=max_tokens, temperature=temperature)
-        return full_response
+        return "".join(result)
 
 
 # ================================================================
@@ -230,7 +235,16 @@ class COMCore:
         self.memory = MemoryManager(max_messages=6)
         self.client = OllamaClient()
         self.cache = ResponseCache()
+        
+        # Initialize new modules
+        self.router = IntentRouter(client=self.client)
+        self.compressor = ContextCompressor(client=self.client)
+        self.logger = SessionLogger()
+        
+        # Processing state with timeout safety
         self.is_processing = False
+        self._processing_start = 0
+        self._processing_timeout = 45  # seconds
     
     def check_status(self) -> Dict:
         """Check system status"""
@@ -244,20 +258,31 @@ class COMCore:
     
     def process_query(self, query: str, callback=None) -> str:
         """Process user query with full pipeline"""
+        start_time = time.time()
+        cache_hit = False
+        
+        # Timeout safety: reset stuck processing flag
         if self.is_processing:
-            return "Already processing a request..."
+            if time.time() - self._processing_start > self._processing_timeout:
+                self.is_processing = False  # force reset on timeout
+            else:
+                return "Already processing a request..."
         
         self.is_processing = True
+        self._processing_start = time.time()
         
         try:
-            # PHASE 1: Classify mode
-            mode = classify_mode(query)
+            # IMPROVED: Use IntentRouter instead of simple classify_mode
+            mode = self.router.route(query)
             
             # PHASE 3: Check cache — zero LLM call on hit
             cached = self.cache.get(mode, query)
             if cached:
+                cache_hit = True
                 if callback:
                     callback(cached)
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                self.logger.log(mode, query, cached, cache_hit, elapsed_ms)
                 return cached
             
             # PHASE 2: Build SoT prompt
@@ -281,13 +306,27 @@ class COMCore:
             self.client.generate_stream(messages, callback=stream_cb,
                                        max_tokens=max_tok, temperature=temp)
             
-            # PHASE 3: Cache result for next time
-            self.cache.set(mode, query, full_response)
+            # PHASE 3: Cache result (OFFICE only, not GODOT scripts that go stale)
+            if mode != "GODOT":
+                self.cache.set(mode, query, full_response)
             
             # PHASE 2: Store in sliding window memory (GENERAL only)
             if mode == "GENERAL":
                 self.memory.add_message("user", query)
                 self.memory.add_message("assistant", full_response)
+                
+                # Check if we should compress old messages
+                if len(self.memory.history) >= self.memory.max_messages:
+                    compressed = self.compressor.compress(list(self.memory.history))
+                    if compressed:
+                        # Replace oldest 4 messages with compressed summary
+                        for _ in range(4):
+                            if len(self.memory.history) > 2:
+                                self.memory.history.popleft()
+                        self.memory.history.appendleft(compressed)
+            
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            self.logger.log(mode, query, full_response, cache_hit, elapsed_ms)
             
             return full_response
             
@@ -295,6 +334,8 @@ class COMCore:
             error_msg = f"Error: {str(e)}"
             if callback:
                 callback(f"\n{error_msg}")
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            self.logger.log("ERROR", query, error_msg, cache_hit, elapsed_ms)
             return error_msg
         
         finally:
