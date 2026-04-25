@@ -8,13 +8,13 @@ Matches COM mascot: navy/gold/white aesthetic.
 import tkinter as tk
 from tkinter import font as tkfont
 import threading
-import requests
-import json
 import time
 import math
 import os
 import sys
-from datetime import datetime
+
+# Import your smart brain!
+from core.com_core import COMCore, classify_mode, is_signal, parse_signal
 
 # ── Try importing PIL for mascot image ──────────────────────────
 try:
@@ -49,8 +49,8 @@ C_SUCCESS     = "#4ADE80"
 C_ERROR       = "#F87171"
 C_USER_BUBBLE = "#1A2F6E"
 
-OLLAMA_URL  = "http://localhost:11434/api/chat"
-MODEL_NAME  = "qwen2.5:0.5b-instruct-q4_K_M"
+# Initialize the smart brain
+com_brain = COMCore()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -147,6 +147,7 @@ class COMApp:
         self.anim_tick       = 0
         self.hide_job        = None
         self.messages        = []     # conversation history
+        self.current_mode    = "GENERAL"
 
         # ── Screen geometry ──────────────────────────────────
         sw = self.root.winfo_screenwidth()
@@ -347,6 +348,7 @@ class COMApp:
 
         # Welcome
         self._append_system("✦  COM is ready. Double-click the mascot to toggle.  ✦")
+        self._append_system("✦  Smart brain loaded: Mode detection + Signal output  ✦")
 
         # ── Typing indicator ─────────────────────────────────
         self.typing_frame = tk.Frame(inner, bg=C_BUBBLE_BG, height=20)
@@ -571,68 +573,43 @@ class COMApp:
         # Display user message
         self._append_message("user", query)
 
-        # Add to history
-        self.messages.append({"role": "user", "content": query})
+        # Detect mode
+        self.current_mode = classify_mode(query)
+        print(f"[COM] Mode detected: {self.current_mode}")
 
-        # Start generation thread
+        # Start generation thread using smart brain
         self.is_streaming = True
         self._set_status("thinking", C_GOLD)
-        self.typing_label.config(text="COM is thinking…")
+        self.typing_label.config(text=f"COM is thinking ({self.current_mode})…")
 
-        thread = threading.Thread(target=self._generate, args=(query,), daemon=True)
+        thread = threading.Thread(target=self._generate_with_brain, args=(query,), daemon=True)
         thread.start()
 
-    def _generate(self, query):
-        """Runs in background thread."""
+    def _generate_with_brain(self, query):
+        """Runs in background thread using COMCore."""
         try:
-            payload = {
-                "model": MODEL_NAME,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are COM (Companion Of Master). "
-                            "Answer concisely in 1-3 sentences max. "
-                            "No greetings. No filler."
-                        )
-                    }
-                ] + self.messages[-8:],   # sliding window
-                "stream": True,
-                "options": {
-                    "temperature": 0.7,
-                    "num_predict": 256,
-                    "num_ctx": 2048
-                }
-            }
-
-            resp = requests.post(OLLAMA_URL, json=payload,
-                                 stream=True, timeout=30)
-
-            # Prepare response bubble
-            self.root.after(0, self._start_com_bubble)
-
             full_response = ""
-            for line in resp.iter_lines():
-                if line:
-                    try:
-                        data = json.loads(line)
-                        chunk = data.get("message", {}).get("content", "")
-                        if chunk:
-                            full_response += chunk
-                            self.root.after(0, lambda c=chunk: self._stream_chunk(c))
-                    except json.JSONDecodeError:
-                        continue
+            
+            def stream_callback(chunk):
+                nonlocal full_response
+                full_response += chunk
+                # Stream to UI
+                self.root.after(0, lambda c=chunk: self._stream_chunk(c))
 
-            self.messages.append({"role": "assistant", "content": full_response})
+            # Call the smart brain
+            response = com_brain.process_query(query, callback=stream_callback)
+
+            # Handle signal output
+            if is_signal(response):
+                prefix, payload = parse_signal(response)
+                self.root.after(0, lambda: self._append_system(f"⚡ Signal: {prefix}"))
+                # Here you can trigger tool execution based on prefix
+                # e.g., if prefix == "@XLS": create_excel(payload)
+
             self.root.after(0, self._finish_response)
 
-        except requests.exceptions.ConnectionError:
-            self.root.after(0, lambda: self._append_system(
-                "⚠  Cannot reach Ollama. Is it running?"
-            ))
-            self.root.after(0, self._finish_response)
         except Exception as e:
-            self.root.after(0, lambda: self._append_system(f"⚠  Error: {e}"))
+            self.root.after(0, lambda: self._append_system(f"⚠  Brain error: {e}"))
             self.root.after(0, self._finish_response)
 
     # ═══════════════════════════════════════════════════════
