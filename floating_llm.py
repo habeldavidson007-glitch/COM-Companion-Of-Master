@@ -8,7 +8,7 @@ from datetime import datetime
 class FloatingLLMApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("✨ AI Assistant")
+        self.root.title("COM")
         self.root.geometry("450x600")
         self.root.attributes("-topmost", True)
         self.root.attributes("-alpha", 0.95)
@@ -68,7 +68,7 @@ class FloatingLLMApp:
         # Title
         title_label = tk.Label(
             header_frame, 
-            text="🤖 AI Assistant", 
+            text="🤖 COM", 
             font=self.header_font,
             bg=self.colors['bg_medium'],
             fg=self.colors['text_primary']
@@ -271,7 +271,7 @@ class FloatingLLMApp:
             # Add AI response header
             timestamp = datetime.now().strftime("%H:%M")
             self.root.after(0, lambda: self.chat_history.insert(
-                tk.END, f"\n[{timestamp}] AI: ", "ai_tag"
+                tk.END, f"\n[{timestamp}] COM: ", "ai_tag"
             ))
             
             full_response = ""
@@ -350,7 +350,7 @@ def main():
     # Add welcome message
     root.after(100, lambda: app.chat_history.insert(
         tk.END, 
-        "✨ Welcome to AI Assistant!\nType your message below and press Enter.\n\n",
+        "✨ Welcome to COM!\nType your message below and press Enter.\n\n",
         "system_tag"
     ))
     
