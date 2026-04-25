@@ -1,3 +1,12 @@
-request
-pandas
-fpdf
+# COM (Companion of Master) - Dependencies
+# Core dependencies
+requests>=2.31.0
+
+# Voice Input/Output (optional but recommended)
+SpeechRecognition>=3.10.0
+pyttsx3>=2.90
+
+# Note: pyttsx3 may require additional system dependencies:
+# - Linux: sudo apt-get install espeak espeak-data libespeak-dev
+# - macOS: brew install espeak
+# - Windows: No additional dependencies needed (uses SAPI5)
