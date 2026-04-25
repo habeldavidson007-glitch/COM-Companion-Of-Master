@@ -1,7 +1,7 @@
 """
-COM (Companion Of Master) — Unified Web Application
-Combines mascot visualization + working chat interface
-Follows Thuki's web-overlay pattern with FastAPI backend
+COM (Companion Of Master) — Hybrid Desktop Application
+Combines tkinter floating mascot (desktop overlay) + web chat interface
+Mascot floats on desktop, clicking opens browser chat
 """
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse
@@ -11,6 +11,9 @@ import asyncio
 from datetime import datetime
 import uuid
 import json
+import threading
+import webbrowser
+import time
 
 # Import COM Core for LLM intelligence
 import sys
@@ -18,10 +21,21 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from core.com_core import COMCore, classify_mode, is_signal, parse_signal
 
+# Try to import tkinter for desktop mascot
+try:
+    import tkinter as tk
+    from tkinter import font as tkfont
+    TKINTER_AVAILABLE = True
+except ImportError:
+    TKINTER_AVAILABLE = False
+
 app = FastAPI(title="COM - Companion Of Master")
 
 # Initialize COM brain
 com_brain = COMCore()
+
+# Global reference to mascot window
+mascot_window = None
 
 # In-memory message store
 class Message(BaseModel):
@@ -39,6 +53,139 @@ class Conversation(BaseModel):
 # Active conversations
 conversations: dict[str, Conversation] = {}
 active_websockets: dict[str, WebSocket] = {}
+
+def create_desktop_mascot():
+    """Create a floating tkinter mascot window that opens browser on click"""
+    if not TKINTER_AVAILABLE:
+        print("⚠️  Tkinter not available, running web-only mode")
+        print("📍 Open http://localhost:8000 in your browser")
+        return
+    
+    global mascot_window
+    
+    root = tk.Tk()
+    root.title("COM - Companion Of Master")
+    
+    # Make window transparent and always on top
+    root.overrideredirect(True)
+    root.attributes('-topmost', True)
+    root.attributes('-alpha', 0.95)
+    
+    # Set window size and position (bottom-right corner)
+    window_size = 120
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    x = screen_width - window_size - 30
+    y = screen_height - window_size - 30
+    root.geometry(f"{window_size}x{window_size}+{x}+{y}")
+    
+    # Make background transparent (Windows only)
+    try:
+        root.attributes('-transparentcolor', '#F0F0F0')
+    except:
+        pass
+    
+    # Create canvas for mascot
+    canvas = tk.Canvas(root, width=window_size, height=window_size, bg='#F0F0F0', highlightthickness=0)
+    canvas.pack()
+    
+    # Draw mascot (simplified version)
+    # Body
+    canvas.create_oval(25, 40, 95, 105, fill='#F0F4FF', outline='#C9A84C', width=2)
+    # Flame hair
+    canvas.create_oval(45, 20, 65, 45, fill='#508CF0', outline='')
+    canvas.create_oval(55, 15, 70, 40, fill='#649AF4', outline='')
+    canvas.create_oval(65, 22, 80, 45, fill='#508CF0', outline='')
+    # Eyes
+    canvas.create_oval(45, 55, 58, 68, fill='#143CB8', outline='')
+    canvas.create_oval(67, 55, 80, 68, fill='#143CB8', outline='')
+    canvas.create_oval(43, 53, 50, 60, fill='#B4D2FF', outline='')
+    canvas.create_oval(65, 53, 72, 60, fill='#B4D2FF', outline='')
+    # Smile
+    canvas.create_arc(50, 65, 75, 80, start=0, extent=180, style=tk.ARC, outline='#6478B4', width=2)
+    # Crown gem
+    canvas.create_polygon(55, 25, 60, 15, 65, 25, fill='#C9A84C', outline='')
+    
+    # Add glow effect with shadow
+    try:
+        canvas.create_oval(20, 35, 100, 110, outline='#4A7FD4', width=1, dash=(2, 2))
+    except:
+        pass
+    
+    # Animation variables
+    animation_offset = 0
+    animating_up = True
+    
+    def animate():
+        nonlocal animation_offset, animating_up
+        
+        # Move up and down
+        if animating_up:
+            animation_offset -= 0.5
+            if animation_offset <= -8:
+                animating_up = False
+        else:
+            animation_offset += 0.5
+            if animation_offset >= 0:
+                animating_up = True
+        
+        # Redraw mascot at new position
+        canvas.move('all', 0, animation_offset - (canvas.coords('all')[1] - canvas.coords('all')[1]))
+        
+        # Schedule next frame
+        try:
+            root.after(50, animate)
+        except:
+            pass
+    
+    def open_chat(event=None):
+        """Open browser to chat interface with #chat hash to auto-open chat window"""
+        webbrowser.open('http://localhost:8000/#chat')
+    
+    # Bind click to open browser
+    canvas.bind('<Button-1>', open_chat)
+    root.bind('<Button-1>', open_chat)
+    
+    # Add tooltip label
+    tooltip = tk.Label(root, text="Click to chat!", font=('Arial', 8), bg='#C9A84C', fg='#0A0F2C')
+    tooltip.place(x=10, y=5)
+    tooltip.lower()  # Put behind mascot
+    
+    def show_tooltip():
+        tooltip.lift()
+        root.after(2000, lambda: tooltip.lower())
+    
+    # Show tooltip periodically
+    def tooltip_loop():
+        show_tooltip()
+        root.after(5000, tooltip_loop)
+    
+    root.after(1000, tooltip_loop)
+    root.after(100, animate)
+    
+    mascot_window = root
+    
+    print("✨ COM Desktop Mascot created!")
+    print("💬 Click the mascot to open chat in your browser")
+    print("🌐 Or open http://localhost:8000 directly")
+    
+    # Start tkinter main loop in separate thread
+    def run_tkinter():
+        try:
+            root.mainloop()
+        except:
+            pass
+    
+    tk_thread = threading.Thread(target=run_tkinter, daemon=True)
+    tk_thread.start()
+
+@app.on_event("startup")
+async def startup_event():
+    """Start desktop mascot on server startup"""
+    create_desktop_mascot()
+    # Auto-open browser after a short delay with #chat hash
+    time.sleep(0.5)
+    webbrowser.open('http://localhost:8000/#chat')
 
 @app.get("/", response_class=HTMLResponse)
 async def get_chat_interface():
@@ -66,34 +213,12 @@ async def get_chat_interface():
             align-items: center;
             padding: 20px;
             overflow: hidden;
+            cursor: default;
         }
         
-        /* Floating Mascot Container */
+        /* Hide the web mascot since we have desktop mascot */
         .mascot-container {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            width: 140px;
-            height: 140px;
-            cursor: pointer;
-            transition: transform 0.3s ease;
-            z-index: 1000;
-            animation: float 3s ease-in-out infinite;
-        }
-        
-        .mascot-container:hover {
-            transform: scale(1.1);
-        }
-        
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-        }
-        
-        .mascot-svg {
-            width: 100%;
-            height: 100%;
-            filter: drop-shadow(0 0 20px rgba(201, 168, 76, 0.5));
+            display: none;
         }
         
         /* Chat Window */
@@ -357,36 +482,8 @@ async def get_chat_interface():
     </style>
 </head>
 <body>
-    <!-- Floating Mascot -->
-    <div class="mascot-container" id="mascot" title="Click to open chat">
-        <svg class="mascot-svg" viewBox="0 0 140 140">
-            <!-- Glow ring -->
-            <ellipse cx="70" cy="70" rx="65" ry="65" fill="none" stroke="#4A7FD4" stroke-width="2" opacity="0.5"/>
-            <!-- Body -->
-            <ellipse cx="70" cy="75" rx="45" ry="55" fill="#F0F4FF"/>
-            <!-- Flame hair -->
-            <ellipse cx="62" cy="35" rx="18" ry="22" fill="#508CF0" opacity="0.7"/>
-            <ellipse cx="70" cy="28" rx="14" ry="18" fill="#649AF4" opacity="0.8"/>
-            <ellipse cx="80" cy="33" rx="16" ry="20" fill="#508CF0" opacity="0.65"/>
-            <ellipse cx="56" cy="40" rx="12" ry="15" fill="#4680E8" opacity="0.55"/>
-            <ellipse cx="86" cy="38" rx="10" ry="13" fill="#4680E8" opacity="0.55"/>
-            <!-- Eyes -->
-            <ellipse cx="58" cy="68" rx="8" ry="9" fill="#143CB8"/>
-            <ellipse cx="82" cy="68" rx="8" ry="9" fill="#143CB8"/>
-            <ellipse cx="56" cy="66" rx="3" ry="3.5" fill="#B4D2FF"/>
-            <ellipse cx="80" cy="66" rx="3" ry="3.5" fill="#B4D2FF"/>
-            <!-- Crown gem -->
-            <polygon points="66,28 70,20 74,28" fill="#C9A84C"/>
-            <!-- Blush -->
-            <ellipse cx="46" cy="78" rx="8" ry="4" fill="#FFB4B4" opacity="0.4"/>
-            <ellipse cx="94" cy="78" rx="8" ry="4" fill="#FFB4B4" opacity="0.4"/>
-            <!-- Smile -->
-            <path d="M 62 82 Q 70 88 78 82" stroke="#6478B4" stroke-width="2" fill="none"/>
-            <!-- Jacket -->
-            <ellipse cx="70" cy="110" rx="35" ry="25" fill="#0F143C" opacity="0.9"/>
-            <line x1="70" y1="95" x2="70" y2="125" stroke="#F0EBD2" stroke-width="3"/>
-        </svg>
-    </div>
+    <!-- Desktop mascot handles clicks, web mascot hidden via CSS -->
+    <div class="mascot-container" id="mascot" style="display:none;"></div>
     
     <!-- Chat Window -->
     <div class="chat-container" id="chatContainer">
@@ -445,13 +542,12 @@ async def get_chat_interface():
         let conversationId = null;
         let currentMode = 'GENERAL';
         
-        // Toggle chat on mascot click
-        mascot.addEventListener('click', () => {
-            chatContainer.classList.toggle('visible');
-            if (chatContainer.classList.contains('visible')) {
-                setTimeout(() => chatInput.focus(), 100);
-            }
-        });
+        // Desktop mascot handles opening, so chat starts visible or can be opened via URL param
+        // Check if opened from mascot (URL hash)
+        if (location.hash === '#chat') {
+            chatContainer.classList.add('visible');
+            setTimeout(() => chatInput.focus(), 100);
+        }
         
         // Close button
         closeBtn.addEventListener('click', () => {
