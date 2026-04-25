@@ -1,26 +1,31 @@
 import tkinter as tk
 from tkinter import ttk, font
-import requests
-import json
 import threading
 from datetime import datetime
+import sys
+import os
+
+# Add core to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'core'))
+from com_core import COMCore, create_com_core
 
 class FloatingLLMApp:
     def __init__(self, root):
         self.root = root
         self.root.title("COM")
         self.root.geometry("450x600")
-        self.root.minsize(350, 400)  # Prevent window from getting too small
+        self.root.minsize(350, 400)
         self.root.attributes("-topmost", True)
         self.root.attributes("-alpha", 0.95)
+        
+        # Initialize COM Core
+        self.com_core = create_com_core()
         
         # Configure style
         self.setup_styles()
         
         # Variables
         self.is_streaming = False
-        self.api_url = "http://localhost:11434/api/generate"
-        self.model_name = "qwen2.5:1.5b"
         
         # Create UI
         self.create_header()
@@ -31,6 +36,9 @@ class FloatingLLMApp:
         # Bind events
         self.root.bind("<Control-q>", lambda e: self.root.quit())
         self.root.bind("<Control-n>", lambda e: self.clear_chat())
+        
+        # Check status and show welcome
+        self.check_connection()
         
     def setup_styles(self):
         """Configure custom styles for the application"""
@@ -194,7 +202,7 @@ class FloatingLLMApp:
         
         self.status_label = tk.Label(
             status_frame,
-            text=f"Model: {self.model_name} | Ready",
+            text="Model: qwen2.5:0.5b-instruct-q4_K_M | Ready",
             font=self.status_font,
             bg=self.colors['bg_medium'],
             fg=self.colors['text_secondary']
@@ -247,60 +255,36 @@ class FloatingLLMApp:
         self.is_streaming = True
         self.update_status("Generating response...", "warning")
         
-        # Start generation in separate thread
-        thread = threading.Thread(target=self.generate_response, args=(query,))
+        # Start generation in separate thread using COM Core
+        thread = threading.Thread(target=self.generate_response_core, args=(query,))
         thread.daemon = True
         thread.start()
         
-    def generate_response(self, query):
-        """Generate response from LLM (runs in separate thread)"""
+    def generate_response_core(self, query):
+        """Generate response using COM Core (runs in separate thread)"""
         try:
-            # Check connection first
-            self.check_connection()
+            def stream_callback(chunk):
+                # Update UI in main thread
+                self.root.after(0, lambda c=chunk: self.chat_history.insert(
+                    tk.END, c, "ai_tag"
+                ))
+                self.root.after(0, lambda: self.chat_history.see(tk.END))
             
-            # Use streaming for better UX
-            response = requests.post(
-                self.api_url,
-                json={
-                    "model": self.model_name,
-                    "prompt": query,
-                    "stream": True
-                },
-                stream=True
-            )
+            # Process with COM Core
+            response = self.com_core.process_query(query, callback=stream_callback)
             
-            # Add AI response header
-            timestamp = datetime.now().strftime("%H:%M")
-            self.root.after(0, lambda: self.chat_history.insert(
-                tk.END, f"\n[{timestamp}] COM: ", "ai_tag"
-            ))
-            
-            full_response = ""
-            for line in response.iter_lines():
-                if line:
-                    try:
-                        data = json.loads(line)
-                        if 'response' in data:
-                            chunk = data['response']
-                            full_response += chunk
-                            # Update UI in main thread
-                            self.root.after(0, lambda c=chunk: self.chat_history.insert(
-                                tk.END, c, "ai_tag"
-                            ))
-                            self.root.after(0, lambda: self.chat_history.see(tk.END))
-                    except json.JSONDecodeError:
-                        continue
-                        
             # Add newline after response
             self.root.after(0, lambda: self.chat_history.insert(tk.END, "\n", "ai_tag"))
-            self.root.after(0, lambda: self.update_status(f"Model: {self.model_name} | Ready", "success"))
+            self.root.after(0, lambda: self.update_status("Model: qwen2.5:0.5b-instruct-q4_K_M | Ready", "success"))
             
-        except requests.exceptions.ConnectionError:
-            self.root.after(0, lambda: self.handle_error("Cannot connect to Ollama. Is it running?"))
         except Exception as e:
             self.root.after(0, lambda: self.handle_error(f"Error: {str(e)}"))
         finally:
             self.root.after(0, lambda: setattr(self, 'is_streaming', False))
+            
+    def generate_response(self, query):
+        """Legacy method - deprecated, use generate_response_core instead"""
+        pass  # This method is no longer used
             
     def handle_error(self, error_msg):
         """Handle and display errors"""
@@ -325,18 +309,17 @@ class FloatingLLMApp:
             self.connection_indicator.itemconfig(items[-1], fill=colors.get(status_type, self.colors['success']))
             
     def check_connection(self):
-        """Check if Ollama is running"""
-        try:
-            response = requests.get("http://localhost:11434/api/tags", timeout=2)
-            if response.status_code != 200:
-                raise Exception("Ollama API not responding correctly")
-        except:
-            raise requests.exceptions.ConnectionError("Cannot connect to Ollama")
+        """Check if Ollama is running using COM Core"""
+        status = self.com_core.check_status()
+        if not status["ollama_running"]:
+            raise ConnectionError("Cannot connect to Ollama")
+        return True
             
     def clear_chat(self):
         """Clear chat history"""
         self.chat_history.delete(1.0, tk.END)
-        self.update_status(f"Model: {self.model_name} | Ready", "success")
+        self.com_core.clear_memory()
+        self.update_status("Model: qwen2.5:0.5b-instruct-q4_K_M | Ready", "success")
         self.chat_history.insert(tk.END, "💬 Chat cleared. Start a new conversation!\n", "system_tag")
 
 
