@@ -1,4 +1,4 @@
-This is a professional, high-quality README.md in English. It is designed to highlight the "small but mighty" nature of your project, making it very attractive for developers who value optimization and low-hardware accessibility.
+
 ------------------------------
 ## COM (Companion Of Master) 🤖
 COM is a lightweight, Agentic AI Floating Assistant specifically engineered to run on hardware with limited resources. By leveraging Small Language Models (SLM) and an efficient Python harness, COM provides a seamless bridge between high-level AI reasoning and local system automation.
