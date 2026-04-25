@@ -269,6 +269,8 @@ class COMApp:
         self.chat_win.attributes("-alpha", 1.0)   # Set to full opacity by default
         self.chat_win.configure(bg=C_NAVY)
         self.chat_win.withdraw()
+        # Allow chat window to receive focus
+        self.chat_win.focus_set()
 
         # Rounded appearance via outer frame
         outer = tk.Frame(self.chat_win, bg=C_GOLD, padx=1, pady=1)
@@ -381,6 +383,8 @@ class COMApp:
                               padx=(10, 6), ipady=6)
         self.input_field.bind("<Return>",    self._send_message)
         self.input_field.bind("<Key>",       self._on_keypress)
+        # Allow clicking on input field to focus
+        self.input_field.bind("<Button-1>",  lambda e: self.input_field.focus_set())
 
         send_btn = tk.Label(
             input_frame, text="▶", font=("Segoe UI", 13),
@@ -462,16 +466,22 @@ class COMApp:
         self.chat_win.deiconify()
         self.chat_win.attributes("-alpha", 0.0)  # Start fully transparent
         self.chat_win.lift()
-        # Force focus to input field after fade completes
-        self.root.after(300, self._focus_input)
+        self.chat_win.focus_force()
         # Start fade-in animation
         self._fade_in_chat()
+        # Force focus to input field immediately and after fade completes
+        self.input_field.focus_force()
+        self.root.after(100, self._focus_input)
+        self.root.after(300, self._focus_input)
 
     def _focus_input(self):
         """Ensure input field gets focus."""
         if self.chat_visible:
             self.input_field.focus_force()
             self.input_field.icursor(tk.END)
+            # Also try to set focus on the chat window itself
+            self.chat_win.focus_set()
+            self.input_field.focus_set()
 
     def _hide_chat(self):
         self.chat_visible = False

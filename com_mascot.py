@@ -381,6 +381,8 @@ class COMApp:
                               padx=(10, 6), ipady=6)
         self.input_field.bind("<Return>",    self._send_message)
         self.input_field.bind("<Key>",       self._on_keypress)
+        # Click-to-focus binding like Thuki
+        self.input_field.bind("<Button-1>",  lambda e: self.input_field.focus_set())
 
         send_btn = tk.Label(
             input_frame, text="▶", font=("Segoe UI", 13),
@@ -461,14 +463,22 @@ class COMApp:
         self.chat_win.deiconify()
         self._fade_in_chat()
         self.chat_win.lift()
-        # Force focus to input field after fade completes
+        # Force focus to input field - multiple attempts like Thuki
+        self.root.after(50, self._focus_input)
+        self.root.after(150, self._focus_input)
         self.root.after(300, self._focus_input)
 
     def _focus_input(self):
-        """Ensure input field gets focus."""
+        """Ensure input field gets focus - retry mechanism like Thuki."""
         if self.chat_visible:
-            self.input_field.focus_force()
-            self.input_field.icursor(tk.END)
+            try:
+                self.input_field.focus_set()
+                self.input_field.focus_force()
+                self.input_field.icursor(tk.END)
+                # Also set focus on the chat window itself
+                self.chat_win.focus_force()
+            except Exception:
+                pass  # Window might be closed
 
     def _hide_chat(self):
         self.chat_visible = False
