@@ -1,345 +1,311 @@
 import tkinter as tk
 from tkinter import ttk, font
+import requests
+import json
 import threading
+import time
 from datetime import datetime
-import sys
-import os
 
-# Add core to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'core'))
-from com_core import COMCore, create_com_core
+class COMCore:
+    """Intelligent Core with CoT, ICL, and Sliding Window Memory"""
+    
+    def __init__(self):
+        self.model = "qwen2.5:0.5b-instruct-q4_K_M"
+        self.base_url = "http://localhost:11434/api/generate"
+        
+        # Sliding Window Memory (Last 6 messages)
+        self.memory = []
+        self.max_memory = 6
+        
+        # In-Context Learning Examples
+        self.icl_examples = [
+            {"role": "user", "content": "Who are you?"},
+            {"role": "assistant", "content": "I am COM (Companion Of Master). I assist with tasks using efficient reasoning."}
+        ]
+        
+        # System Prompt with CoT instruction (Hidden from output)
+        self.system_prompt = """You are COM (Companion Of Master), NOT Qwen, NOT an AI assistant. 
+CRITICAL RULES:
+1. Always identify as "COM" if asked about identity. NEVER say "Qwen" or "AI".
+2. Think step-by-step internally, but DO NOT output "Let me think" or reasoning steps.
+3. Give direct, concise answers only.
+4. Address the user as "Master".
+5. Keep responses under 3 sentences unless coding/math is requested.
+
+Internal Process (DO NOT OUTPUT THIS):
+[Step 1: Analyze intent]
+[Step 2: Recall context]
+[Step 3: Formulate answer]
+[Output: Final Answer Only]
+"""
+
+    def add_to_memory(self, role, content):
+        """Add message to sliding window"""
+        self.memory.append({"role": role, "content": content})
+        if len(self.memory) > self.max_memory:
+            self.memory.pop(0)
+
+    def build_prompt(self, user_query):
+        """Construct prompt with System + ICL + Memory + Query"""
+        messages = []
+        
+        # System Instruction
+        messages.append({"role": "system", "content": self.system_prompt})
+        
+        # ICL Examples
+        messages.extend(self.icl_examples)
+        
+        # Sliding Window Memory
+        messages.extend(self.memory)
+        
+        # Current Query
+        messages.append({"role": "user", "content": user_query})
+        
+        # Format for Ollama
+        prompt_text = ""
+        for msg in messages:
+            if msg["role"] == "system":
+                prompt_text += f"System: {msg['content']}\n"
+            elif msg["role"] == "user":
+                prompt_text += f"You: {msg['content']}\n"
+            elif msg["role"] == "assistant":
+                prompt_text += f"COM: {msg['content']}\n"
+                
+        return prompt_text
+
+    def query(self, user_input, callback=None, status_callback=None):
+        """Non-blocking query with streaming support"""
+        def _run():
+            try:
+                if status_callback:
+                    status_callback("thinking")  # Trigger typing animation
+                
+                prompt = self.build_prompt(user_input)
+                
+                # Call Ollama (Non-streaming to buffer full response first)
+                response = requests.post(
+                    self.base_url,
+                    json={
+                        "model": self.model,
+                        "prompt": prompt,
+                        "stream": False,  # Buffer full response
+                        "options": {
+                            "temperature": 0.7,
+                            "num_predict": 256
+                        }
+                    },
+                    timeout=60
+                )
+                
+                data = response.json()
+                full_response = data.get("response", "")
+                
+                # Clean response (Remove any accidental CoT leakage)
+                clean_response = self._clean_response(full_response)
+                
+                # Update Memory
+                self.add_to_memory("user", user_input)
+                self.add_to_memory("assistant", clean_response)
+                
+                if status_callback:
+                    status_callback("ready")  # Stop typing animation
+                
+                if callback:
+                    callback(clean_response)
+                    
+            except Exception as e:
+                if status_callback:
+                    status_callback("ready")
+                if callback:
+                    callback(f"[Error: Connection failed. Is Ollama running?]")
+        
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _clean_response(self, text):
+        """Remove CoT markers and identity leaks"""
+        lines = text.split('\n')
+        clean_lines = []
+        
+        skip_next = False
+        for line in lines:
+            # Skip CoT phrases
+            if "Let me think" in line or "step by step" in line.lower():
+                continue
+            if line.startswith("[Step") or line.startswith("Internal Process"):
+                continue
+            # Fix identity leaks
+            if "I am Qwen" in line:
+                line = line.replace("I am Qwen", "I am COM")
+            
+            if line.strip():
+                clean_lines.append(line)
+        
+        return "\n".join(clean_lines).strip()
+
 
 class FloatingLLMApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("COM")
-        self.root.geometry("450x600")
-        self.root.minsize(350, 400)
+        self.core = COMCore()
+        
+        # Window Setup
+        self.root.title("COM")  # Fixed: Window title
+        self.root.geometry("350x500")
+        self.root.minsize(300, 400)  # Prevent shrinking too much
         self.root.attributes("-topmost", True)
         self.root.attributes("-alpha", 0.95)
+        self.root.configure(bg="#1a1a1a")
         
-        # Initialize COM Core
-        self.com_core = create_com_core()
+        # Custom Fonts
+        self.font_msg = font.Font(family="Consolas", size=10)
+        self.font_input = font.Font(family="Consolas", size=10)
         
-        # Configure style
-        self.setup_styles()
+        self.create_ui()
+        self.show_welcome()
+
+    def create_ui(self):
+        # Header
+        header = tk.Frame(self.root, bg="#2d2d2d", height=40)
+        header.pack(fill=tk.X, padx=5, pady=5)
+        header.pack_propagate(False)
         
-        # Variables
-        self.is_streaming = False
+        lbl_title = tk.Label(header, text="COM", fg="#00ff00", bg="#2d2d2d", 
+                            font=("Consolas", 12, "bold"))
+        lbl_title.pack(side=tk.LEFT, padx=10, pady=10)
         
-        # Create UI
-        self.create_header()
-        self.create_chat_area()
-        self.create_input_area()
-        self.create_status_bar()
+        # Status Label (For Typing Animation)
+        self.lbl_status = tk.Label(header, text="", fg="#888", bg="#2d2d2d", 
+                                  font=("Consolas", 8))
+        self.lbl_status.pack(side=tk.RIGHT, padx=10, pady=12)
+
+        # Chat Area
+        chat_frame = tk.Frame(self.root, bg="#1a1a1a")
+        chat_frame.pack(expand=True, fill="both", padx=5, pady=5)
         
-        # Bind events
-        self.root.bind("<Control-q>", lambda e: self.root.quit())
-        self.root.bind("<Control-n>", lambda e: self.clear_chat())
-        
-        # Check status and show welcome
-        self.check_connection()
-        
-    def setup_styles(self):
-        """Configure custom styles for the application"""
-        style = ttk.Style()
-        style.theme_use('clam')
-        
-        # Custom fonts
-        self.header_font = font.Font(family="Segoe UI", size=12, weight="bold")
-        self.chat_font = font.Font(family="Consolas", size=10)
-        self.input_font = font.Font(family="Segoe UI", size=11)
-        self.status_font = font.Font(family="Segoe UI", size=8)
-        
-        # Color scheme
-        self.colors = {
-            'bg_dark': '#1a1a2e',
-            'bg_medium': '#16213e',
-            'bg_light': '#0f3460',
-            'accent': '#e94560',
-            'text_primary': '#ffffff',
-            'text_secondary': '#a0a0a0',
-            'user_msg_bg': '#0f3460',
-            'ai_msg_bg': '#1a1a2e',
-            'input_bg': '#0f0f1a',
-            'success': '#4ade80',
-            'error': '#f87171'
-        }
-        
-        self.root.configure(bg=self.colors['bg_dark'])
-        
-    def create_header(self):
-        """Create the header section"""
-        header_frame = tk.Frame(self.root, bg=self.colors['bg_medium'], height=50)
-        header_frame.pack(fill=tk.X, padx=0, pady=0)
-        header_frame.pack_propagate(False)
-        
-        # Title
-        title_label = tk.Label(
-            header_frame, 
-            text="🤖 COM", 
-            font=self.header_font,
-            bg=self.colors['bg_medium'],
-            fg=self.colors['text_primary']
-        )
-        title_label.pack(side=tk.LEFT, padx=15, pady=10)
-        
-        # Clear button
-        clear_btn = tk.Button(
-            header_frame,
-            text="🗑️ Clear",
-            command=self.clear_chat,
-            bg=self.colors['accent'],
-            fg=self.colors['text_primary'],
-            font=("Segoe UI", 9),
-            border=0,
-            cursor="hand2",
-            padx=10,
-            pady=5
-        )
-        clear_btn.pack(side=tk.RIGHT, padx=10, pady=10)
-        clear_btn.bind("<Enter>", lambda e: clear_btn.config(bg='#ff6b7a'))
-        clear_btn.bind("<Leave>", lambda e: clear_btn.config(bg=self.colors['accent']))
-        
-    def create_chat_area(self):
-        """Create the chat history area"""
-        chat_frame = tk.Frame(self.root, bg=self.colors['bg_dark'])
-        chat_frame.pack(expand=True, fill="both", padx=10, pady=10)
-        
-        # Chat display with scrollbar
-        self.chat_history = tk.Text(
-            chat_frame,
-            bg=self.colors['bg_dark'],
-            fg=self.colors['text_primary'],
-            font=self.chat_font,
-            wrap=tk.WORD,
-            border=0,
-            highlightthickness=0,
-            selectbackground=self.colors['bg_light'],
-            selectforeground=self.colors['text_primary'],
-            cursor="arrow"
-        )
+        self.chat_history = tk.Text(chat_frame, bg="#000", fg="#fff", 
+                                   font=self.font_msg, wrap=tk.WORD,
+                                   bd=0, highlightthickness=1, highlightbackground="#333")
         self.chat_history.pack(side=tk.LEFT, expand=True, fill="both")
+        self.chat_history.config(state=tk.DISABLED)
         
-        # Scrollbar
         scrollbar = ttk.Scrollbar(chat_frame, command=self.chat_history.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.chat_history.config(yscrollcommand=scrollbar.set)
         
-        # Configure tags for different message types
-        self.chat_history.tag_configure("user_tag", 
-                                       background=self.colors['user_msg_bg'],
-                                       foreground=self.colors['text_primary'],
-                                       lmargin1=10, lmargin2=10, rmargin=10,
-                                       spacing1=5, spacing2=5, spacing3=5)
-        self.chat_history.tag_configure("ai_tag",
-                                       background=self.colors['ai_msg_bg'],
-                                       foreground=self.colors['text_primary'],
-                                       lmargin1=10, lmargin2=10, rmargin=10,
-                                       spacing1=5, spacing2=5, spacing3=5)
-        self.chat_history.tag_configure("error_tag",
-                                       foreground=self.colors['error'],
-                                       lmargin1=10, lmargin2=10, rmargin=10,
-                                       spacing1=3, spacing2=3, spacing3=3)
-        self.chat_history.tag_configure("system_tag",
-                                       foreground=self.colors['text_secondary'],
-                                       lmargin1=10, lmargin2=10, rmargin=10,
-                                       spacing1=3, spacing2=3, spacing3=3,
-                                       font=("Segoe UI", 9, "italic"))
-        
-        # Make text read-only (except for insertions)
-        self.chat_history.config(state='normal')
-        
-    def create_input_area(self):
-        """Create the input area"""
-        input_frame = tk.Frame(self.root, bg=self.colors['bg_medium'])
-        input_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        # Input field
-        self.user_input = tk.Entry(
-            input_frame,
-            bg=self.colors['input_bg'],
-            fg=self.colors['text_primary'],
-            font=self.input_font,
-            border=0,
-            highlightthickness=2,
-            highlightbackground=self.colors['bg_light'],
-            highlightcolor=self.colors['accent'],
-            insertbackground=self.colors['text_primary']
-        )
-        self.user_input.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 10), ipady=5)
-        self.user_input.bind("<Return>", self.send_message)
-        self.user_input.bind("<Shift-Return>", lambda e: None)  # Allow Shift+Enter
-        
-        # Send button
-        send_btn = tk.Button(
-            input_frame,
-            text="➤ Send",
-            command=lambda: self.send_message(None),
-            bg=self.colors['accent'],
-            fg=self.colors['text_primary'],
-            font=("Segoe UI", 10, "bold"),
-            border=0,
-            cursor="hand2",
-            padx=15,
-            pady=8
-        )
-        send_btn.pack(side=tk.RIGHT, fill=tk.Y)
-        send_btn.bind("<Enter>", lambda e: send_btn.config(bg='#ff6b7a'))
-        send_btn.bind("<Leave>", lambda e: send_btn.config(bg=self.colors['accent']))
-        
-        # Placeholder text functionality
-        self.user_input.insert(0, "Type your message... (Press Enter to send)")
-        self.user_input.bind("<FocusIn>", self.on_focus_in)
-        self.user_input.bind("<FocusOut>", self.on_focus_out)
-        self.placeholder_shown = True
-        
-    def create_status_bar(self):
-        """Create the status bar"""
-        status_frame = tk.Frame(self.root, bg=self.colors['bg_medium'], height=25)
-        status_frame.pack(fill=tk.X, side=tk.BOTTOM)
-        status_frame.pack_propagate(False)
-        
-        self.status_label = tk.Label(
-            status_frame,
-            text="Model: qwen2.5:0.5b-instruct-q4_K_M | Ready",
-            font=self.status_font,
-            bg=self.colors['bg_medium'],
-            fg=self.colors['text_secondary']
-        )
-        self.status_label.pack(side=tk.LEFT, padx=10)
-        
-        # Connection indicator
-        self.connection_indicator = tk.Canvas(
-            status_frame, width=10, height=10, 
-            bg=self.colors['bg_medium'], highlightthickness=0
-        )
-        self.connection_indicator.pack(side=tk.RIGHT, padx=10)
-        self.connection_indicator.create_oval(2, 2, 8, 8, fill=self.colors['success'], outline="")
-        
-    def on_focus_in(self, event):
-        """Handle focus in event for placeholder"""
-        if self.placeholder_shown:
-            self.user_input.delete(0, tk.END)
-            self.placeholder_shown = False
-            
-    def on_focus_out(self, event):
-        """Handle focus out event for placeholder"""
-        if not self.user_input.get():
-            self.user_input.insert(0, "Type your message... (Press Enter to send)")
-            self.placeholder_shown = True
-            
-    def send_message(self, event):
-        """Send user message to LLM"""
-        query = self.user_input.get().strip()
-        
-        # Don't send if placeholder is shown or empty
-        if self.placeholder_shown or not query:
-            return
-            
-        # Don't send while streaming
-        if self.is_streaming:
-            return
-        
-        # Add user message to chat
-        timestamp = datetime.now().strftime("%H:%M")
-        self.chat_history.insert(tk.END, f"\n[{timestamp}] You: {query}\n", "user_tag")
-        self.chat_history.see(tk.END)
-        
-        # Clear input
-        self.user_input.delete(0, tk.END)
-        self.placeholder_shown = True
-        self.user_input.insert(0, "Type your message... (Press Enter to send)")
-        
-        # Disable input during generation
-        self.is_streaming = True
-        self.update_status("Generating response...", "warning")
-        
-        # Start generation in separate thread using COM Core
-        thread = threading.Thread(target=self.generate_response_core, args=(query,))
-        thread.daemon = True
-        thread.start()
-        
-    def generate_response_core(self, query):
-        """Generate response using COM Core (runs in separate thread)"""
-        try:
-            def stream_callback(chunk):
-                # Update UI in main thread
-                self.root.after(0, lambda c=chunk: self.chat_history.insert(
-                    tk.END, c, "ai_tag"
-                ))
-                self.root.after(0, lambda: self.chat_history.see(tk.END))
-            
-            # Process with COM Core
-            response = self.com_core.process_query(query, callback=stream_callback)
-            
-            # Add newline after response
-            self.root.after(0, lambda: self.chat_history.insert(tk.END, "\n", "ai_tag"))
-            self.root.after(0, lambda: self.update_status("Model: qwen2.5:0.5b-instruct-q4_K_M | Ready", "success"))
-            
-        except Exception as e:
-            self.root.after(0, lambda: self.handle_error(f"Error: {str(e)}"))
-        finally:
-            self.root.after(0, lambda: setattr(self, 'is_streaming', False))
-            
-    def generate_response(self, query):
-        """Legacy method - deprecated, use generate_response_core instead"""
-        pass  # This method is no longer used
-            
-    def handle_error(self, error_msg):
-        """Handle and display errors"""
-        self.chat_history.insert(tk.END, f"\n⚠️ {error_msg}\n", "error_tag")
-        self.chat_history.see(tk.END)
-        self.update_status("Error occurred", "error")
-        
-    def update_status(self, message, status_type="info"):
-        """Update status bar"""
-        self.status_label.config(text=message)
-        
-        # Update connection indicator color
-        colors = {
-            "success": self.colors['success'],
-            "error": self.colors['error'],
-            "warning": '#fbbf24',
-            "info": self.colors['success']
-        }
-        
-        items = self.connection_indicator.find_all()
-        if items:
-            self.connection_indicator.itemconfig(items[-1], fill=colors.get(status_type, self.colors['success']))
-            
-    def check_connection(self):
-        """Check if Ollama is running using COM Core"""
-        status = self.com_core.check_status()
-        if not status["ollama_running"]:
-            raise ConnectionError("Cannot connect to Ollama")
-        return True
-            
-    def clear_chat(self):
-        """Clear chat history"""
-        self.chat_history.delete(1.0, tk.END)
-        self.com_core.clear_memory()
-        self.update_status("Model: qwen2.5:0.5b-instruct-q4_K_M | Ready", "success")
-        self.chat_history.insert(tk.END, "💬 Chat cleared. Start a new conversation!\n", "system_tag")
+        # Tags for coloring
+        self.chat_history.tag_config("user", foreground="#00ccff")
+        self.chat_history.tag_config("com", foreground="#00ff00")
+        self.chat_history.tag_config("sys", foreground="#ffff00")
+        self.chat_history.tag_config("time", foreground="#555555")
 
+        # Input Area
+        input_frame = tk.Frame(self.root, bg="#2d2d2d")
+        input_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        self.user_input = tk.Entry(input_frame, bg="#333", fg="#fff", 
+                                  font=self.font_input, bd=0, insertbackground="#00ff00")
+        self.user_input.pack(side=tk.LEFT, expand=True, fill=tk.X, ipady=5, padx=(0, 5))
+        self.user_input.bind("<Return>", self.send_message)
+        self.user_input.insert(0, "Ask COM...")
+        self.user_input.bind("<FocusIn>", self.clear_placeholder)
+        self.user_input.bind("<FocusOut>", self.restore_placeholder)
+        self.placeholder_active = True
+        
+        send_btn = tk.Button(input_frame, text="➤", bg="#006600", fg="white",
+                            font=("Consolas", 10, "bold"), bd=0,
+                            command=lambda: self.send_message(None))
+        send_btn.pack(side=tk.RIGHT, ipadx=10, ipady=2)
+
+        # Typing Animation State
+        self.is_typing = False
+        self.typing_dots = 0
+        self.typing_job = None
+
+    def clear_placeholder(self, event):
+        if self.placeholder_active:
+            self.user_input.delete(0, tk.END)
+            self.placeholder_active = False
+
+    def restore_placeholder(self, event):
+        if not self.user_input.get():
+            self.user_input.insert(0, "Ask COM...")
+            self.placeholder_active = True
+
+    def show_welcome(self):
+        self.append_message("System", "COM Core Initialized.", "sys")
+        self.append_message("System", "Memory: Active (Sliding Window)", "sys")
+        self.append_message("System", "Mode: CoT + ICL (Light)", "sys")
+        self.append_message("COM", "Ready for your command, Master.", "com")
+
+    def append_message(self, sender, text, tag):
+        self.chat_history.config(state=tk.NORMAL)
+        timestamp = datetime.now().strftime("[%H:%M]")
+        
+        self.chat_history.insert(tk.END, f"\n{timestamp} ", "time")
+        if sender != "System":
+            self.chat_history.insert(tk.END, f"{sender}: ", tag)
+        self.chat_history.insert(tk.END, f"{text}\n")
+        
+        self.chat_history.see(tk.END)
+        self.chat_history.config(state=tk.DISABLED)
+
+    def start_typing_animation(self):
+        """Start the '...' blinking animation"""
+        self.is_typing = True
+        self.typing_dots = 0
+        self.lbl_status.config(text="typing", fg="#00ff00")
+        self._animate_dots()
+
+    def _animate_dots(self):
+        """Update dots every 500ms"""
+        if self.is_typing:
+            self.typing_dots = (self.typing_dots + 1) % 4
+            dot_text = "." * self.typing_dots
+            self.lbl_status.config(text=f"typing{dot_text}")
+            self.typing_job = self.root.after(500, self._animate_dots)
+
+    def stop_typing_animation(self):
+        """Stop the animation"""
+        self.is_typing = False
+        if self.typing_job:
+            self.root.after_cancel(self.typing_job)
+        self.lbl_status.config(text="")
+
+    def send_message(self, event):
+        if self.placeholder_active:
+            return
+            
+        query = self.user_input.get().strip()
+        if not query:
+            return
+            
+        self.user_input.delete(0, tk.END)
+        self.append_message("You", query, "user")
+        
+        # Start Typing Animation
+        self.start_typing_animation()
+        
+        # Query Core
+        self.core.query(query, 
+                       callback=self.on_response, 
+                       status_callback=self.on_status_change)
+
+    def on_status_change(self, status):
+        """Handle status updates from core"""
+        if status == "thinking":
+            self.start_typing_animation()
+        elif status == "ready":
+            self.stop_typing_animation()
+
+    def on_response(self, response):
+        """Display final response"""
+        self.stop_typing_animation()  # Ensure animation stops
+        self.append_message("COM", response, "com")
 
 def main():
     root = tk.Tk()
-    
-    # Set window icon (optional, requires .ico file)
-    # root.iconbitmap("icon.ico")
-    
     app = FloatingLLMApp(root)
-    
-    # Add welcome message
-    root.after(100, lambda: app.chat_history.insert(
-        tk.END, 
-        "✨ Welcome to COM!\nType your message below and press Enter.\n\n",
-        "system_tag"
-    ))
-    
     root.mainloop()
-
 
 if __name__ == "__main__":
     main()
