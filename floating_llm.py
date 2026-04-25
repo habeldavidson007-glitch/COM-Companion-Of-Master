@@ -111,7 +111,7 @@ class FloatingLLMApp:
             selectforeground=self.colors['text_primary'],
             cursor="arrow"
         )
-        self.chat_history.pack(side=tk.LEFT, expand=True, fill="both", fillx=True)
+        self.chat_history.pack(side=tk.LEFT, expand=True, fill="both")
         
         # Scrollbar
         scrollbar = ttk.Scrollbar(chat_frame, command=self.chat_history.yview)
