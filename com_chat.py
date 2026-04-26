@@ -34,6 +34,7 @@ class COMDesktopApp:
         self.is_processing = False
         self.current_file_path = None
         self._window_closed = False
+        threading.Thread(target=self.com_brain.client.warmup, daemon=True).start()
         
     def create_mascot(self):
         """Create floating mascot window that opens chat on click"""
@@ -308,10 +309,11 @@ class COMDesktopApp:
         # Process in background thread
         self.is_processing = True
         self.status_label.config(text="Processing...")
-        self.messages_text.config(state=tk.DISABLED)
-        
+        self.messages_text.config(state=tk.NORMAL)
+
         # Create placeholder for assistant response
-        self.messages_text.insert(tk.END, '\n')
+        self.messages_text.insert(tk.END, 'COM: ')
+        self.messages_text.see(tk.END)
         
         def process_thread():
             try:
@@ -352,6 +354,7 @@ class COMDesktopApp:
         
     def _append_to_last_message(self, chunk):
         """Append chunk to the last message being written"""
+        self.messages_text.config(state=tk.NORMAL)
         self.messages_text.insert(tk.END, chunk)
         self.messages_text.see(tk.END)
         
@@ -359,7 +362,6 @@ class COMDesktopApp:
         """Mark processing as complete"""
         self.is_processing = False
         self.status_label.config(text="Ready")
-        self.messages_text.config(state=tk.NORMAL)
         self.messages_text.insert(tk.END, '\n\n')
         self.messages_text.see(tk.END)
         
