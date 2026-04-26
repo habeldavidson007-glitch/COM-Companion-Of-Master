@@ -33,6 +33,7 @@ class COMDesktopApp:
         self.messages: List[Dict] = []
         self.is_processing = False
         self.current_file_path = None
+        self._window_closed = False
         
     def create_mascot(self):
         """Create floating mascot window that opens chat on click"""
@@ -164,6 +165,17 @@ class COMDesktopApp:
         x = (screen_width - 600) // 2
         y = (screen_height - 700) // 2
         self.chat_window.geometry(f"600x700+{x}+{y}")
+        
+        # Handle window close event
+        def on_close():
+            self._window_closed = True
+            self.chat_window.destroy()
+            self.chat_window = None
+        
+        self.chat_window.protocol("WM_DELETE_WINDOW", on_close)
+        
+        # Reset window closed flag when reopening
+        self._window_closed = False
         
         # Create UI components
         self._create_chat_ui()
@@ -305,14 +317,19 @@ class COMDesktopApp:
             try:
                 response_chunks = []
                 
+                def safe_ui_update(func):
+                    """Safely update UI, handling window closure"""
+                    if not hasattr(self, '_window_closed'):
+                        try:
+                            if self.chat_window and self.chat_window.winfo_exists():
+                                self.chat_window.after(0, func)
+                        except (RuntimeError, AttributeError):
+                            pass
+                
                 def callback(chunk):
                     response_chunks.append(chunk)
-                    # Update UI in main thread (check if window still exists)
-                    if self.chat_window and self.chat_window.winfo_exists():
-                        try:
-                            self.chat_window.after(0, lambda c=chunk: self._append_to_last_message(c))
-                        except RuntimeError:
-                            pass  # Window closed, ignore
+                    # Safely update UI in main thread
+                    safe_ui_update(lambda c=chunk: self._append_to_last_message(c))
                 
                 response = self.com_brain.process_query(user_input, callback=callback)
                 
@@ -320,26 +337,15 @@ class COMDesktopApp:
                 if is_signal(response):
                     prefix, payload = parse_signal(response)
                     tool_result = self._execute_signal(prefix, payload)
-                    if tool_result and self.chat_window and self.chat_window.winfo_exists():
-                        try:
-                            self.chat_window.after(0, lambda r=tool_result: self._add_system_message(r))
-                        except RuntimeError:
-                            pass
+                    if tool_result:
+                        safe_ui_update(lambda r=tool_result: self._add_system_message(r))
                 
-                if self.chat_window and self.chat_window.winfo_exists():
-                    try:
-                        self.chat_window.after(0, lambda: self._finish_processing())
-                    except RuntimeError:
-                        pass
+                safe_ui_update(lambda: self._finish_processing())
                 
             except Exception as e:
                 error_msg = f"Error: {str(e)}"
-                if self.chat_window and self.chat_window.winfo_exists():
-                    try:
-                        self.chat_window.after(0, lambda m=error_msg: self._add_system_message(m, tag='error'))
-                        self.chat_window.after(0, lambda: self._finish_processing())
-                    except RuntimeError:
-                        pass
+                safe_ui_update(lambda m=error_msg: self._add_system_message(m, tag='error'))
+                safe_ui_update(lambda: self._finish_processing())
         
         thread = threading.Thread(target=process_thread, daemon=True)
         thread.start()
