@@ -19,7 +19,8 @@ Usage:
 
 import re
 import hashlib
-from typing import Dict, List, Any, Optional
+import time
+from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass
 from enum import Enum
 from collections import OrderedDict
@@ -585,48 +586,215 @@ def execute_signal(signal: str, skip_health_check: bool = False, use_cache: bool
     return result
 
 
-def _execute_excel(payload: str) -> str:
-    """Execute Excel tool with payload."""
-    try:
-        from tools.excel_tool import run as excel_run
-        return excel_run(payload)
-    except ImportError as e:
-        return f"❌ Excel tool not available: {str(e)}"
-    except Exception as e:
-        return f"❌ Excel execution failed: {str(e)}"
+def _execute_excel(payload: str, retry_count: int = 3) -> str:
+    """
+    Execute Excel tool with payload and retry logic.
+    
+    Args:
+        payload: Tool payload string
+        retry_count: Number of retry attempts (default: 3)
+        
+    Returns:
+        Execution result or error message
+    """
+    last_error = None
+    
+    for attempt in range(1, retry_count + 1):
+        try:
+            from tools.excel_tool import run as excel_run
+            return excel_run(payload)
+        except (ImportError, PermissionError, OSError) as e:
+            last_error = e
+            # Don't retry on ImportError (missing dependency)
+            if isinstance(e, ImportError):
+                return f"❌ Excel tool not available: {str(e)}"
+            
+            # Retry on file system errors with exponential backoff
+            if attempt < retry_count:
+                delay = 2 ** (attempt - 1)  # 1s, 2s, 4s...
+                time.sleep(delay)
+                continue
+        except Exception as e:
+            last_error = e
+            # For unexpected errors, attempt one retry then fail gracefully
+            if attempt < retry_count:
+                time.sleep(1)
+                continue
+    
+    # All retries failed - provide fallback
+    return _handle_tool_failure("@XLS", payload, last_error, retry_count)
 
 
-def _execute_ppt(payload: str) -> str:
-    """Execute PowerPoint tool with payload."""
-    try:
-        from tools.ppt_tool import run as ppt_run
-        return ppt_run(payload)
-    except ImportError as e:
-        return f"❌ PPT tool not available: {str(e)}"
-    except Exception as e:
-        return f"❌ PPT execution failed: {str(e)}"
+def _execute_ppt(payload: str, retry_count: int = 3) -> str:
+    """
+    Execute PowerPoint tool with payload and retry logic.
+    
+    Args:
+        payload: Tool payload string
+        retry_count: Number of retry attempts (default: 3)
+        
+    Returns:
+        Execution result or error message
+    """
+    last_error = None
+    
+    for attempt in range(1, retry_count + 1):
+        try:
+            from tools.ppt_tool import run as ppt_run
+            return ppt_run(payload)
+        except (ImportError, PermissionError, OSError) as e:
+            last_error = e
+            if isinstance(e, ImportError):
+                return f"❌ PPT tool not available: {str(e)}"
+            
+            if attempt < retry_count:
+                delay = 2 ** (attempt - 1)
+                time.sleep(delay)
+                continue
+        except Exception as e:
+            last_error = e
+            if attempt < retry_count:
+                time.sleep(1)
+                continue
+    
+    return _handle_tool_failure("@PPT", payload, last_error, retry_count)
 
 
-def _execute_pdf(payload: str) -> str:
-    """Execute PDF tool with payload."""
-    try:
-        from tools.pdf_tool import run as pdf_run
-        return pdf_run(payload)
-    except ImportError as e:
-        return f"❌ PDF tool not available: {str(e)}"
-    except Exception as e:
-        return f"❌ PDF execution failed: {str(e)}"
+def _execute_pdf(payload: str, retry_count: int = 3) -> str:
+    """
+    Execute PDF tool with payload and retry logic.
+    
+    Args:
+        payload: Tool payload string
+        retry_count: Number of retry attempts (default: 3)
+        
+    Returns:
+        Execution result or error message
+    """
+    last_error = None
+    
+    for attempt in range(1, retry_count + 1):
+        try:
+            from tools.pdf_tool import run as pdf_run
+            return pdf_run(payload)
+        except (ImportError, PermissionError, OSError) as e:
+            last_error = e
+            if isinstance(e, ImportError):
+                return f"❌ PDF tool not available: {str(e)}"
+            
+            if attempt < retry_count:
+                delay = 2 ** (attempt - 1)
+                time.sleep(delay)
+                continue
+        except Exception as e:
+            last_error = e
+            if attempt < retry_count:
+                time.sleep(1)
+                continue
+    
+    return _handle_tool_failure("@PDF", payload, last_error, retry_count)
 
 
-def _execute_godot(payload: str) -> str:
-    """Execute Godot tool with payload."""
-    try:
-        from tools.godot_tool import run as godot_run
-        return godot_run(payload)
-    except ImportError as e:
-        return f"❌ Godot tool not available: {str(e)}"
-    except Exception as e:
-        return f"❌ Godot execution failed: {str(e)}"
+def _execute_godot(payload: str, retry_count: int = 3) -> str:
+    """
+    Execute Godot tool with payload and retry logic.
+    
+    Args:
+        payload: Tool payload string
+        retry_count: Number of retry attempts (default: 3)
+        
+    Returns:
+        Execution result or error message
+    """
+    last_error = None
+    
+    for attempt in range(1, retry_count + 1):
+        try:
+            from tools.godot_tool import run as godot_run
+            return godot_run(payload)
+        except (ImportError, ConnectionRefusedError, TimeoutError) as e:
+            last_error = e
+            if isinstance(e, ImportError):
+                return f"❌ Godot tool not available: {str(e)}"
+            
+            if attempt < retry_count:
+                delay = 2 ** (attempt - 1)
+                time.sleep(delay)
+                continue
+        except Exception as e:
+            last_error = e
+            if attempt < retry_count:
+                time.sleep(1)
+                continue
+    
+    return _handle_tool_failure("@GODOT", payload, last_error, retry_count)
+
+
+def _handle_tool_failure(tool_name: str, payload: str, error: Exception, attempts: int) -> str:
+    """
+    Handle tool execution failure after all retries exhausted.
+    Creates a fallback response with detailed error context for the LLM.
+    
+    Args:
+        tool_name: Name of the failed tool
+        payload: Original payload that caused the failure
+        error: The exception that was raised
+        attempts: Number of retry attempts made
+        
+    Returns:
+        Formatted error message with recovery suggestions
+    """
+    error_type = type(error).__name__
+    error_msg = str(error)
+    
+    # Create fallback file for certain error types (graceful degradation)
+    fallback_created = False
+    if error_type in ["PermissionError", "OSError"]:
+        try:
+            # Attempt to create a placeholder file explaining the error
+            if tool_name == "@XLS":
+                fallback_file = f"{payload.split(':')[0] if ':' in payload else 'error'}.txt"
+            elif tool_name == "@PPT":
+                fallback_file = f"{payload.split(':')[0] if ':' in payload else 'error'}.txt"
+            elif tool_name == "@PDF":
+                fallback_file = f"{payload.split(':')[0] if ':' in payload else 'error'}.txt"
+            elif tool_name == "@GODOT":
+                fallback_file = f"{payload.replace(':', '_')}.error.txt"
+            else:
+                fallback_file = "tool_error.txt"
+            
+            with open(fallback_file, 'w') as f:
+                f.write(f"Tool Execution Failed\n")
+                f.write(f"Tool: {tool_name}\n")
+                f.write(f"Payload: {payload}\n")
+                f.write(f"Error: {error_msg}\n")
+                f.write(f"Attempts: {attempts}\n")
+                f.write(f"\nPlease resolve the issue and try again.\n")
+            
+            fallback_created = True
+        except Exception:
+            pass  # If we can't even write the error file, just return the error
+    
+    # Build detailed error context for LLM
+    fallback_msg = []
+    fallback_msg.append(f"❌ {tool_name} failed after {attempts} attempt(s)")
+    fallback_msg.append(f"   Error Type: {error_type}")
+    fallback_msg.append(f"   Error: {error_msg}")
+    
+    if fallback_created:
+        fallback_msg.append(f"   Fallback: Created error log at '{fallback_file}'")
+    
+    # Add recovery suggestions based on error type
+    if error_type == "PermissionError":
+        fallback_msg.append("   Suggestion: Check if the file is open in another program or if you have write permissions.")
+    elif error_type == "OSError":
+        fallback_msg.append("   Suggestion: Check disk space and file system permissions.")
+    elif error_type == "ConnectionRefusedError":
+        fallback_msg.append("   Suggestion: Ensure the target service/engine is running and accessible.")
+    elif error_type == "TimeoutError":
+        fallback_msg.append("   Suggestion: The operation took too long. Try simplifying the request or check system resources.")
+    
+    return "\n".join(fallback_msg)
 
 
 def get_available_tools() -> List[Dict[str, Any]]:
