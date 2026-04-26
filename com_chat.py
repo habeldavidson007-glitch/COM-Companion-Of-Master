@@ -7,6 +7,7 @@ Native file dialogs for Excel/PDF/PPT operations
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, filedialog, simpledialog
 import threading
+import queue
 import os
 import sys
 from datetime import datetime
@@ -34,6 +35,8 @@ class COMDesktopApp:
         self.is_processing = False
         self.current_file_path = None
         self._window_closed = False
+        self._ui_queue = queue.Queue()
+        threading.Thread(target=self.com_brain.client.warmup, daemon=True).start()
         
     def create_mascot(self):
         """Create floating mascot window that opens chat on click"""
@@ -176,6 +179,7 @@ class COMDesktopApp:
         
         # Reset window closed flag when reopening
         self._window_closed = False
+        self._pump_ui_queue()
         
         # Create UI components
         self._create_chat_ui()
@@ -308,10 +312,11 @@ class COMDesktopApp:
         # Process in background thread
         self.is_processing = True
         self.status_label.config(text="Processing...")
-        self.messages_text.config(state=tk.DISABLED)
-        
+        self.messages_text.config(state=tk.NORMAL)
+
         # Create placeholder for assistant response
-        self.messages_text.insert(tk.END, '\n')
+        self.messages_text.insert(tk.END, 'COM: ')
+        self.messages_text.see(tk.END)
         
         def process_thread():
             try:
@@ -319,12 +324,9 @@ class COMDesktopApp:
                 
                 def safe_ui_update(func):
                     """Safely update UI, handling window closure"""
-                    if not hasattr(self, '_window_closed'):
-                        try:
-                            if self.chat_window and self.chat_window.winfo_exists():
-                                self.chat_window.after(0, func)
-                        except (RuntimeError, AttributeError):
-                            pass
+                    if self._window_closed:
+                        return
+                    self._ui_queue.put(func)
                 
                 def callback(chunk):
                     response_chunks.append(chunk)
@@ -340,18 +342,30 @@ class COMDesktopApp:
                     if tool_result:
                         safe_ui_update(lambda r=tool_result: self._add_system_message(r))
                 
-                safe_ui_update(lambda: self._finish_processing())
-                
             except Exception as e:
                 error_msg = f"Error: {str(e)}"
                 safe_ui_update(lambda m=error_msg: self._add_system_message(m, tag='error'))
+            finally:
                 safe_ui_update(lambda: self._finish_processing())
         
         thread = threading.Thread(target=process_thread, daemon=True)
         thread.start()
+
+    def _pump_ui_queue(self):
+        """Run queued UI updates from main thread."""
+        if self._window_closed or not self.chat_window or not self.chat_window.winfo_exists():
+            return
+        try:
+            while True:
+                func = self._ui_queue.get_nowait()
+                func()
+        except queue.Empty:
+            pass
+        self.chat_window.after(33, self._pump_ui_queue)
         
     def _append_to_last_message(self, chunk):
         """Append chunk to the last message being written"""
+        self.messages_text.config(state=tk.NORMAL)
         self.messages_text.insert(tk.END, chunk)
         self.messages_text.see(tk.END)
         
@@ -359,7 +373,6 @@ class COMDesktopApp:
         """Mark processing as complete"""
         self.is_processing = False
         self.status_label.config(text="Ready")
-        self.messages_text.config(state=tk.NORMAL)
         self.messages_text.insert(tk.END, '\n\n')
         self.messages_text.see(tk.END)
         
