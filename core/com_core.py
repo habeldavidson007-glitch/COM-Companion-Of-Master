@@ -327,6 +327,15 @@ class COMCore:
             r"\bcreate\s+.*\.(gd|tscn)\b",
             r"\b(player|scene|node|physics)\b.*\b(script|godot)\b",
         ]
+        self._salience_patterns = [
+            # user preference/constraints
+            r"\b(i prefer|i like|i don't like|my preference|must|should|avoid|always)\b",
+            # explicit task/decision markers
+            r"\b(todo|task|plan|decide|decision|final|use this|do this|next step)\b",
+            # factual anchors
+            r"\b\d{4}\b",                   # year
+            r"\b\d+(?:\.\d+)?\s?(gb|mb|ms|s|sec|seconds|minutes|hours|%)\b",
+        ]
 
     def _normalize_query(self, query: str) -> str:
         """Lowercase + strip punctuation for deterministic fast-path checks."""
@@ -414,6 +423,20 @@ class COMCore:
             return cleaned
 
         return cleaned
+
+    def _is_salient_text(self, text: str) -> bool:
+        """Heuristic salience check for low-RAM memory retention."""
+        normalized = self._normalize_query(text)
+        if len(normalized.split()) >= 28:
+            return True
+        return any(re.search(pattern, normalized) for pattern in self._salience_patterns)
+
+    def _should_store_general_turn(self, user_text: str, assistant_text: str) -> bool:
+        """
+        Keep only salient GENERAL turns to improve memory quality on small context.
+        Store if either side contains preference/fact/decision-like signals.
+        """
+        return self._is_salient_text(user_text) or self._is_salient_text(assistant_text)
     
     def check_status(self) -> Dict:
         """Check system status"""
@@ -521,8 +544,9 @@ class COMCore:
             
             # PHASE 2: Store in sliding window memory (GENERAL only)
             if mode == "GENERAL":
-                self.memory.add_message("user", query)
-                self.memory.add_message("assistant", full_response)
+                if self._should_store_general_turn(query, full_response):
+                    self.memory.add_message("user", query)
+                    self.memory.add_message("assistant", full_response)
                 
                 # Check if we should compress old messages
                 if len(self.memory.history) >= self.memory.max_messages:
