@@ -542,7 +542,7 @@ if __name__ == "__main__":
         
         if status["ollama_running"]:
             print("\n--- Live LLM Test ---")
-            print("Query: 'siapa kamu?'\")
+            print("Query: 'siapa kamu?'")
             response = com.process_query("siapa kamu?", callback=print)
             print(f"\n\nFull response received: {len(response)} characters")
             print(f"Is signal: {is_signal(response)}")
