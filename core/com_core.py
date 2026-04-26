@@ -395,6 +395,32 @@ class COMCore:
                 return "GODOT"
         return None
 
+    def _route_with_confidence(self, normalized_query: str, raw_query: str) -> Tuple[str, float]:
+        """Route query and estimate confidence using cheap lexical signals."""
+        office_hits = sum(1 for p in self._office_route_patterns if re.search(p, normalized_query))
+        godot_hits = sum(1 for p in self._godot_route_patterns if re.search(p, normalized_query))
+
+        if office_hits > 0 and godot_hits == 0:
+            return "OFFICE", min(1.0, 0.7 + 0.15 * office_hits)
+        if godot_hits > 0 and office_hits == 0:
+            return "GODOT", min(1.0, 0.7 + 0.15 * godot_hits)
+        if office_hits > 0 and godot_hits > 0:
+            return self.router.route(raw_query), 0.4
+
+        # Fallback to router when no regex signal.
+        mode = self.router.route(raw_query)
+        # Short/vague queries are lower confidence for small models.
+        confidence = 0.45 if len(normalized_query.split()) >= 5 else 0.3
+        return mode, confidence
+
+    def _clarification_question(self, mode: str) -> str:
+        """One short clarification when route confidence is low."""
+        if mode == "OFFICE":
+            return "• Quick check: do you want a file action (Excel/PDF/PPT) or a normal explanation?"
+        if mode == "GODOT":
+            return "• Quick check: do you want Godot code output or a general explanation?"
+        return "• Quick check: should I answer generally, or create a file/code output?"
+
     def _repair_output(self, mode: str, text: str) -> str:
         """Repair common output format drift for OFFICE/GODOT responses."""
         cleaned = text.strip()
@@ -423,6 +449,15 @@ class COMCore:
             return cleaned
 
         return cleaned
+
+    def _is_valid_mode_output(self, mode: str, text: str) -> bool:
+        """Schema validation for confidence-based fallback policy."""
+        cleaned = text.strip()
+        if mode == "OFFICE":
+            return bool(re.match(r"^@(XLS|PDF|PPT):.+", cleaned))
+        if mode == "GODOT":
+            return bool(cleaned.startswith("@GDT:") or "func " in cleaned or "extends " in cleaned)
+        return True
 
     def _is_salient_text(self, text: str) -> bool:
         """Heuristic salience check for low-RAM memory retention."""
@@ -472,8 +507,14 @@ class COMCore:
                     callback(quick)
                 return quick
 
-            # Regex fast-route first, then router fallback.
-            mode = self._regex_route(normalized_query) or self.router.route(query)
+            mode, route_conf = self._route_with_confidence(normalized_query, query)
+            if route_conf < 0.35:
+                clarification = self._clarification_question(mode)
+                if callback:
+                    callback(clarification)
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                self.logger.log("CLARIFY", query, clarification, cache_hit, elapsed_ms)
+                return clarification
             
             # PHASE 3: Check cache — zero LLM call on hit
             cached = self.cache.get(mode, query)
@@ -537,6 +578,8 @@ class COMCore:
                 full_response = self._enforce_general_format(full_response)
             else:
                 full_response = self._repair_output(mode, full_response)
+                if not self._is_valid_mode_output(mode, full_response):
+                    full_response = "@ERR:FORMAT:Please clarify output target (OFFICE signal or GODOT code)."
 
             # PHASE 3: Cache result (OFFICE/GENERAL only, not GODOT scripts that go stale)
             if mode != "GODOT":
