@@ -1,4 +1,24 @@
 ```
-# Executable files
-COM-Companion-Of-Master
+# Compiled Python files
+__pycache__/
+*.pyc
+*.pyo
+
+# Dependencies
+.venv/
+venv/
+node_modules/
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Editors
+.vscode/
+.idea/
+
+# Environment
+.env
+.env.local
+*.env.*
 ```

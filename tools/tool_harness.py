@@ -18,9 +18,12 @@ Usage:
 """
 
 import re
+import hashlib
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
+from collections import OrderedDict
+import os
 
 
 class ToolStatus(Enum):
@@ -48,6 +51,65 @@ class ToolHealth:
 # Cache for tool health status to avoid repeated checks
 _tool_health_cache: Dict[str, ToolHealth] = {}
 _cache_valid: bool = False
+
+# LRU Cache for tool execution results (max 100 entries)
+class LRUCache:
+    """Simple LRU cache for tool execution results."""
+    
+    def __init__(self, max_size: int = 100):
+        self.max_size = max_size
+        self.cache: OrderedDict[str, str] = OrderedDict()
+        self.hits: int = 0
+        self.misses: int = 0
+    
+    def get(self, key: str) -> Optional[str]:
+        """Get value from cache, returning None if not found."""
+        if key in self.cache:
+            # Move to end (most recently used)
+            self.cache.move_to_end(key)
+            self.hits += 1
+            return self.cache[key]
+        self.misses += 1
+        return None
+    
+    def put(self, key: str, value: str) -> None:
+        """Store value in cache, evicting oldest if necessary."""
+        if key in self.cache:
+            self.cache.move_to_end(key)
+        self.cache[key] = value
+        # Evict oldest if over capacity
+        while len(self.cache) > self.max_size:
+            self.cache.popitem(last=False)
+    
+    def contains(self, key: str) -> bool:
+        """Check if key exists in cache."""
+        return key in self.cache
+    
+    def invalidate(self, key: str) -> bool:
+        """Remove key from cache. Returns True if key was found."""
+        if key in self.cache:
+            del self.cache[key]
+            return True
+        return False
+    
+    def clear(self) -> None:
+        """Clear all cache entries."""
+        self.cache.clear()
+        self.hits = 0
+        self.misses = 0
+    
+    def stats(self) -> Dict[str, int]:
+        """Return cache statistics."""
+        return {
+            "size": len(self.cache),
+            "max_size": self.max_size,
+            "hits": self.hits,
+            "misses": self.misses,
+            "hit_rate": self.hits / (self.hits + self.misses) if (self.hits + self.misses) > 0 else 0.0
+        }
+
+# Global execution cache
+_execution_cache = LRUCache(max_size=100)
 
 
 def validate_tool_health(force_refresh: bool = False) -> Dict[str, ToolHealth]:
@@ -78,6 +140,42 @@ def validate_tool_health(force_refresh: bool = False) -> Dict[str, ToolHealth]:
     
     _cache_valid = True
     return _tool_health_cache
+
+
+def get_cache_stats() -> Dict[str, Any]:
+    """
+    Get statistics about the tool execution cache.
+    
+    Returns:
+        Dictionary with cache statistics (hits, misses, size, hit_rate)
+    """
+    return _execution_cache.stats()
+
+
+def clear_execution_cache() -> None:
+    """Clear all cached tool execution results."""
+    _execution_cache.clear()
+
+
+def invalidate_cache_for_signal(signal: str) -> bool:
+    """
+    Invalidate cache entry for a specific signal.
+    
+    Args:
+        signal: The tool signal (e.g., "@XLS:Inventory:Item,Qty")
+        
+    Returns:
+        True if cache entry was found and invalidated, False otherwise
+    """
+    match = re.match(r'^@(\w+):(.+)$', signal.strip(), re.IGNORECASE)
+    if not match:
+        return False
+    
+    tool_type = match.group(1).upper()
+    payload = match.group(2)
+    cache_key = _generate_cache_key(tool_type, payload)
+    
+    return _execution_cache.invalidate(cache_key)
 
 
 def _check_excel_health() -> ToolHealth:
@@ -199,6 +297,112 @@ def _check_godot_health() -> ToolHealth:
         )
 
 
+def _generate_cache_key(tool_type: str, payload: str) -> str:
+    """
+    Generate a unique cache key for a tool execution.
+    
+    Args:
+        tool_type: Tool type (e.g., "XLS", "PPT")
+        payload: Tool payload string
+        
+    Returns:
+        Hash-based cache key
+    """
+    key_string = f"{tool_type}:{payload}"
+    return hashlib.sha256(key_string.encode()).hexdigest()[:16]
+
+
+def _get_output_file_path(tool_type: str, payload: str) -> Optional[str]:
+    """
+    Extract or infer the output file path from a tool's payload.
+    Used to check if cached files still exist on disk.
+    
+    Args:
+        tool_type: Tool type (e.g., "XLS", "PPT")
+        payload: Tool payload string
+        
+    Returns:
+        File path if determinable, None otherwise
+    """
+    try:
+        # Parse payload to get filename
+        # Format examples:
+        # XLS: filename:col1,col2
+        # PPT: filename:slide1|slide2
+        # PDF: filename:content
+        # GODOT: CATEGORY:DETAIL
+        
+        if tool_type in ["XLS", "PPT", "PDF"]:
+            parts = payload.split(":", 1)
+            if len(parts) >= 1:
+                filename = parts[0].strip()
+                # Add appropriate extension
+                extensions = {"XLS": ".xlsx", "PPT": ".pptx", "PDF": ".pdf"}
+                ext = extensions.get(tool_type, "")
+                
+                # Check common output directories
+                possible_paths = [
+                    filename + ext,
+                    os.path.join("output", filename + ext),
+                    os.path.join("tools", "output", filename + ext),
+                ]
+                
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        return path
+                
+                # Return the most likely path even if it doesn't exist yet
+                return filename + ext
+        elif tool_type == "GODOT":
+            # Godot format: CATEGORY:DETAIL
+            parts = payload.split(":", 1)
+            if len(parts) >= 2:
+                category = parts[0].strip().lower()
+                detail = parts[1].strip().lower().replace(" ", "_")
+                filename = f"{category}_{detail}.gd"
+                
+                possible_paths = [
+                    filename,
+                    os.path.join("output", filename),
+                    os.path.join("tools", "output", filename),
+                ]
+                
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        return path
+                
+                return filename
+    except Exception:
+        pass
+    
+    return None
+
+
+def _validate_cache_entry(cache_key: str, tool_type: str, payload: str) -> bool:
+    """
+    Validate that a cached entry is still valid by checking if the output file exists.
+    
+    Args:
+        cache_key: The cache key
+        tool_type: Tool type
+        payload: Tool payload
+        
+    Returns:
+        True if cache entry is valid, False if it should be invalidated
+    """
+    if not _execution_cache.contains(cache_key):
+        return False
+    
+    # Check if output file still exists
+    output_path = _get_output_file_path(tool_type, payload)
+    if output_path and not os.path.exists(output_path):
+        # File was deleted, invalidate cache
+        _execution_cache.invalidate(cache_key)
+        return False
+    
+    return True
+
+
 def get_available_tools_for_llm(include_health: bool = True) -> List[Dict[str, Any]]:
     """
     Return metadata about available tools for LLM prompting, optionally including health status.
@@ -312,7 +516,7 @@ def get_unavailable_tools_reason() -> str:
     return "All tools are available."
 
 
-def execute_signal(signal: str, skip_health_check: bool = False) -> str:
+def execute_signal(signal: str, skip_health_check: bool = False, use_cache: bool = True) -> str:
     """
     Route and execute a tool signal from LLM output.
     
@@ -326,6 +530,7 @@ def execute_signal(signal: str, skip_health_check: bool = False) -> str:
     Args:
         signal: String containing the tool signal
         skip_health_check: If True, skip pre-execution health validation
+        use_cache: If True, check cache before executing (default: True)
         
     Returns:
         Execution result from the tool
@@ -349,17 +554,34 @@ def execute_signal(signal: str, skip_health_check: bool = False) -> str:
             else:
                 return f"❌ Cannot execute {tool_key}: Tool not found in health registry"
     
-    # Route to appropriate tool
+    # Check cache before execution
+    if use_cache:
+        cache_key = _generate_cache_key(tool_type, payload)
+        
+        # Validate cache entry (check if output file still exists)
+        if _validate_cache_entry(cache_key, tool_type, payload):
+            cached_result = _execution_cache.get(cache_key)
+            if cached_result:
+                return f"⚡ [CACHED] {cached_result}"
+    
+    # Execute the tool
     if tool_type == "XLS":
-        return _execute_excel(payload)
+        result = _execute_excel(payload)
     elif tool_type == "PPT":
-        return _execute_ppt(payload)
+        result = _execute_ppt(payload)
     elif tool_type == "PDF":
-        return _execute_pdf(payload)
+        result = _execute_pdf(payload)
     elif tool_type == "GODOT":
-        return _execute_godot(payload)
+        result = _execute_godot(payload)
     else:
         return f"❌ Unknown tool type: @{tool_type}. Available: @XLS, @PPT, @PDF, @GODOT"
+    
+    # Cache successful results (only if not an error)
+    if use_cache and not result.startswith("❌"):
+        cache_key = _generate_cache_key(tool_type, payload)
+        _execution_cache.put(cache_key, result)
+    
+    return result
 
 
 def _execute_excel(payload: str) -> str:
@@ -479,13 +701,14 @@ def has_tool_signal(text: str) -> bool:
 
 
 # Convenience function for batch execution
-def execute_all_signals(text: str, skip_health_check: bool = False) -> List[Dict[str, str]]:
+def execute_all_signals(text: str, skip_health_check: bool = False, use_cache: bool = True) -> List[Dict[str, str]]:
     """
     Find and execute all tool signals in a text block.
     
     Args:
         text: Text containing zero or more tool signals
         skip_health_check: If True, skip pre-execution health validation
+        use_cache: If True, check cache before executing (default: True)
         
     Returns:
         List of dictionaries with 'signal' and 'result' keys
@@ -494,7 +717,7 @@ def execute_all_signals(text: str, skip_health_check: bool = False) -> List[Dict
     results = []
     
     for signal in signals:
-        result = execute_signal(signal, skip_health_check=skip_health_check)
+        result = execute_signal(signal, skip_health_check=skip_health_check, use_cache=use_cache)
         results.append({
             "signal": signal,
             "result": result
@@ -517,9 +740,15 @@ if __name__ == "__main__":
     # Test the harness
     print("=== COM Tool Harness Test ===\n")
     
-    # Show available tools
-    print("Available Tools:")
-    for tool in get_available_tools():
+    # Show available tools with health status
+    print("Tool Health Status:")
+    health = validate_tool_health()
+    for tool_name, tool_health in health.items():
+        status_icon = "✅" if tool_health.can_execute else "❌"
+        print(f"  {status_icon} {tool_name}: {tool_health.status.value} - {tool_health.message}")
+    
+    print("\nAvailable Tools:")
+    for tool in get_available_tools_for_llm(include_health=True):
         print(f"  {tool['name']}: {tool['description']}")
         print(f"    Format: {tool['format']}")
         if 'example' in tool:
@@ -527,11 +756,46 @@ if __name__ == "__main__":
         elif 'examples' in tool:
             for ex in tool['examples']:
                 print(f"    Example: {ex}")
+        if 'health' in tool:
+            print(f"    Status: {tool['health']}")
         print()
+    
+    # Test cache functionality
+    print("\n=== Cache Functionality Test ===\n")
+    
+    # Show initial cache stats
+    print("Initial cache stats:", get_cache_stats())
+    
+    # Test caching with a sample signal (if Excel is available)
+    if is_tool_available("@XLS"):
+        print("\nTesting Excel tool execution and caching...")
+        
+        # First execution (should run the tool)
+        result1 = execute_signal("@XLS:TestCache:A,B,C", use_cache=True)
+        print(f"First execution: {result1}")
+        
+        # Second execution (should be cached)
+        result2 = execute_signal("@XLS:TestCache:A,B,C", use_cache=True)
+        print(f"Second execution: {result2}")
+        
+        # Show cache stats after executions
+        print("\nCache stats after tests:", get_cache_stats())
+        
+        # Test cache invalidation
+        print("\nInvalidating cache for @XLS:TestCache:A,B,C...")
+        invalidate_cache_for_signal("@XLS:TestCache:A,B,C")
+        print("Cache stats after invalidation:", get_cache_stats())
+    else:
+        print("\n⚠️ Excel tool not available, skipping execution test")
+        print("Install openpyxl to test: pip install openpyxl")
+    
+    # Show final unavailable tools info
+    print("\n" + "="*50)
+    print(get_unavailable_tools_reason())
     
     # Test signal detection
     test_text = "Let me create @XLS:Test:A,B,C and also @PDF:Doc:Hello World"
-    print(f"Test text: {test_text}")
+    print(f"\nTest text: {test_text}")
     print(f"Has signals: {has_tool_signal(test_text)}")
     print(f"Extracted: {extract_signals_from_text(test_text)}\n")
     
