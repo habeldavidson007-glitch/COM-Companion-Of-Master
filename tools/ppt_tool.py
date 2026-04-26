@@ -1,23 +1,28 @@
-"""
-COM SGMA LIGHT - PowerPoint Tool (STUB)
-========================================
-Phase 1: Stub implementation for testing harness integration.
-Phase 2c: Will be replaced with actual python-pptx based PPT generation.
-"""
-
+# Requires: pip install python-pptx
+from pptx import Presentation
+from pptx.util import Inches, Pt
 
 def run(payload: str) -> str:
     """
-    Stub function for PowerPoint tool.
-    
-    Payload format (future): filename:slide1|slide2|slide3
+    Payload format: filename:slide1|slide2|slide3
     Example: Deck:Introduction|Data Results|Conclusion
-    
-    Args:
-        payload: String containing filename and slide titles separated by |
-        
-    Returns:
-        Status string
     """
-    # PHASE 1 STUB - Replace with actual implementation in Phase 2c
-    return f"[STUB] PPT would run with: {payload}"
+    try:
+        parts = payload.split(":", 1)
+        filename = parts[0].strip() if parts[0] else "presentation"
+        slides_raw = parts[1].strip() if len(parts) > 1 else "Slide 1"
+        slide_titles = [s.strip() for s in slides_raw.split("|")]
+
+        prs = Presentation()
+        layout = prs.slide_layouts[1]  # title + content layout
+
+        for title_text in slide_titles:
+            slide = prs.slides.add_slide(layout)
+            slide.shapes.title.text = title_text
+
+        path = f"{filename}.pptx"
+        prs.save(path)
+        return f"✅ PPT created: {path} | {len(slide_titles)} slides"
+
+    except Exception as e:
+        return f"❌ PPT failed: {str(e)}"
