@@ -1,7 +1,7 @@
 """
-COM (Companion Of Master) — Pure Tkinter Desktop Application
+COM (Companion Of Master) — Pure Tkinter Desktop Application (Client Mode)
 Floating mascot + native desktop chat window
-Direct COMCore integration - no web server dependency
+TCP Client connecting to COM Brain server (com_core.py --server)
 Native file dialogs for Excel/PDF/PPT operations
 """
 import tkinter as tk
@@ -9,17 +9,127 @@ from tkinter import ttk, scrolledtext, messagebox, filedialog, simpledialog
 import threading
 import os
 import sys
+import socket
+import json
 from datetime import datetime
 from typing import Optional, List, Dict
 
 # Add current directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from core.com_core import COMCore, classify_mode, is_signal, parse_signal
+from core.com_core import is_signal, parse_signal
 
 # Import tool modules for direct execution
 from tools.excel_tool import run as excel_run
 from tools.pdf_tool import run as pdf_run
 from tools.ppt_tool import run as ppt_run
+
+
+class COMClient:
+    """TCP Client for communicating with COM Brain server"""
+    
+    def __init__(self, host='localhost', port=9999):
+        self.host = host
+        self.port = port
+        self.socket = None
+        self.connected = False
+        self.buffer = ""
+        
+    def connect(self) -> bool:
+        """Connect to COM Brain server"""
+        try:
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.settimeout(5.0)
+            self.socket.connect((self.host, self.port))
+            self.socket.settimeout(None)  # Remove timeout after connection
+            self.connected = True
+            print(f"🔌 Connected to COM Brain at {self.host}:{self.port}")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to connect to COM Brain: {e}")
+            self.connected = False
+            return False
+    
+    def send_query(self, text: str, callback=None) -> str:
+        """Send query and stream response back"""
+        if not self.connected:
+            raise ConnectionError("Not connected to COM Brain")
+        
+        request = json.dumps({'cmd': 'query', 'text': text}) + '\n'
+        self.socket.sendall(request.encode('utf-8'))
+        
+        full_response = ""
+        chunks = []
+        
+        while True:
+            data = self.socket.recv(4096).decode('utf-8')
+            if not data:
+                break
+                
+            self.buffer += data
+            
+            while '\n' in self.buffer:
+                line, self.buffer = self.buffer.split('\n', 1)
+                try:
+                    msg = json.loads(line)
+                    msg_type = msg.get('type')
+                    
+                    if msg_type == 'chunk':
+                        chunk = msg.get('data', '')
+                        chunks.append(chunk)
+                        full_response += chunk
+                        if callback:
+                            callback(chunk)
+                    elif msg_type == 'complete':
+                        return full_response
+                    elif msg_type == 'error':
+                        raise Exception(msg.get('message', 'Unknown error'))
+                except json.JSONDecodeError:
+                    continue
+                    
+        return full_response
+    
+    def get_status(self) -> Dict:
+        """Get server status"""
+        if not self.connected:
+            return {"ollama_running": False, "error": "Not connected"}
+        
+        request = json.dumps({'cmd': 'status'}) + '\n'
+        self.socket.sendall(request.encode('utf-8'))
+        
+        data = self.socket.recv(4096).decode('utf-8')
+        for line in data.split('\n'):
+            if line.strip():
+                try:
+                    msg = json.loads(line)
+                    if msg.get('type') == 'status':
+                        return msg.get('data', {})
+                except:
+                    pass
+        return {"error": "No response"}
+    
+    def clear_memory(self):
+        """Clear server memory"""
+        if not self.connected:
+            return
+        
+        request = json.dumps({'cmd': 'clear'}) + '\n'
+        self.socket.sendall(request.encode('utf-8'))
+        
+        # Read response
+        try:
+            self.socket.recv(1024)
+        except:
+            pass
+    
+    def disconnect(self):
+        """Disconnect from server"""
+        if self.socket:
+            try:
+                self.socket.close()
+            except:
+                pass
+        self.connected = False
+        print("🔌 Disconnected from COM Brain")
 
 
 class COMDesktopApp:
@@ -30,10 +140,22 @@ class COMDesktopApp:
         self.chat_window = None
         self.mascot_window = None
         
-        # Initialize core and check status immediately
-        self.com_brain = COMCore()
-        self.status = self.com_brain.check_status()
-        self.is_offline = not self.status["ollama_running"]
+        # Try to connect to COM Brain server first
+        self.com_client = COMClient()
+        self.is_offline = not self.com_client.connect()
+        
+        # Fallback to local core if server not available
+        if self.is_offline:
+            print("⚠️  COM Brain server not found - starting local fallback")
+            from core.com_core import COMCore
+            self.com_brain = COMCore()
+            self.status = self.com_brain.check_status()
+            self.is_offline = self.is_offline or not self.status["ollama_running"]
+            print(f"💡 Local mode: {'Offline' if self.is_offline else 'Online'}")
+        else:
+            self.status = self.com_client.get_status()
+            self.is_offline = not self.status.get("ollama_running", False)
+            print(f"✅ Server mode: {'Offline' if self.is_offline else 'Online'}")
         
         self.messages: List[Dict] = []
         self.is_processing = False
@@ -44,7 +166,7 @@ class COMDesktopApp:
             print("⚠️  Running in OFFLINE MODE (Ollama not detected)")
             print("💡 File operations will work. Chat uses basic rules.")
         else:
-            print(f"✅ Online Mode: {self.status['model']}")
+            print(f"✅ Online Mode: {self.status.get('model', 'unknown')}")
         
     def create_mascot(self):
         """Create floating mascot window that opens chat on click"""
@@ -354,7 +476,11 @@ class COMDesktopApp:
                         # Safely update UI in main thread
                         safe_ui_update(lambda c=chunk: self._append_to_last_message(c))
                     
-                    response = self.com_brain.process_query(user_input, callback=callback)
+                    # Use server client if connected, otherwise local core
+                    if hasattr(self, 'com_client') and self.com_client.connected:
+                        response = self.com_client.send_query(user_input, callback=callback)
+                    else:
+                        response = self.com_brain.process_query(user_input, callback=callback)
                     
                     # Check if response is a signal that needs tool execution
                     if is_signal(response):
@@ -450,7 +576,11 @@ Click the 📁 button in the header to access file tools!"""
         if messagebox.askyesno("Clear Chat", "Clear all messages?"):
             self.messages_text.delete('1.0', tk.END)
             self.messages.clear()
-            self.com_brain.clear_memory()
+            # Clear memory on server or local core
+            if hasattr(self, 'com_client') and self.com_client.connected:
+                self.com_client.clear_memory()
+            else:
+                self.com_brain.clear_memory()
             self._add_system_message("Chat cleared.")
             
     def _handle_file_operation(self):

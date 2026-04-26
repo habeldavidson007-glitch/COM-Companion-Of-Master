@@ -1,12 +1,15 @@
 """
-COM (Companion Of Master) - Signal-of-Thought (SoT) Core
-Features: Mode Detection, Signal Byte Output, Response Cache
+COM (Companion Of Master) - Signal-of-Thought (SoT) Core + Background Server
+Features: Mode Detection, Signal Byte Output, Response Cache, TCP Server
 Model: qwen2.5:0.5b-instruct-q4_K_M (~500MB RAM)
+Runs as invisible background server for GUI client
 """
 
 import json
 import hashlib
 import time
+import socket
+import threading
 from datetime import datetime
 from collections import deque
 from typing import Optional, List, Dict, Tuple
@@ -217,7 +220,7 @@ class OllamaClient:
     
     def generate(self, messages: List[Dict], max_tokens: int = 256, 
                 temperature: float = 0.7) -> str:
-        """Non-streaming generation - FIXED to actually return response"""
+        """Non-streaming generation"""
         result = []
         self.generate_stream(messages, callback=lambda x: result.append(x),
                            max_tokens=max_tokens, temperature=temperature)
@@ -354,6 +357,135 @@ class COMCore:
         return self.memory.get_summary()
 
 
+# ================================================================
+# TCP SERVER FOR GUI CLIENT
+# ================================================================
+
+class COMServer:
+    """Background TCP server for GUI client communication"""
+    
+    def __init__(self, host='localhost', port=9999):
+        self.host = host
+        self.port = port
+        self.core = COMCore()
+        self.server_socket = None
+        self.running = False
+        self.clients = []
+        
+    def start(self):
+        """Start the background server"""
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server_socket.bind((self.host, self.port))
+        self.server_socket.listen(5)
+        self.server_socket.settimeout(1.0)  # Allow checking running flag
+        self.running = True
+        
+        print(f"🧠 COM Brain server started on {self.host}:{self.port}")
+        print(f"   Model: {self.core.client.model}")
+        print(f"   Status: {'Online' if self.core.client.check_connection() else 'Offline'}")
+        
+        # Accept clients in main thread
+        while self.running:
+            try:
+                client_socket, addr = self.server_socket.accept()
+                print(f"🔌 Client connected: {addr}")
+                client_thread = threading.Thread(target=self.handle_client, 
+                                                args=(client_socket, addr),
+                                                daemon=True)
+                client_thread.start()
+                self.clients.append(client_socket)
+            except socket.timeout:
+                continue
+            except Exception as e:
+                if self.running:
+                    print(f"Server error: {e}")
+                    
+    def handle_client(self, client_socket, addr):
+        """Handle individual client connection"""
+        buffer = ""
+        try:
+            while self.running:
+                data = client_socket.recv(4096)
+                if not data:
+                    break
+                    
+                buffer += data.decode('utf-8')
+                
+                # Process complete messages (newline-terminated)
+                while '\n' in buffer:
+                    line, buffer = buffer.split('\n', 1)
+                    self.process_request(client_socket, line)
+                    
+        except Exception as e:
+            print(f"Client {addr} error: {e}")
+        finally:
+            client_socket.close()
+            if client_socket in self.clients:
+                self.clients.remove(client_socket)
+            print(f"🔌 Client disconnected: {addr}")
+    
+    def process_request(self, client_socket, request_line):
+        """Process client request"""
+        try:
+            request = json.loads(request_line)
+            cmd = request.get('cmd')
+            
+            if cmd == 'query':
+                query = request.get('text', '')
+                session_id = request.get('session', 'default')
+                
+                # Stream response back
+                chunks = []
+                def send_chunk(chunk):
+                    response = json.dumps({'type': 'chunk', 'data': chunk}) + '\n'
+                    client_socket.sendall(response.encode('utf-8'))
+                    chunks.append(chunk)
+                
+                response = self.core.process_query(query, callback=send_chunk)
+                
+                # Send completion signal
+                complete = json.dumps({
+                    'type': 'complete',
+                    'response': response,
+                    'is_signal': is_signal(response)
+                }) + '\n'
+                client_socket.sendall(complete.encode('utf-8'))
+                
+            elif cmd == 'status':
+                status = self.core.check_status()
+                response = json.dumps({'type': 'status', 'data': status}) + '\n'
+                client_socket.sendall(response.encode('utf-8'))
+                
+            elif cmd == 'clear':
+                self.core.clear_memory()
+                response = json.dumps({'type': 'cleared'}) + '\n'
+                client_socket.sendall(response.encode('utf-8'))
+                
+            else:
+                error = json.dumps({'type': 'error', 'message': f'Unknown cmd: {cmd}'}) + '\n'
+                client_socket.sendall(error.encode('utf-8'))
+                
+        except json.JSONDecodeError as e:
+            error = json.dumps({'type': 'error', 'message': f'Invalid JSON: {str(e)}'}) + '\n'
+            client_socket.sendall(error.encode('utf-8'))
+        except Exception as e:
+            error = json.dumps({'type': 'error', 'message': str(e)}) + '\n'
+            client_socket.sendall(error.encode('utf-8'))
+    
+    def stop(self):
+        """Stop the server"""
+        self.running = False
+        for client in self.clients:
+            try:
+                client.close()
+            except:
+                pass
+        if self.server_socket:
+            self.server_socket.close()
+        print("🛑 COM Brain server stopped")
+
+
 # Convenience function for UI integration
 def create_com_core():
     """Factory function to create COM core instance"""
@@ -361,49 +493,59 @@ def create_com_core():
 
 
 if __name__ == "__main__":
-    # Test the core
-    print("Testing COM Core (SoT Version)...")
-    com = COMCore()
+    import sys
     
-    status = com.check_status()
-    print(f"Status: {status}")
-    
-    # Test Phase 1: Mode Classification
-    print("\n--- Testing Mode Classification ---")
-    test_queries = [
-        "buat excel laporan",
-        "create godot player script",
-        "what is the weather"
-    ]
-    for q in test_queries:
-        mode = classify_mode(q)
-        print(f"'{q}' → {mode}")
-    
-    # Test Phase 4: Signal Validation
-    print("\n--- Testing Signal Validation ---")
-    test_signals = [
-        "@XLS:Laporan:No,Item,Harga",
-        "@GDT:MOV:2D",
-        "regular text"
-    ]
-    for s in test_signals:
-        valid = is_signal(s)
-        prefix, payload = parse_signal(s)
-        print(f"'{s}' → Valid: {valid}, Prefix: {prefix}, Payload: {payload}")
-    
-    # Test Phase 3: Cache
-    print("\n--- Testing Response Cache ---")
-    test_query = "test cache query"
-    com.cache.set("GENERAL", test_query, "cached response")
-    cached = com.cache.get("GENERAL", test_query)
-    print(f"Cached value: {cached}")
-    
-    if status["ollama_running"]:
-        print("\n--- Live LLM Test ---")
-        print("Query: 'siapa kamu?'")
-        response = com.process_query("siapa kamu?", callback=print)
-        print(f"\n\nFull response received: {len(response)} characters")
-        print(f"Is signal: {is_signal(response)}")
-        print(f"\nMemory summary:\n{com.get_memory_summary()}")
+    if len(sys.argv) > 1 and sys.argv[1] == '--server':
+        # Run as background server
+        server = COMServer()
+        try:
+            server.start()
+        except KeyboardInterrupt:
+            server.stop()
     else:
-        print("\nOllama is not running. Please start Ollama first.")
+        # Test the core
+        print("Testing COM Core (SoT Version)...")
+        com = COMCore()
+        
+        status = com.check_status()
+        print(f"Status: {status}")
+        
+        # Test Phase 1: Mode Classification
+        print("\n--- Testing Mode Classification ---")
+        test_queries = [
+            "buat excel laporan",
+            "create godot player script",
+            "what is the weather"
+        ]
+        for q in test_queries:
+            mode = classify_mode(q)
+            print(f"'{q}' → {mode}")
+        
+        # Test Phase 4: Signal Validation
+        print("\n--- Testing Signal Validation ---")
+        test_signals = [
+            "@XLS:Laporan:No,Item,Harga",
+            "@GDT:MOV:2D",
+            "regular text"
+        ]
+        for s in test_signals:
+            valid = is_signal(s)
+            prefix, payload = parse_signal(s)
+            print(f"'{s}' → Valid: {valid}, Prefix: {prefix}, Payload: {payload}")
+        
+        # Test Phase 3: Cache
+        print("\n--- Testing Response Cache ---")
+        test_query = "test cache query"
+        com.cache.set("GENERAL", test_query, "cached response")
+        cached = com.cache.get("GENERAL", test_query)
+        print(f"Cached value: {cached}")
+        
+        if status["ollama_running"]:
+            print("\n--- Live LLM Test ---")
+            print("Query: 'siapa kamu?'\")
+            response = com.process_query("siapa kamu?", callback=print)
+            print(f"\n\nFull response received: {len(response)} characters")
+            print(f"Is signal: {is_signal(response)}")
+            print(f"\nMemory summary:\n{com.get_memory_summary()}")
+        else:
+            print("\nOllama is not running. Please start Ollama first.")
