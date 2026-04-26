@@ -35,6 +35,12 @@ class COMDesktopApp:
         self.current_file_path = None
         self._window_closed = False
         
+        # Check Ollama status and set offline mode if needed
+        status = self.com_brain.check_status()
+        self.offline_mode = not status["ollama_running"]
+        if self.offline_mode:
+            print("📴 Offline mode enabled - LLM unavailable, using fallback responses")
+        
     def create_mascot(self):
         """Create floating mascot window that opens chat on click"""
         self.mascot_window = tk.Tk()
@@ -180,8 +186,11 @@ class COMDesktopApp:
         # Create UI components
         self._create_chat_ui()
         
-        # Add welcome message
-        self._add_system_message("💬 COM Desktop ready! How can I help you?")
+        # Add welcome message (different for offline mode)
+        if self.offline_mode:
+            self._add_system_message("📴 COM Desktop in OFFLINE mode. File operations (Excel/PDF/PPT) work perfectly! Click 📁 button to use them.")
+        else:
+            self._add_system_message("💬 COM Desktop ready! How can I help you?")
         
     def _create_chat_ui(self):
         """Create chat interface components"""
@@ -201,8 +210,11 @@ class COMDesktopApp:
                               bg='#111736', fg='#C9A84C')
         title_label.pack(side=tk.LEFT, pady=18)
         
-        mode_label = tk.Label(header_frame, text="GENERAL", font=('Arial', 10),
-                             bg='#C9A84C', fg='#0A0F2C', padx=8, pady=2)
+        # Mode indicator (shows OFFLINE in offline mode)
+        mode_text = "OFFLINE" if self.offline_mode else "GENERAL"
+        mode_color = "#F87171" if self.offline_mode else "#C9A84C"
+        mode_label = tk.Label(header_frame, text=mode_text, font=('Arial', 10),
+                             bg=mode_color, fg='#0A0F2C', padx=8, pady=2)
         mode_label.pack(side=tk.LEFT, padx=10, pady=20)
         self.mode_indicator = mode_label
         
@@ -307,7 +319,7 @@ class COMDesktopApp:
         
         # Process in background thread
         self.is_processing = True
-        self.status_label.config(text="Processing...")
+        self.status_label.config(text="Processing..." if not self.offline_mode else "Offline Mode")
         self.messages_text.config(state=tk.DISABLED)
         
         # Create placeholder for assistant response
@@ -326,21 +338,27 @@ class COMDesktopApp:
                         except (RuntimeError, AttributeError):
                             pass
                 
-                def callback(chunk):
-                    response_chunks.append(chunk)
-                    # Safely update UI in main thread
-                    safe_ui_update(lambda c=chunk: self._append_to_last_message(c))
-                
-                response = self.com_brain.process_query(user_input, callback=callback)
-                
-                # Check if response is a signal that needs tool execution
-                if is_signal(response):
-                    prefix, payload = parse_signal(response)
-                    tool_result = self._execute_signal(prefix, payload)
-                    if tool_result:
-                        safe_ui_update(lambda r=tool_result: self._add_system_message(r))
-                
-                safe_ui_update(lambda: self._finish_processing())
+                # Use offline fallback if Ollama is not running
+                if self.offline_mode:
+                    fallback_response = self._get_fallback_response(user_input)
+                    safe_ui_update(lambda r=fallback_response: self._add_assistant_message(r))
+                    safe_ui_update(lambda: self._finish_processing())
+                else:
+                    def callback(chunk):
+                        response_chunks.append(chunk)
+                        # Safely update UI in main thread
+                        safe_ui_update(lambda c=chunk: self._append_to_last_message(c))
+                    
+                    response = self.com_brain.process_query(user_input, callback=callback)
+                    
+                    # Check if response is a signal that needs tool execution
+                    if is_signal(response):
+                        prefix, payload = parse_signal(response)
+                        tool_result = self._execute_signal(prefix, payload)
+                        if tool_result:
+                            safe_ui_update(lambda r=tool_result: self._add_system_message(r))
+                    
+                    safe_ui_update(lambda: self._finish_processing())
                 
             except Exception as e:
                 error_msg = f"Error: {str(e)}"
@@ -381,6 +399,46 @@ class COMDesktopApp:
         """Add system message to chat"""
         self.messages_text.insert(tk.END, f"  {content}\n\n", tag)
         self.messages_text.see(tk.END)
+    
+    def _get_fallback_response(self, user_input: str) -> str:
+        """Generate simple rule-based responses when offline"""
+        user_input = user_input.lower().strip()
+        
+        # Greetings
+        if any(greet in user_input for greet in ['hello', 'hi', 'hey', 'good morning', 'good afternoon']):
+            return "Hello! I'm COM in offline mode. I can still help with file operations (Excel/PDF/PPT) using the 📁 button!"
+        
+        # Farewells
+        if any(farewell in user_input for farewell in ['bye', 'goodbye', 'see you', 'exit']):
+            return "Goodbye! Click the mascot anytime to return. Remember, file tools work even offline!"
+        
+        # File operation hints
+        if any(word in user_input for word in ['excel', 'spreadsheet', 'xlsx']):
+            return "📊 In offline mode: Click the 📁 button → 'New Excel File' to create spreadsheets. I can't process natural language requests without Ollama, but the file tools work perfectly!"
+        
+        if any(word in user_input for word in ['pdf', 'document']):
+            return "📄 In offline mode: Click the 📁 button → 'New PDF File' to create PDFs. The native file dialogs work independently of the LLM!"
+        
+        if any(word in user_input for word in ['powerpoint', 'ppt', 'presentation', 'slides']):
+            return "📽 In offline mode: Click the 📁 button → 'New PowerPoint' to create presentations. File operations don't need Ollama!"
+        
+        # Help requests
+        if any(word in user_input for word in ['help', 'what can', 'how to', 'feature']):
+            return """🔧 COM Offline Mode Capabilities:
+• ✅ Create Excel files with custom columns
+• ✅ Create PDF files with text content  
+• ✅ Create PowerPoint presentations
+• ✅ Open existing Office files
+• ❌ Natural language chat (needs Ollama)
+
+Click the 📁 button in the header to access file tools!"""
+        
+        # Thanks
+        if any(word in user_input for word in ['thank', 'thanks']):
+            return "You're welcome! The file tools are always available via the 📁 button."
+        
+        # Default response
+        return "I'm in offline mode (Ollama not running). For chat, start Ollama with 'ollama serve'. But good news: all file operations (Excel/PDF/PPT) work perfectly! Click the 📁 button to use them."
         
     def _clear_chat(self):
         """Clear chat history"""
@@ -520,11 +578,12 @@ def main():
     status = com_core.check_status()
     
     if not status["ollama_running"]:
-        print("\n⚠️  WARNING: Ollama is not running!")
-        print("   Please start Ollama first:")
-        print("   $ ollama serve")
-        print("\n   The app will still start but LLM features won't work.")
-        print()
+        print("\n📴 OFFLINE MODE ENABLED")
+        print("   Ollama is not running - LLM chat disabled")
+        print("   ✅ File operations (Excel/PDF/PPT) still work!")
+        print("   💡 Start Ollama for full AI chat: ollama serve\n")
+    else:
+        print(f"✅ Ollama OK — model: {status['model']}")
     
     # Start desktop app
     app = COMDesktopApp()
