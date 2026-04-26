@@ -321,12 +321,13 @@ class COMDesktopApp:
                 
                 def safe_ui_update(func):
                     """Safely update UI, handling window closure"""
-                    if not hasattr(self, '_window_closed'):
-                        try:
-                            if self.chat_window and self.chat_window.winfo_exists():
-                                self.chat_window.after(0, func)
-                        except (RuntimeError, AttributeError):
-                            pass
+                    try:
+                        if self._window_closed:
+                            return
+                        if self.chat_window and self.chat_window.winfo_exists():
+                            self.chat_window.after(0, func)
+                    except (RuntimeError, AttributeError, tk.TclError):
+                        pass
                 
                 def callback(chunk):
                     response_chunks.append(chunk)
@@ -342,11 +343,10 @@ class COMDesktopApp:
                     if tool_result:
                         safe_ui_update(lambda r=tool_result: self._add_system_message(r))
                 
-                safe_ui_update(lambda: self._finish_processing())
-                
             except Exception as e:
                 error_msg = f"Error: {str(e)}"
                 safe_ui_update(lambda m=error_msg: self._add_system_message(m, tag='error'))
+            finally:
                 safe_ui_update(lambda: self._finish_processing())
         
         thread = threading.Thread(target=process_thread, daemon=True)
