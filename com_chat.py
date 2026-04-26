@@ -29,17 +29,22 @@ class COMDesktopApp:
         self.root = None
         self.chat_window = None
         self.mascot_window = None
+        
+        # Initialize core and check status immediately
         self.com_brain = COMCore()
+        self.status = self.com_brain.check_status()
+        self.is_offline = not self.status["ollama_running"]
+        
         self.messages: List[Dict] = []
         self.is_processing = False
         self.current_file_path = None
         self._window_closed = False
         
-        # Check Ollama status and set offline mode if needed
-        status = self.com_brain.check_status()
-        self.offline_mode = not status["ollama_running"]
-        if self.offline_mode:
-            print("📴 Offline mode enabled - LLM unavailable, using fallback responses")
+        if self.is_offline:
+            print("⚠️  Running in OFFLINE MODE (Ollama not detected)")
+            print("💡 File operations will work. Chat uses basic rules.")
+        else:
+            print(f"✅ Online Mode: {self.status['model']}")
         
     def create_mascot(self):
         """Create floating mascot window that opens chat on click"""
@@ -187,7 +192,7 @@ class COMDesktopApp:
         self._create_chat_ui()
         
         # Add welcome message (different for offline mode)
-        if self.offline_mode:
+        if self.is_offline:
             self._add_system_message("📴 COM Desktop in OFFLINE mode. File operations (Excel/PDF/PPT) work perfectly! Click 📁 button to use them.")
         else:
             self._add_system_message("💬 COM Desktop ready! How can I help you?")
@@ -211,8 +216,8 @@ class COMDesktopApp:
         title_label.pack(side=tk.LEFT, pady=18)
         
         # Mode indicator (shows OFFLINE in offline mode)
-        mode_text = "OFFLINE" if self.offline_mode else "GENERAL"
-        mode_color = "#F87171" if self.offline_mode else "#C9A84C"
+        mode_text = "OFFLINE" if self.is_offline else "GENERAL"
+        mode_color = "#F87171" if self.is_offline else "#C9A84C"
         mode_label = tk.Label(header_frame, text=mode_text, font=('Arial', 10),
                              bg=mode_color, fg='#0A0F2C', padx=8, pady=2)
         mode_label.pack(side=tk.LEFT, padx=10, pady=20)
@@ -319,7 +324,7 @@ class COMDesktopApp:
         
         # Process in background thread
         self.is_processing = True
-        self.status_label.config(text="Processing..." if not self.offline_mode else "Offline Mode")
+        self.status_label.config(text="Processing..." if not self.is_offline else "Offline Mode")
         self.messages_text.config(state=tk.DISABLED)
         
         # Create placeholder for assistant response
@@ -339,7 +344,7 @@ class COMDesktopApp:
                             pass
                 
                 # Use offline fallback if Ollama is not running
-                if self.offline_mode:
+                if self.is_offline:
                     fallback_response = self._get_fallback_response(user_input)
                     safe_ui_update(lambda r=fallback_response: self._add_assistant_message(r))
                     safe_ui_update(lambda: self._finish_processing())
