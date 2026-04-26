@@ -72,6 +72,12 @@ TEMPERATURES = {
     "GENERAL": 0.7   # natural answers
 }
 
+NUM_CTX_BY_MODE = {
+    "GODOT": 768,
+    "OFFICE": 512,
+    "GENERAL": 1024
+}
+
 
 # ================================================================
 # PHASE 3 — RESPONSE CACHE
@@ -137,8 +143,8 @@ class MemoryManager:
         })
     
     def get_context(self) -> List[Dict]:
-        """Get current context"""
-        return list(self.history)
+        """Get context in chat API format (role/content only)."""
+        return [{"role": m["role"], "content": m["content"]} for m in self.history]
     
     def clear(self):
         """Clear conversation history"""
@@ -164,18 +170,30 @@ class OllamaClient:
         self.timeout = 30
         self.num_ctx = 1024
         self.keep_alive = "10m"
+        self._last_healthcheck_ts = 0.0
+        self._last_healthcheck_ok = False
+        self._healthcheck_ttl = 10.0
     
     def check_connection(self) -> bool:
         """Check if Ollama is running"""
+        now = time.time()
+        if (now - self._last_healthcheck_ts) < self._healthcheck_ttl:
+            return self._last_healthcheck_ok
+
         try:
             import requests
             response = requests.get(f"{self.base_url}/api/tags", timeout=5)
-            return response.status_code == 200
+            self._last_healthcheck_ok = (response.status_code == 200)
+            self._last_healthcheck_ts = now
+            return self._last_healthcheck_ok
         except:
+            self._last_healthcheck_ok = False
+            self._last_healthcheck_ts = now
             return False
     
-    def generate_stream(self, messages: List[Dict], callback=None, 
-                       max_tokens: int = 256, temperature: float = 0.7):
+    def generate_stream(self, messages: List[Dict], callback=None,
+                       max_tokens: int = 256, temperature: float = 0.7,
+                       num_ctx: Optional[int] = None):
         """Stream response with low memory footprint"""
         import requests
         
@@ -188,7 +206,7 @@ class OllamaClient:
                 "temperature": temperature,
                 "top_p": 0.9,
                 "num_predict": max_tokens,
-                "num_ctx": self.num_ctx,
+                "num_ctx": num_ctx or self.num_ctx,
                 "num_batch": 16
             }
         }
@@ -231,12 +249,13 @@ class OllamaClient:
         except Exception:
             return False
     
-    def generate(self, messages: List[Dict], max_tokens: int = 256, 
-                temperature: float = 0.7) -> str:
+    def generate(self, messages: List[Dict], max_tokens: int = 256,
+                temperature: float = 0.7, num_ctx: Optional[int] = None) -> str:
         """Non-streaming generation - FIXED to actually return response"""
         result = []
         self.generate_stream(messages, callback=lambda x: result.append(x),
-                           max_tokens=max_tokens, temperature=temperature)
+                           max_tokens=max_tokens, temperature=temperature,
+                           num_ctx=num_ctx)
         return "".join(result)
 
 
@@ -317,6 +336,7 @@ class COMCore:
             system = SYSTEM_PROMPTS[mode]
             max_tok = TOKEN_LIMITS[mode]
             temp = TEMPERATURES[mode]
+            num_ctx = NUM_CTX_BY_MODE[mode]
             
             context = self.memory.get_context()
             messages = [{"role": "system", "content": system}]
@@ -336,7 +356,8 @@ class COMCore:
                     callback(chunk)
             
             self.client.generate_stream(messages, callback=stream_cb,
-                                       max_tokens=max_tok, temperature=temp)
+                                       max_tokens=max_tok, temperature=temp,
+                                       num_ctx=num_ctx)
             
             # PHASE 3: Cache result (OFFICE only, not GODOT scripts that go stale)
             if mode != "GODOT":
