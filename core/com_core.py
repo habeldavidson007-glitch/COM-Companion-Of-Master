@@ -313,6 +313,11 @@ class COMCore:
         self._thanks_reply_text = "• You're welcome.\n• Ready for the next task.\n• Tell me what to do."
         self._greeting_tokens = {"hello", "hi", "hey", "yo", "hola"}
         self._thanks_tokens = {"thanks", "thank", "thx", "makasih", "terima"}
+        self._offline_reply_text = (
+            "• Ollama is temporarily unavailable on this device.\n"
+            "• I can still help with short guidance based on your message.\n"
+            "• Retry in ~10–15 seconds, or restart `ollama serve`."
+        )
 
     def _normalize_query(self, query: str) -> str:
         """Lowercase + strip punctuation for deterministic fast-path checks."""
@@ -330,6 +335,16 @@ class COMCore:
         if tokens.intersection(self._thanks_tokens):
             return self._thanks_reply_text
         return None
+
+    def _offline_general_reply(self, normalized_query: str) -> str:
+        """Best-effort local fallback when Ollama is temporarily unavailable."""
+        if "ai" in normalized_query or "technology" in normalized_query:
+            return (
+                "• AI changes fast; focus on weekly learning goals, not hourly noise.\n"
+                "• Keep a small stack: one model, one workflow, one measurable project.\n"
+                "• When Ollama recovers, ask me to turn this into an action plan."
+            )
+        return self._offline_reply_text
     
     def check_status(self) -> Dict:
         """Check system status"""
@@ -391,6 +406,13 @@ class COMCore:
             
             # Check Ollama connection before calling
             if not self.client.check_connection():
+                if mode == "GENERAL":
+                    offline = self._offline_general_reply(normalized_query)
+                    if callback:
+                        callback(offline)
+                    elapsed_ms = int((time.time() - start_time) * 1000)
+                    self.logger.log("OFFLINE", query, offline, cache_hit, elapsed_ms)
+                    return offline
                 raise ConnectionError("Ollama is not running. Please start 'ollama serve' and ensure the model is installed.")
             
             # Core policy: OFFICE only needs final signal, so avoid stream callbacks.
