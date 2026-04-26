@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from enum import Enum
 from collections import OrderedDict
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class ToolStatus(Enum):
@@ -703,7 +704,7 @@ def has_tool_signal(text: str) -> bool:
 # Convenience function for batch execution
 def execute_all_signals(text: str, skip_health_check: bool = False, use_cache: bool = True) -> List[Dict[str, str]]:
     """
-    Find and execute all tool signals in a text block.
+    Find and execute all tool signals in a text block sequentially.
     
     Args:
         text: Text containing zero or more tool signals
@@ -724,6 +725,63 @@ def execute_all_signals(text: str, skip_health_check: bool = False, use_cache: b
         })
     
     return results
+
+
+def execute_signals_parallel(text: str, max_workers: int = 5, skip_health_check: bool = False, use_cache: bool = True) -> List[Dict[str, str]]:
+    """
+    Find and execute all tool signals in a text block in parallel.
+    This significantly speeds up batch operations where multiple tools are requested.
+    
+    Args:
+        text: Text containing zero or more tool signals
+        max_workers: Maximum number of concurrent threads (default: 5)
+        skip_health_check: If True, skip pre-execution health validation
+        use_cache: If True, check cache before executing (default: True)
+        
+    Returns:
+        List of dictionaries with 'signal', 'result', and 'success' keys,
+        ordered by appearance in the original text
+    """
+    signals = extract_signals_from_text(text)
+    
+    if not signals:
+        return []
+    
+    # Track original order for result ordering
+    signal_order = {signal: idx for idx, signal in enumerate(signals)}
+    results_dict = {}
+    
+    def execute_single(signal: str) -> Dict[str, Any]:
+        """Execute a single signal and return result with metadata."""
+        try:
+            result = execute_signal(signal, skip_health_check=skip_health_check, use_cache=use_cache)
+            return {
+                "signal": signal,
+                "result": result,
+                "success": not result.startswith("❌") and not result.startswith("⚠️")
+            }
+        except Exception as e:
+            return {
+                "signal": signal,
+                "result": f"❌ Execution error: {str(e)}",
+                "success": False
+            }
+    
+    # Execute signals in parallel
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks
+        future_to_signal = {executor.submit(execute_single, signal): signal for signal in signals}
+        
+        # Collect results as they complete
+        for future in as_completed(future_to_signal):
+            result = future.result()
+            signal = result["signal"]
+            results_dict[signal] = result
+    
+    # Return results in original order
+    ordered_results = [results_dict[signal] for signal in sorted(signals, key=lambda s: signal_order[s])]
+    
+    return ordered_results
 
 
 def invalidate_health_cache():
