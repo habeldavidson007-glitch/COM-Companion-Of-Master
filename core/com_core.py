@@ -295,6 +295,10 @@ class COMCore:
             messages += context
             messages.append({"role": "user", "content": query})
             
+            # Check Ollama connection before calling
+            if not self.client.check_connection():
+                raise ConnectionError("Ollama is not running. Please start 'ollama serve' and ensure the model is installed.")
+            
             # Call Ollama with tight token limit
             full_response = ""
             def stream_cb(chunk):
