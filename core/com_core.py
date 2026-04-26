@@ -318,6 +318,15 @@ class COMCore:
             "• I can still help with short guidance based on your message.\n"
             "• Retry in ~10–15 seconds, or restart `ollama serve`."
         )
+        self._office_route_patterns = [
+            r"\b(create|buat|make)\s+(an?\s+)?(excel|xlsx|spreadsheet|pdf|ppt)\b",
+            r"\b(export|save)\s+.*\b(pdf|excel|ppt)\b",
+        ]
+        self._godot_route_patterns = [
+            r"\b(godot|gdscript)\b",
+            r"\bcreate\s+.*\.(gd|tscn)\b",
+            r"\b(player|scene|node|physics)\b.*\b(script|godot)\b",
+        ]
 
     def _normalize_query(self, query: str) -> str:
         """Lowercase + strip punctuation for deterministic fast-path checks."""
@@ -366,6 +375,45 @@ class COMCore:
             bullets = [f"• {c}." for c in chunks]
 
         return "\n".join(bullets[:3])
+
+    def _regex_route(self, normalized_query: str) -> Optional[str]:
+        """High-confidence regex route before LLM/router fallback."""
+        for pattern in self._office_route_patterns:
+            if re.search(pattern, normalized_query):
+                return "OFFICE"
+        for pattern in self._godot_route_patterns:
+            if re.search(pattern, normalized_query):
+                return "GODOT"
+        return None
+
+    def _repair_output(self, mode: str, text: str) -> str:
+        """Repair common output format drift for OFFICE/GODOT responses."""
+        cleaned = text.strip()
+
+        # Remove markdown fences that tool-execution paths don't need.
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
+            cleaned = re.sub(r"\n?```$", "", cleaned).strip()
+
+        if mode == "OFFICE":
+            # Extract first explicit signal in text when model adds explanation.
+            signal_match = re.search(r"@(?:XLS|PDF|PPT):[^\n]+", cleaned)
+            if signal_match:
+                return signal_match.group(0).strip()
+
+            # Auto-fix missing @ prefix variants: XLS:..., PDF:..., PPT:...
+            no_at = re.search(r"\b(XLS|PDF|PPT):[^\n]+", cleaned)
+            if no_at:
+                return f"@{no_at.group(0).strip()}"
+
+        if mode == "GODOT":
+            # Keep signal if present; otherwise return cleaned GDScript block.
+            signal_match = re.search(r"@GDT:[^\n]+", cleaned)
+            if signal_match:
+                return signal_match.group(0).strip()
+            return cleaned
+
+        return cleaned
     
     def check_status(self) -> Dict:
         """Check system status"""
@@ -401,8 +449,8 @@ class COMCore:
                     callback(quick)
                 return quick
 
-            # IMPROVED: Use IntentRouter instead of simple classify_mode
-            mode = self.router.route(query)
+            # Regex fast-route first, then router fallback.
+            mode = self._regex_route(normalized_query) or self.router.route(query)
             
             # PHASE 3: Check cache — zero LLM call on hit
             cached = self.cache.get(mode, query)
@@ -464,6 +512,8 @@ class COMCore:
             
             if mode == "GENERAL":
                 full_response = self._enforce_general_format(full_response)
+            else:
+                full_response = self._repair_output(mode, full_response)
 
             # PHASE 3: Cache result (OFFICE/GENERAL only, not GODOT scripts that go stale)
             if mode != "GODOT":
