@@ -174,10 +174,25 @@ class OllamaClient:
         self._last_healthcheck_ts = 0.0
         self._last_healthcheck_ok = False
         self._healthcheck_ttl = 10.0
+        self._consecutive_failures = 0
+        self._cooldown_until_ts = 0.0
+        self._cooldown_seconds = 12.0
+
+    def _mark_success(self):
+        self._consecutive_failures = 0
+        self._cooldown_until_ts = 0.0
+
+    def _mark_failure(self):
+        self._consecutive_failures += 1
+        if self._consecutive_failures >= 2:
+            self._cooldown_until_ts = time.time() + self._cooldown_seconds
     
     def check_connection(self) -> bool:
         """Check if Ollama is running"""
         now = time.time()
+        if now < self._cooldown_until_ts:
+            return False
+
         if (now - self._last_healthcheck_ts) < self._healthcheck_ttl:
             return self._last_healthcheck_ok
 
@@ -186,10 +201,15 @@ class OllamaClient:
             response = requests.get(f"{self.base_url}/api/tags", timeout=5)
             self._last_healthcheck_ok = (response.status_code == 200)
             self._last_healthcheck_ts = now
+            if self._last_healthcheck_ok:
+                self._mark_success()
+            else:
+                self._mark_failure()
             return self._last_healthcheck_ok
         except:
             self._last_healthcheck_ok = False
             self._last_healthcheck_ts = now
+            self._mark_failure()
             return False
     
     def generate_stream(self, messages: List[Dict], callback=None,
@@ -212,31 +232,39 @@ class OllamaClient:
             }
         }
         
-        try:
-            response = requests.post(
-                f"{self.base_url}/api/chat",
-                json=payload,
-                stream=True,
-                timeout=(5, self.timeout)
-            )
-            
-            full_response = ""
-            for line in response.iter_lines():
-                if line:
-                    try:
-                        data = json.loads(line)
-                        if "message" in data and "content" in data["message"]:
-                            chunk = data["message"]["content"]
-                            full_response += chunk
-                            if callback:
-                                callback(chunk)
-                    except json.JSONDecodeError:
-                        continue
-            
-            return full_response
-            
-        except requests.exceptions.RequestException as e:
-            raise ConnectionError(f"Ollama connection failed: {str(e)}")
+        effective_num_ctx = num_ctx or self.num_ctx
+        for attempt in range(2):
+            payload["options"]["num_ctx"] = effective_num_ctx
+            request_timeout = self.timeout if attempt == 0 else min(15, self.timeout)
+            try:
+                response = requests.post(
+                    f"{self.base_url}/api/chat",
+                    json=payload,
+                    stream=True,
+                    timeout=(5, request_timeout)
+                )
+
+                full_response = ""
+                for line in response.iter_lines():
+                    if line:
+                        try:
+                            data = json.loads(line)
+                            if "message" in data and "content" in data["message"]:
+                                chunk = data["message"]["content"]
+                                full_response += chunk
+                                if callback:
+                                    callback(chunk)
+                        except json.JSONDecodeError:
+                            continue
+                self._mark_success()
+                return full_response
+            except requests.exceptions.RequestException as e:
+                is_timeout = "timed out" in str(e).lower()
+                if attempt == 0 and is_timeout:
+                    effective_num_ctx = max(256, effective_num_ctx // 2)
+                    continue
+                self._mark_failure()
+                raise ConnectionError(f"Ollama connection failed: {str(e)}")
 
     def warmup(self) -> bool:
         """Warm model in background to reduce first-token latency."""
