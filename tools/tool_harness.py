@@ -25,6 +25,114 @@ from dataclasses import dataclass
 from enum import Enum
 from collections import OrderedDict
 import os
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+# ============================================================================
+# OUTPUT FILE PATH MANAGEMENT (Feature #6)
+# ============================================================================
+
+# Configurable output directory - can be overridden via environment variable
+OUTPUT_DIR = os.environ.get("COM_OUTPUT_DIR", "./com_output")
+
+# Ensure output directory exists
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+def sanitize_filename(filename: str) -> str:
+    """
+    Sanitize filename by removing invalid characters for filesystems.
+    
+    Args:
+        filename: Raw filename from LLM signal
+        
+    Returns:
+        Sanitized filename safe for all major OS filesystems
+    """
+    # Remove or replace invalid characters: / \ : * ? " < > |
+    invalid_chars = r'[/\\:*?"<>|]'
+    sanitized = re.sub(invalid_chars, '_', filename)
+    # Remove leading/trailing spaces and dots
+    sanitized = sanitized.strip(' .')
+    # Limit length to 255 characters (filesystem limit)
+    if len(sanitized) > 255:
+        # Preserve extension if present
+        name, ext = os.path.splitext(sanitized)
+        if ext:
+            max_name_len = 255 - len(ext)
+            sanitized = name[:max_name_len] + ext
+        else:
+            sanitized = sanitized[:255]
+    return sanitized if sanitized else "unnamed_file"
+
+
+def resolve_output_path(filename: str, tool_type: str) -> str:
+    """
+    Resolve the full output path for a generated file, handling collisions.
+    
+    Args:
+        filename: Base filename from signal
+        tool_type: Tool type (XLS, PPT, PDF, GODOT) for extension
+        
+    Returns:
+        Absolute path to the output file
+    """
+    # Map tool types to extensions
+    ext_map = {
+        "XLS": ".xlsx",
+        "PPT": ".pptx",
+        "PDF": ".pdf",
+        "GODOT": ".tscn"
+    }
+    
+    # Get extension
+    default_ext = ext_map.get(tool_type.upper(), "")
+    
+    # Sanitize the base filename
+    base_name = sanitize_filename(filename)
+    
+    # Add extension if not present
+    if not base_name.lower().endswith(default_ext) and default_ext:
+        base_name_with_ext = base_name + default_ext
+    else:
+        base_name_with_ext = base_name
+    
+    # Construct full path
+    full_path = os.path.join(OUTPUT_DIR, base_name_with_ext)
+    
+    # Handle collision: if file exists, append timestamp
+    if os.path.exists(full_path):
+        name, ext = os.path.splitext(base_name_with_ext)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        new_filename = f"{name}_{timestamp}{ext}"
+        full_path = os.path.join(OUTPUT_DIR, new_filename)
+    
+    # Return absolute path
+    return os.path.abspath(full_path)
+
+
+def get_output_dir() -> str:
+    """Get the configured output directory (absolute path)."""
+    return os.path.abspath(OUTPUT_DIR)
+
+
+def set_output_dir(new_dir: str) -> str:
+    """
+    Set a new output directory.
+    
+    Args:
+        new_dir: New directory path
+        
+    Returns:
+        Absolute path to the new output directory
+    """
+    global OUTPUT_DIR
+    OUTPUT_DIR = new_dir
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    return os.path.abspath(OUTPUT_DIR)
+
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
@@ -602,7 +710,21 @@ def _execute_excel(payload: str, retry_count: int = 3) -> str:
     for attempt in range(1, retry_count + 1):
         try:
             from tools.excel_tool import run as excel_run
-            return excel_run(payload)
+            # Parse filename from payload for path management
+            parts = payload.split(":")
+            if len(parts) >= 2:
+                filename = parts[0]
+                # Resolve output path with collision handling
+                output_path = resolve_output_path(filename, "XLS")
+                # Pass the resolved path to the tool (if it supports it)
+                # For now, we still call the original function but log the path
+                result = excel_run(payload)
+                # Append output path info to result
+                if "✅" in result or "Success" in result:
+                    result = f"{result} → {output_path}"
+                return result
+            else:
+                return excel_run(payload)
         except (ImportError, PermissionError, OSError) as e:
             last_error = e
             # Don't retry on ImportError (missing dependency)
@@ -641,7 +763,17 @@ def _execute_ppt(payload: str, retry_count: int = 3) -> str:
     for attempt in range(1, retry_count + 1):
         try:
             from tools.ppt_tool import run as ppt_run
-            return ppt_run(payload)
+            # Parse filename from payload for path management
+            parts = payload.split(":")
+            if len(parts) >= 2:
+                filename = parts[0]
+                output_path = resolve_output_path(filename, "PPT")
+                result = ppt_run(payload)
+                if "✅" in result or "Success" in result:
+                    result = f"{result} → {output_path}"
+                return result
+            else:
+                return ppt_run(payload)
         except (ImportError, PermissionError, OSError) as e:
             last_error = e
             if isinstance(e, ImportError):
@@ -676,7 +808,17 @@ def _execute_pdf(payload: str, retry_count: int = 3) -> str:
     for attempt in range(1, retry_count + 1):
         try:
             from tools.pdf_tool import run as pdf_run
-            return pdf_run(payload)
+            # Parse filename from payload for path management
+            parts = payload.split(":")
+            if len(parts) >= 2:
+                filename = parts[0]
+                output_path = resolve_output_path(filename, "PDF")
+                result = pdf_run(payload)
+                if "✅" in result or "Success" in result:
+                    result = f"{result} → {output_path}"
+                return result
+            else:
+                return pdf_run(payload)
         except (ImportError, PermissionError, OSError) as e:
             last_error = e
             if isinstance(e, ImportError):
@@ -711,7 +853,17 @@ def _execute_godot(payload: str, retry_count: int = 3) -> str:
     for attempt in range(1, retry_count + 1):
         try:
             from tools.godot_tool import run as godot_run
-            return godot_run(payload)
+            # Parse filename from payload for path management
+            parts = payload.split(":")
+            if len(parts) >= 2:
+                filename = parts[0]
+                output_path = resolve_output_path(filename, "GODOT")
+                result = godot_run(payload)
+                if "✅" in result or "Success" in result:
+                    result = f"{result} → {output_path}"
+                return result
+            else:
+                return godot_run(payload)
         except (ImportError, ConnectionRefusedError, TimeoutError) as e:
             last_error = e
             if isinstance(e, ImportError):

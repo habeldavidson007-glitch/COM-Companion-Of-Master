@@ -1,44 +1,31 @@
 ```
-# Python
-__pycache__/
+# Compiled Python files
 *.pyc
-*.pyo
-*.pyd
+__pycache__/
 
-# Virtual environments
-.venv/
-venv/
-env/
-
-# Build artifacts
-build/
-dist/
-*.egg-info/
-
-# Logs
-*.log
+# Excel test report (likely generated)
+com_output/TestReport.xlsx
 
 # Environment files
 .env
 .env.local
 *.env.*
 
-# Editors
+# Logs and temporary files
+*.log
+*.tmp
+
+# Editors/IDE
 .vscode/
 .idea/
-*.swp
-*.swo
 
-# Coverage
-.coverage
-coverage/
-htmlcov/
+# Build/dist directories
+dist/
+build/
+target/
 
-# Testing
-.pytest_cache/
-.mypy_cache/
-
-# OS
-.DS_Store
-Thumbs.db
+# Dependencies
+node_modules/
+.venv/
+venv/
 ```
