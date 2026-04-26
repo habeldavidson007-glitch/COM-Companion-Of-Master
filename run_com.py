@@ -32,7 +32,8 @@ def main():
     # Start COM Brain server in background thread
     print("🧠 Starting COM Brain server...")
     server = COMServer()
-    server_thread = threading.Thread(target=server.start, daemon=True)
+    # Use daemon=False so the thread doesn't die when main thread blocks on GUI
+    server_thread = threading.Thread(target=server.start, daemon=False)
     server_thread.start()
     
     # Wait for server to initialize
@@ -42,12 +43,14 @@ def main():
     print("💬 Starting Desktop GUI client...\n")
     from com_chat import COMDesktopApp
     
-    app = COMDesktopApp()
-    app.run()
-    
-    # Cleanup on exit
-    print("\n👋 Shutting down COM...")
-    server.stop()
+    try:
+        app = COMDesktopApp()
+        app.run()
+    finally:
+        # Cleanup on exit
+        print("\n👋 Shutting down COM...")
+        server.stop()
+        server_thread.join(timeout=2)
 
 
 if __name__ == "__main__":

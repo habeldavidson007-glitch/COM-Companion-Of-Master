@@ -162,8 +162,12 @@ class COMDesktopApp:
             self.is_offline = self.is_offline or not self.status["ollama_running"]
             print(f"💡 Local mode: {'Offline' if self.is_offline else 'Online'}")
         else:
-            self.status = self.com_client.get_status()
-            self.is_offline = not self.status.get("ollama_running", False)
+            try:
+                self.status = self.com_client.get_status()
+                self.is_offline = not self.status.get("ollama_running", False)
+            except:
+                self.is_offline = True
+                self.status = {"ollama_running": False}
             print(f"✅ Server mode: {'Offline' if self.is_offline else 'Online'}")
         
         self.messages: List[Dict] = []
