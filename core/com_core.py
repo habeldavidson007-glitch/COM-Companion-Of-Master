@@ -61,6 +61,12 @@ Format: • point
 No greetings. No filler. Direct answer only."""
 }
 
+MODE_OUTPUT_CONTRACTS = {
+    "GODOT": "Contract: output only valid GDScript or @GDT signal. No prose.",
+    "OFFICE": "Contract: output exactly one signal line: @XLS/@PDF/@PPT with payload.",
+    "GENERAL": "Contract: output max 3 concise bullet points prefixed with • .",
+}
+
 TOKEN_LIMITS = {
     "GODOT":   128,
     "OFFICE":  64,
@@ -336,6 +342,7 @@ class COMCore:
             r"\b\d{4}\b",                   # year
             r"\b\d+(?:\.\d+)?\s?(gb|mb|ms|s|sec|seconds|minutes|hours|%)\b",
         ]
+        self._fact_snippets = deque(maxlen=12)
 
     def _normalize_query(self, query: str) -> str:
         """Lowercase + strip punctuation for deterministic fast-path checks."""
@@ -472,6 +479,32 @@ class COMCore:
         Store if either side contains preference/fact/decision-like signals.
         """
         return self._is_salient_text(user_text) or self._is_salient_text(assistant_text)
+
+    def _extract_snippets(self, text: str) -> List[str]:
+        """Extract compact memory snippets from salient text."""
+        candidates = [seg.strip() for seg in re.split(r"[.!?\n]", text) if seg.strip()]
+        snippets = []
+        for seg in candidates:
+            norm = self._normalize_query(seg)
+            if self._is_salient_text(norm):
+                snippets.append(seg[:140])
+        return snippets[:2]
+
+    def _retrieve_snippets(self, query: str, top_k: int = 2) -> List[str]:
+        """Retrieve top-k snippets with simple token-overlap scoring."""
+        q_tokens = set(self._normalize_query(query).split())
+        if not q_tokens:
+            return []
+
+        scored = []
+        for snippet in self._fact_snippets:
+            s_tokens = set(self._normalize_query(snippet).split())
+            overlap = len(q_tokens.intersection(s_tokens))
+            if overlap > 0:
+                scored.append((overlap, snippet))
+
+        scored.sort(reverse=True, key=lambda x: x[0])
+        return [s for _, s in scored[:top_k]]
     
     def check_status(self) -> Dict:
         """Check system status"""
@@ -534,6 +567,15 @@ class COMCore:
             
             context = self.memory.get_context()
             messages = [{"role": "system", "content": system}]
+            messages.append({"role": "system", "content": MODE_OUTPUT_CONTRACTS[mode]})
+            if mode == "GENERAL":
+                snippets = self._retrieve_snippets(query, top_k=2)
+                if snippets:
+                    memory_hint = " | ".join(snippets)
+                    messages.append({
+                        "role": "system",
+                        "content": f"[Relevant memory snippets] {memory_hint}"
+                    })
             messages += context
             messages.append({"role": "user", "content": query})
             
@@ -590,6 +632,10 @@ class COMCore:
                 if self._should_store_general_turn(query, full_response):
                     self.memory.add_message("user", query)
                     self.memory.add_message("assistant", full_response)
+                    for snippet in self._extract_snippets(query):
+                        self._fact_snippets.append(snippet)
+                    for snippet in self._extract_snippets(full_response):
+                        self._fact_snippets.append(snippet)
                 
                 # Check if we should compress old messages
                 if len(self.memory.history) >= self.memory.max_messages:
