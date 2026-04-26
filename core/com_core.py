@@ -347,17 +347,31 @@ class COMCore:
             if not self.client.check_connection():
                 raise ConnectionError("Ollama is not running. Please start 'ollama serve' and ensure the model is installed.")
             
-            # Call Ollama with tight token limit
-            full_response = ""
-            def stream_cb(chunk):
-                nonlocal full_response
-                full_response += chunk
-                if callback:
-                    callback(chunk)
-            
-            self.client.generate_stream(messages, callback=stream_cb,
-                                       max_tokens=max_tok, temperature=temp,
-                                       num_ctx=num_ctx)
+            # Core policy: OFFICE only needs final signal, so avoid stream callbacks.
+            # GODOT/GENERAL keep token streaming for real-time UX.
+            if mode == "OFFICE":
+                full_response = self.client.generate(
+                    messages,
+                    max_tokens=max_tok,
+                    temperature=temp,
+                    num_ctx=num_ctx
+                )
+            else:
+                full_response = ""
+
+                def stream_cb(chunk):
+                    nonlocal full_response
+                    full_response += chunk
+                    if callback:
+                        callback(chunk)
+
+                self.client.generate_stream(
+                    messages,
+                    callback=stream_cb,
+                    max_tokens=max_tok,
+                    temperature=temp,
+                    num_ctx=num_ctx
+                )
             
             # PHASE 3: Cache result (OFFICE only, not GODOT scripts that go stale)
             if mode != "GODOT":
