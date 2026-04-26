@@ -1,31 +1,65 @@
 ```
-# Python
+# Excel files
+*.xlsx
+
+# Dependencies
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# Dependencies
-.venv/
-venv/
-env/
+# Environment
 .env
 .env.local
-.env.*
+*.env.*
 
-# Logs and temp files
+# Logs
 *.log
+
+# Temporary files
 *.tmp
+*.swp
+*~
+.DS_Store
+Thumbs.db
 
 # Editors
 .vscode/
 .idea/
+*.sublime-project
+*.sublime-workspace
 
-# Build and distribution
+# Build artifacts
 dist/
 build/
 *.egg-info/
 .coverage
 htmlcov/
 coverage/
+
+# Python specific
+.Python
+*.so
+*.dylib
+*.dll
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+.hypothesis/
+
+# Distribution / packaging
+*.tar.gz
+*.whl
+pip-log.txt
+pip-delete-this-directory.txt
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+nosetests.xml
+.tox/
+.nox/
 ```
