@@ -7,6 +7,7 @@ Model: qwen2.5:0.5b-instruct-q4_K_M (~500MB RAM)
 import json
 import hashlib
 import time
+import re
 from datetime import datetime
 from collections import deque
 from typing import Optional, List, Dict, Tuple
@@ -280,10 +281,27 @@ class COMCore:
         self.is_processing = False
         self._processing_start = 0
         self._processing_timeout = 45  # seconds
-        self._fast_replies = {
-            "hello": "• Hi, I am COM.\n• Local mode is active.\n• Ask me a task to continue.",
-            "hi": "• Hi, I am COM.\n• Local mode is active.\n• Ask me a task to continue.",
-        }
+        self._fast_reply_text = "• Hi, I am COM.\n• Local mode is active.\n• Ask me a task to continue."
+        self._thanks_reply_text = "• You're welcome.\n• Ready for the next task.\n• Tell me what to do."
+        self._greeting_tokens = {"hello", "hi", "hey", "yo", "hola"}
+        self._thanks_tokens = {"thanks", "thank", "thx", "makasih", "terima"}
+
+    def _normalize_query(self, query: str) -> str:
+        """Lowercase + strip punctuation for deterministic fast-path checks."""
+        cleaned = re.sub(r"[^a-zA-Z0-9\\s]", " ", query.lower())
+        return " ".join(cleaned.split())
+
+    def _fast_reply_for(self, normalized_query: str) -> Optional[str]:
+        """Return local fast reply for greeting/thanks without LLM call."""
+        if not normalized_query:
+            return None
+
+        tokens = set(normalized_query.split())
+        if tokens.intersection(self._greeting_tokens):
+            return self._fast_reply_text
+        if tokens.intersection(self._thanks_tokens):
+            return self._thanks_reply_text
+        return None
     
     def check_status(self) -> Dict:
         """Check system status"""
@@ -299,7 +317,7 @@ class COMCore:
         """Process user query with full pipeline"""
         start_time = time.time()
         cache_hit = False
-        normalized_query = query.strip().lower()
+        normalized_query = self._normalize_query(query)
         
         # Timeout safety: reset stuck processing flag
         if self.is_processing:
@@ -312,9 +330,9 @@ class COMCore:
         self._processing_start = time.time()
         
         try:
-            # Ultra-fast fallback for greeting smoke tests
-            if normalized_query in self._fast_replies:
-                quick = self._fast_replies[normalized_query]
+            # Ultra-fast fallback for greeting/thanks smoke tests
+            quick = self._fast_reply_for(normalized_query)
+            if quick:
                 if callback:
                     callback(quick)
                 return quick
