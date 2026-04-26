@@ -7,6 +7,7 @@ Model: qwen2.5:0.5b-instruct-q4_K_M (~500MB RAM)
 import json
 import hashlib
 import time
+import re
 from datetime import datetime
 from collections import deque
 from typing import Optional, List, Dict, Tuple
@@ -60,6 +61,12 @@ Format: • point
 No greetings. No filler. Direct answer only."""
 }
 
+MODE_OUTPUT_CONTRACTS = {
+    "GODOT": "Contract: output only valid GDScript or @GDT signal. No prose.",
+    "OFFICE": "Contract: output exactly one signal line: @XLS/@PDF/@PPT with payload.",
+    "GENERAL": "Contract: output max 3 concise bullet points prefixed with • .",
+}
+
 TOKEN_LIMITS = {
     "GODOT":   128,
     "OFFICE":  64,
@@ -70,6 +77,12 @@ TEMPERATURES = {
     "GODOT":   0.2,  # deterministic code
     "OFFICE":  0.1,  # exact signal output
     "GENERAL": 0.7   # natural answers
+}
+
+NUM_CTX_BY_MODE = {
+    "GODOT": 768,
+    "OFFICE": 512,
+    "GENERAL": 1024
 }
 
 
@@ -137,8 +150,8 @@ class MemoryManager:
         })
     
     def get_context(self) -> List[Dict]:
-        """Get current context"""
-        return list(self.history)
+        """Get context in chat API format (role/content only)."""
+        return [{"role": m["role"], "content": m["content"]} for m in self.history]
     
     def clear(self):
         """Clear conversation history"""
@@ -164,18 +177,50 @@ class OllamaClient:
         self.timeout = 30
         self.num_ctx = 1024
         self.keep_alive = "10m"
+        self._last_healthcheck_ts = 0.0
+        self._last_healthcheck_ok = False
+        self._healthcheck_ttl = 10.0
+        self._consecutive_failures = 0
+        self._cooldown_until_ts = 0.0
+        self._cooldown_seconds = 12.0
+
+    def _mark_success(self):
+        self._consecutive_failures = 0
+        self._cooldown_until_ts = 0.0
+
+    def _mark_failure(self):
+        self._consecutive_failures += 1
+        if self._consecutive_failures >= 2:
+            self._cooldown_until_ts = time.time() + self._cooldown_seconds
     
     def check_connection(self) -> bool:
         """Check if Ollama is running"""
+        now = time.time()
+        if now < self._cooldown_until_ts:
+            return False
+
+        if (now - self._last_healthcheck_ts) < self._healthcheck_ttl:
+            return self._last_healthcheck_ok
+
         try:
             import requests
             response = requests.get(f"{self.base_url}/api/tags", timeout=5)
-            return response.status_code == 200
+            self._last_healthcheck_ok = (response.status_code == 200)
+            self._last_healthcheck_ts = now
+            if self._last_healthcheck_ok:
+                self._mark_success()
+            else:
+                self._mark_failure()
+            return self._last_healthcheck_ok
         except:
+            self._last_healthcheck_ok = False
+            self._last_healthcheck_ts = now
+            self._mark_failure()
             return False
     
-    def generate_stream(self, messages: List[Dict], callback=None, 
-                       max_tokens: int = 256, temperature: float = 0.7):
+    def generate_stream(self, messages: List[Dict], callback=None,
+                       max_tokens: int = 256, temperature: float = 0.7,
+                       num_ctx: Optional[int] = None):
         """Stream response with low memory footprint"""
         import requests
         
@@ -188,36 +233,44 @@ class OllamaClient:
                 "temperature": temperature,
                 "top_p": 0.9,
                 "num_predict": max_tokens,
-                "num_ctx": self.num_ctx,
+                "num_ctx": num_ctx or self.num_ctx,
                 "num_batch": 16
             }
         }
         
-        try:
-            response = requests.post(
-                f"{self.base_url}/api/chat",
-                json=payload,
-                stream=True,
-                timeout=(5, self.timeout)
-            )
-            
-            full_response = ""
-            for line in response.iter_lines():
-                if line:
-                    try:
-                        data = json.loads(line)
-                        if "message" in data and "content" in data["message"]:
-                            chunk = data["message"]["content"]
-                            full_response += chunk
-                            if callback:
-                                callback(chunk)
-                    except json.JSONDecodeError:
-                        continue
-            
-            return full_response
-            
-        except requests.exceptions.RequestException as e:
-            raise ConnectionError(f"Ollama connection failed: {str(e)}")
+        effective_num_ctx = num_ctx or self.num_ctx
+        for attempt in range(2):
+            payload["options"]["num_ctx"] = effective_num_ctx
+            request_timeout = self.timeout if attempt == 0 else min(15, self.timeout)
+            try:
+                response = requests.post(
+                    f"{self.base_url}/api/chat",
+                    json=payload,
+                    stream=True,
+                    timeout=(5, request_timeout)
+                )
+
+                full_response = ""
+                for line in response.iter_lines():
+                    if line:
+                        try:
+                            data = json.loads(line)
+                            if "message" in data and "content" in data["message"]:
+                                chunk = data["message"]["content"]
+                                full_response += chunk
+                                if callback:
+                                    callback(chunk)
+                        except json.JSONDecodeError:
+                            continue
+                self._mark_success()
+                return full_response
+            except requests.exceptions.RequestException as e:
+                is_timeout = "timed out" in str(e).lower()
+                if attempt == 0 and is_timeout:
+                    effective_num_ctx = max(256, effective_num_ctx // 2)
+                    continue
+                self._mark_failure()
+                raise ConnectionError(f"Ollama connection failed: {str(e)}")
 
     def warmup(self) -> bool:
         """Warm model in background to reduce first-token latency."""
@@ -231,12 +284,13 @@ class OllamaClient:
         except Exception:
             return False
     
-    def generate(self, messages: List[Dict], max_tokens: int = 256, 
-                temperature: float = 0.7) -> str:
+    def generate(self, messages: List[Dict], max_tokens: int = 256,
+                temperature: float = 0.7, num_ctx: Optional[int] = None) -> str:
         """Non-streaming generation - FIXED to actually return response"""
         result = []
         self.generate_stream(messages, callback=lambda x: result.append(x),
-                           max_tokens=max_tokens, temperature=temperature)
+                           max_tokens=max_tokens, temperature=temperature,
+                           num_ctx=num_ctx)
         return "".join(result)
 
 
@@ -261,10 +315,196 @@ class COMCore:
         self.is_processing = False
         self._processing_start = 0
         self._processing_timeout = 45  # seconds
-        self._fast_replies = {
-            "hello": "• Hi, I am COM.\n• Local mode is active.\n• Ask me a task to continue.",
-            "hi": "• Hi, I am COM.\n• Local mode is active.\n• Ask me a task to continue.",
-        }
+        self._fast_reply_text = "• Hi, I am COM.\n• Local mode is active.\n• Ask me a task to continue."
+        self._thanks_reply_text = "• You're welcome.\n• Ready for the next task.\n• Tell me what to do."
+        self._greeting_tokens = {"hello", "hi", "hey", "yo", "hola"}
+        self._thanks_tokens = {"thanks", "thank", "thx", "makasih", "terima"}
+        self._offline_reply_text = (
+            "• Ollama is temporarily unavailable on this device.\n"
+            "• I can still help with short guidance based on your message.\n"
+            "• Retry in ~10–15 seconds, or restart `ollama serve`."
+        )
+        self._office_route_patterns = [
+            r"\b(create|buat|make)\s+(an?\s+)?(excel|xlsx|spreadsheet|pdf|ppt)\b",
+            r"\b(export|save)\s+.*\b(pdf|excel|ppt)\b",
+        ]
+        self._godot_route_patterns = [
+            r"\b(godot|gdscript)\b",
+            r"\bcreate\s+.*\.(gd|tscn)\b",
+            r"\b(player|scene|node|physics)\b.*\b(script|godot)\b",
+        ]
+        self._salience_patterns = [
+            # user preference/constraints
+            r"\b(i prefer|i like|i don't like|my preference|must|should|avoid|always)\b",
+            # explicit task/decision markers
+            r"\b(todo|task|plan|decide|decision|final|use this|do this|next step)\b",
+            # factual anchors
+            r"\b\d{4}\b",                   # year
+            r"\b\d+(?:\.\d+)?\s?(gb|mb|ms|s|sec|seconds|minutes|hours|%)\b",
+        ]
+        self._fact_snippets = deque(maxlen=12)
+
+    def _normalize_query(self, query: str) -> str:
+        """Lowercase + strip punctuation for deterministic fast-path checks."""
+        cleaned = re.sub(r"[^a-zA-Z0-9\\s]", " ", query.lower())
+        return " ".join(cleaned.split())
+
+    def _fast_reply_for(self, normalized_query: str) -> Optional[str]:
+        """Return local fast reply for greeting/thanks without LLM call."""
+        if not normalized_query:
+            return None
+
+        tokens = set(normalized_query.split())
+        if tokens.intersection(self._greeting_tokens):
+            return self._fast_reply_text
+        if tokens.intersection(self._thanks_tokens):
+            return self._thanks_reply_text
+        return None
+
+    def _offline_general_reply(self, normalized_query: str) -> str:
+        """Best-effort local fallback when Ollama is temporarily unavailable."""
+        if "ai" in normalized_query or "technology" in normalized_query:
+            return (
+                "• AI changes fast; focus on weekly learning goals, not hourly noise.\n"
+                "• Keep a small stack: one model, one workflow, one measurable project.\n"
+                "• When Ollama recovers, ask me to turn this into an action plan."
+            )
+        return self._offline_reply_text
+
+    def _enforce_general_format(self, text: str) -> str:
+        """Normalize GENERAL replies into max 3 concise bullets."""
+        if not text:
+            return text
+
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        bullets = []
+        for line in lines:
+            if line.startswith("•"):
+                bullets.append(line)
+            elif line[:2] in {"1.", "2.", "3."}:
+                bullets.append(f"• {line[2:].strip()}")
+            else:
+                bullets.append(f"• {line}")
+
+        if not bullets:
+            chunks = [c.strip() for c in text.split(".") if c.strip()]
+            bullets = [f"• {c}." for c in chunks]
+
+        return "\n".join(bullets[:3])
+
+    def _regex_route(self, normalized_query: str) -> Optional[str]:
+        """High-confidence regex route before LLM/router fallback."""
+        for pattern in self._office_route_patterns:
+            if re.search(pattern, normalized_query):
+                return "OFFICE"
+        for pattern in self._godot_route_patterns:
+            if re.search(pattern, normalized_query):
+                return "GODOT"
+        return None
+
+    def _route_with_confidence(self, normalized_query: str, raw_query: str) -> Tuple[str, float]:
+        """Route query and estimate confidence using cheap lexical signals."""
+        office_hits = sum(1 for p in self._office_route_patterns if re.search(p, normalized_query))
+        godot_hits = sum(1 for p in self._godot_route_patterns if re.search(p, normalized_query))
+
+        if office_hits > 0 and godot_hits == 0:
+            return "OFFICE", min(1.0, 0.7 + 0.15 * office_hits)
+        if godot_hits > 0 and office_hits == 0:
+            return "GODOT", min(1.0, 0.7 + 0.15 * godot_hits)
+        if office_hits > 0 and godot_hits > 0:
+            return self.router.route(raw_query), 0.4
+
+        # Fallback to router when no regex signal.
+        mode = self.router.route(raw_query)
+        # Short/vague queries are lower confidence for small models.
+        confidence = 0.45 if len(normalized_query.split()) >= 5 else 0.3
+        return mode, confidence
+
+    def _clarification_question(self, mode: str) -> str:
+        """One short clarification when route confidence is low."""
+        if mode == "OFFICE":
+            return "• Quick check: do you want a file action (Excel/PDF/PPT) or a normal explanation?"
+        if mode == "GODOT":
+            return "• Quick check: do you want Godot code output or a general explanation?"
+        return "• Quick check: should I answer generally, or create a file/code output?"
+
+    def _repair_output(self, mode: str, text: str) -> str:
+        """Repair common output format drift for OFFICE/GODOT responses."""
+        cleaned = text.strip()
+
+        # Remove markdown fences that tool-execution paths don't need.
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
+            cleaned = re.sub(r"\n?```$", "", cleaned).strip()
+
+        if mode == "OFFICE":
+            # Extract first explicit signal in text when model adds explanation.
+            signal_match = re.search(r"@(?:XLS|PDF|PPT):[^\n]+", cleaned)
+            if signal_match:
+                return signal_match.group(0).strip()
+
+            # Auto-fix missing @ prefix variants: XLS:..., PDF:..., PPT:...
+            no_at = re.search(r"\b(XLS|PDF|PPT):[^\n]+", cleaned)
+            if no_at:
+                return f"@{no_at.group(0).strip()}"
+
+        if mode == "GODOT":
+            # Keep signal if present; otherwise return cleaned GDScript block.
+            signal_match = re.search(r"@GDT:[^\n]+", cleaned)
+            if signal_match:
+                return signal_match.group(0).strip()
+            return cleaned
+
+        return cleaned
+
+    def _is_valid_mode_output(self, mode: str, text: str) -> bool:
+        """Schema validation for confidence-based fallback policy."""
+        cleaned = text.strip()
+        if mode == "OFFICE":
+            return bool(re.match(r"^@(XLS|PDF|PPT):.+", cleaned))
+        if mode == "GODOT":
+            return bool(cleaned.startswith("@GDT:") or "func " in cleaned or "extends " in cleaned)
+        return True
+
+    def _is_salient_text(self, text: str) -> bool:
+        """Heuristic salience check for low-RAM memory retention."""
+        normalized = self._normalize_query(text)
+        if len(normalized.split()) >= 28:
+            return True
+        return any(re.search(pattern, normalized) for pattern in self._salience_patterns)
+
+    def _should_store_general_turn(self, user_text: str, assistant_text: str) -> bool:
+        """
+        Keep only salient GENERAL turns to improve memory quality on small context.
+        Store if either side contains preference/fact/decision-like signals.
+        """
+        return self._is_salient_text(user_text) or self._is_salient_text(assistant_text)
+
+    def _extract_snippets(self, text: str) -> List[str]:
+        """Extract compact memory snippets from salient text."""
+        candidates = [seg.strip() for seg in re.split(r"[.!?\n]", text) if seg.strip()]
+        snippets = []
+        for seg in candidates:
+            norm = self._normalize_query(seg)
+            if self._is_salient_text(norm):
+                snippets.append(seg[:140])
+        return snippets[:2]
+
+    def _retrieve_snippets(self, query: str, top_k: int = 2) -> List[str]:
+        """Retrieve top-k snippets with simple token-overlap scoring."""
+        q_tokens = set(self._normalize_query(query).split())
+        if not q_tokens:
+            return []
+
+        scored = []
+        for snippet in self._fact_snippets:
+            s_tokens = set(self._normalize_query(snippet).split())
+            overlap = len(q_tokens.intersection(s_tokens))
+            if overlap > 0:
+                scored.append((overlap, snippet))
+
+        scored.sort(reverse=True, key=lambda x: x[0])
+        return [s for _, s in scored[:top_k]]
     
     def check_status(self) -> Dict:
         """Check system status"""
@@ -280,7 +520,7 @@ class COMCore:
         """Process user query with full pipeline"""
         start_time = time.time()
         cache_hit = False
-        normalized_query = query.strip().lower()
+        normalized_query = self._normalize_query(query)
         
         # Timeout safety: reset stuck processing flag
         if self.is_processing:
@@ -293,15 +533,21 @@ class COMCore:
         self._processing_start = time.time()
         
         try:
-            # Ultra-fast fallback for greeting smoke tests
-            if normalized_query in self._fast_replies:
-                quick = self._fast_replies[normalized_query]
+            # Ultra-fast fallback for greeting/thanks smoke tests
+            quick = self._fast_reply_for(normalized_query)
+            if quick:
                 if callback:
                     callback(quick)
                 return quick
 
-            # IMPROVED: Use IntentRouter instead of simple classify_mode
-            mode = self.router.route(query)
+            mode, route_conf = self._route_with_confidence(normalized_query, query)
+            if route_conf < 0.35:
+                clarification = self._clarification_question(mode)
+                if callback:
+                    callback(clarification)
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                self.logger.log("CLARIFY", query, clarification, cache_hit, elapsed_ms)
+                return clarification
             
             # PHASE 3: Check cache — zero LLM call on hit
             cached = self.cache.get(mode, query)
@@ -317,35 +563,79 @@ class COMCore:
             system = SYSTEM_PROMPTS[mode]
             max_tok = TOKEN_LIMITS[mode]
             temp = TEMPERATURES[mode]
+            num_ctx = NUM_CTX_BY_MODE[mode]
             
             context = self.memory.get_context()
             messages = [{"role": "system", "content": system}]
+            messages.append({"role": "system", "content": MODE_OUTPUT_CONTRACTS[mode]})
+            if mode == "GENERAL":
+                snippets = self._retrieve_snippets(query, top_k=2)
+                if snippets:
+                    memory_hint = " | ".join(snippets)
+                    messages.append({
+                        "role": "system",
+                        "content": f"[Relevant memory snippets] {memory_hint}"
+                    })
             messages += context
             messages.append({"role": "user", "content": query})
             
             # Check Ollama connection before calling
             if not self.client.check_connection():
+                if mode == "GENERAL":
+                    offline = self._offline_general_reply(normalized_query)
+                    if callback:
+                        callback(offline)
+                    elapsed_ms = int((time.time() - start_time) * 1000)
+                    self.logger.log("OFFLINE", query, offline, cache_hit, elapsed_ms)
+                    return offline
                 raise ConnectionError("Ollama is not running. Please start 'ollama serve' and ensure the model is installed.")
             
-            # Call Ollama with tight token limit
-            full_response = ""
-            def stream_cb(chunk):
-                nonlocal full_response
-                full_response += chunk
-                if callback:
-                    callback(chunk)
+            # Core policy: OFFICE only needs final signal, so avoid stream callbacks.
+            # GODOT/GENERAL keep token streaming for real-time UX.
+            if mode == "OFFICE":
+                full_response = self.client.generate(
+                    messages,
+                    max_tokens=max_tok,
+                    temperature=temp,
+                    num_ctx=num_ctx
+                )
+            else:
+                full_response = ""
+
+                def stream_cb(chunk):
+                    nonlocal full_response
+                    full_response += chunk
+                    if callback:
+                        callback(chunk)
+
+                self.client.generate_stream(
+                    messages,
+                    callback=stream_cb,
+                    max_tokens=max_tok,
+                    temperature=temp,
+                    num_ctx=num_ctx
+                )
             
-            self.client.generate_stream(messages, callback=stream_cb,
-                                       max_tokens=max_tok, temperature=temp)
-            
-            # PHASE 3: Cache result (OFFICE only, not GODOT scripts that go stale)
+            if mode == "GENERAL":
+                full_response = self._enforce_general_format(full_response)
+            else:
+                full_response = self._repair_output(mode, full_response)
+                if not self._is_valid_mode_output(mode, full_response):
+                    full_response = "@ERR:FORMAT:Please clarify output target (OFFICE signal or GODOT code)."
+
+            # PHASE 3: Cache result (OFFICE/GENERAL only, not GODOT scripts that go stale)
             if mode != "GODOT":
                 self.cache.set(mode, query, full_response)
             
             # PHASE 2: Store in sliding window memory (GENERAL only)
             if mode == "GENERAL":
-                self.memory.add_message("user", query)
-                self.memory.add_message("assistant", full_response)
+                if self._should_store_general_turn(query, full_response):
+                    self.memory.add_message("user", query)
+                    self.memory.add_message("assistant", full_response)
+                    for snippet in self._extract_snippets(query):
+                        self._fact_snippets.append(snippet)
+                    for snippet in self._extract_snippets(full_response):
+                        self._fact_snippets.append(snippet)
                 
                 # Check if we should compress old messages
                 if len(self.memory.history) >= self.memory.max_messages:
