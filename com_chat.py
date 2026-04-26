@@ -7,6 +7,7 @@ Native file dialogs for Excel/PDF/PPT operations
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, filedialog, simpledialog
 import threading
+import queue
 import os
 import sys
 from datetime import datetime
@@ -34,6 +35,7 @@ class COMDesktopApp:
         self.is_processing = False
         self.current_file_path = None
         self._window_closed = False
+        self._ui_queue = queue.Queue()
         threading.Thread(target=self.com_brain.client.warmup, daemon=True).start()
         
     def create_mascot(self):
@@ -177,6 +179,7 @@ class COMDesktopApp:
         
         # Reset window closed flag when reopening
         self._window_closed = False
+        self._pump_ui_queue()
         
         # Create UI components
         self._create_chat_ui()
@@ -321,13 +324,9 @@ class COMDesktopApp:
                 
                 def safe_ui_update(func):
                     """Safely update UI, handling window closure"""
-                    try:
-                        if self._window_closed:
-                            return
-                        if self.chat_window and self.chat_window.winfo_exists():
-                            self.chat_window.after(0, func)
-                    except (RuntimeError, AttributeError, tk.TclError):
-                        pass
+                    if self._window_closed:
+                        return
+                    self._ui_queue.put(func)
                 
                 def callback(chunk):
                     response_chunks.append(chunk)
@@ -351,6 +350,18 @@ class COMDesktopApp:
         
         thread = threading.Thread(target=process_thread, daemon=True)
         thread.start()
+
+    def _pump_ui_queue(self):
+        """Run queued UI updates from main thread."""
+        if self._window_closed or not self.chat_window or not self.chat_window.winfo_exists():
+            return
+        try:
+            while True:
+                func = self._ui_queue.get_nowait()
+                func()
+        except queue.Empty:
+            pass
+        self.chat_window.after(33, self._pump_ui_queue)
         
     def _append_to_last_message(self, chunk):
         """Append chunk to the last message being written"""
