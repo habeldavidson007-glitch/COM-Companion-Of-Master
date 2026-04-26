@@ -345,6 +345,27 @@ class COMCore:
                 "• When Ollama recovers, ask me to turn this into an action plan."
             )
         return self._offline_reply_text
+
+    def _enforce_general_format(self, text: str) -> str:
+        """Normalize GENERAL replies into max 3 concise bullets."""
+        if not text:
+            return text
+
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        bullets = []
+        for line in lines:
+            if line.startswith("•"):
+                bullets.append(line)
+            elif line[:2] in {"1.", "2.", "3."}:
+                bullets.append(f"• {line[2:].strip()}")
+            else:
+                bullets.append(f"• {line}")
+
+        if not bullets:
+            chunks = [c.strip() for c in text.split(".") if c.strip()]
+            bullets = [f"• {c}." for c in chunks]
+
+        return "\n".join(bullets[:3])
     
     def check_status(self) -> Dict:
         """Check system status"""
@@ -441,7 +462,10 @@ class COMCore:
                     num_ctx=num_ctx
                 )
             
-            # PHASE 3: Cache result (OFFICE only, not GODOT scripts that go stale)
+            if mode == "GENERAL":
+                full_response = self._enforce_general_format(full_response)
+
+            # PHASE 3: Cache result (OFFICE/GENERAL only, not GODOT scripts that go stale)
             if mode != "GODOT":
                 self.cache.set(mode, query, full_response)
             
