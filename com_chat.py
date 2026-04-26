@@ -59,33 +59,42 @@ class COMClient:
         
         full_response = ""
         chunks = []
+        self.socket.settimeout(30.0)  # Set timeout for receiving
         
-        while True:
-            data = self.socket.recv(4096).decode('utf-8')
-            if not data:
-                break
-                
-            self.buffer += data
-            
-            while '\n' in self.buffer:
-                line, self.buffer = self.buffer.split('\n', 1)
+        try:
+            while True:
                 try:
-                    msg = json.loads(line)
-                    msg_type = msg.get('type')
+                    data = self.socket.recv(4096).decode('utf-8')
+                except socket.timeout:
+                    print("⚠️  Response timeout - server may be busy")
+                    break
                     
-                    if msg_type == 'chunk':
-                        chunk = msg.get('data', '')
-                        chunks.append(chunk)
-                        full_response += chunk
-                        if callback:
-                            callback(chunk)
-                    elif msg_type == 'complete':
-                        return full_response
-                    elif msg_type == 'error':
-                        raise Exception(msg.get('message', 'Unknown error'))
-                except json.JSONDecodeError:
-                    continue
+                if not data:
+                    break
                     
+                self.buffer += data
+                
+                while '\n' in self.buffer:
+                    line, self.buffer = self.buffer.split('\n', 1)
+                    try:
+                        msg = json.loads(line)
+                        msg_type = msg.get('type')
+                        
+                        if msg_type == 'chunk':
+                            chunk = msg.get('data', '')
+                            chunks.append(chunk)
+                            full_response += chunk
+                            if callback:
+                                callback(chunk)
+                        elif msg_type == 'complete':
+                            return full_response
+                        elif msg_type == 'error':
+                            raise Exception(msg.get('message', 'Unknown error'))
+                    except json.JSONDecodeError:
+                        continue
+        finally:
+            self.socket.settimeout(None)  # Reset timeout
+            
         return full_response
     
     def get_status(self) -> Dict:
