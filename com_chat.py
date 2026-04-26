@@ -307,8 +307,12 @@ class COMDesktopApp:
                 
                 def callback(chunk):
                     response_chunks.append(chunk)
-                    # Update UI in main thread
-                    self.chat_window.after(0, lambda: self._append_to_last_message(chunk))
+                    # Update UI in main thread (check if window still exists)
+                    if self.chat_window and self.chat_window.winfo_exists():
+                        try:
+                            self.chat_window.after(0, lambda c=chunk: self._append_to_last_message(c))
+                        except RuntimeError:
+                            pass  # Window closed, ignore
                 
                 response = self.com_brain.process_query(user_input, callback=callback)
                 
@@ -316,15 +320,26 @@ class COMDesktopApp:
                 if is_signal(response):
                     prefix, payload = parse_signal(response)
                     tool_result = self._execute_signal(prefix, payload)
-                    if tool_result:
-                        self.chat_window.after(0, lambda: self._add_system_message(tool_result))
+                    if tool_result and self.chat_window and self.chat_window.winfo_exists():
+                        try:
+                            self.chat_window.after(0, lambda r=tool_result: self._add_system_message(r))
+                        except RuntimeError:
+                            pass
                 
-                self.chat_window.after(0, lambda: self._finish_processing())
+                if self.chat_window and self.chat_window.winfo_exists():
+                    try:
+                        self.chat_window.after(0, lambda: self._finish_processing())
+                    except RuntimeError:
+                        pass
                 
             except Exception as e:
                 error_msg = f"Error: {str(e)}"
-                self.chat_window.after(0, lambda: self._add_system_message(error_msg, tag='error'))
-                self.chat_window.after(0, lambda: self._finish_processing())
+                if self.chat_window and self.chat_window.winfo_exists():
+                    try:
+                        self.chat_window.after(0, lambda m=error_msg: self._add_system_message(m, tag='error'))
+                        self.chat_window.after(0, lambda: self._finish_processing())
+                    except RuntimeError:
+                        pass
         
         thread = threading.Thread(target=process_thread, daemon=True)
         thread.start()
