@@ -1,6 +1,7 @@
+ollama
+openpyxl
+reportlab
+python-pptx
 requests
-pandas
-fpdf
-fastapi
-uvicorn
-websockets
+beautifulsoup4
+lxml
