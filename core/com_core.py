@@ -350,14 +350,22 @@ class COMCore:
         return " ".join(cleaned.split())
 
     def _fast_reply_for(self, normalized_query: str) -> Optional[str]:
-        """Return local fast reply for greeting/thanks without LLM call."""
+        """Return local fast reply for greeting/thanks without LLM call.
+        Only trigger on pure greetings (1-2 tokens, no task keywords).
+        """
         if not normalized_query:
             return None
 
         tokens = set(normalized_query.split())
-        if tokens.intersection(self._greeting_tokens):
+        # Only reply to pure greetings (1-2 tokens that are greetings)
+        # Don't short-circuit if query contains task keywords
+        task_keywords = {"make", "create", "write", "generate", "build", "do", "can", "could", "please"}
+        if tokens.intersection(task_keywords):
+            return None  # Has task keywords, don't short-circuit
+        
+        if len(tokens) <= 2 and tokens.intersection(self._greeting_tokens):
             return self._fast_reply_text
-        if tokens.intersection(self._thanks_tokens):
+        if len(tokens) <= 2 and tokens.intersection(self._thanks_tokens):
             return self._thanks_reply_text
         return None
 

@@ -414,7 +414,8 @@ class PayloadValidator:
             'XLS': cls.validate_xls_payload,
             'PPT': cls.validate_ppt_payload,
             'PDF': cls.validate_pdf_payload,
-            'GODOT': cls.validate_godot_payload
+            'GODOT': cls.validate_godot_payload,
+            'GDT': cls.validate_godot_payload  # Alias for @GDT shorthand
         }
         
         validator = validators.get(tool_type)
@@ -518,15 +519,17 @@ def execute_xls(payload: str) -> Dict[str, Any]:
     try:
         import pandas as pd
         
-        parts = payload.split(':')
-        filename = parts[0].strip()
-        columns = [c.strip() for c in parts[1].split(',')]
+        # Split on first colon only to handle filenames with colons
+        parts = payload.split(':', 1)
+        filename = parts[0].strip() if parts[0] else "output"
+        columns_raw = parts[1].strip() if len(parts) > 1 else "Data"
+        columns = [c.strip() for c in columns_raw.split(",")]
         
         # Create sample data
         data = {col: [f"Sample {col} Data"] * 5 for col in columns}
         df = pd.DataFrame(data)
         
-        # Get unique file path
+        # Get unique file path using COM_OUTPUT_DIR
         file_path = file_manager.get_unique_path(filename, '.xlsx')
         
         # Write to Excel
@@ -547,9 +550,11 @@ def execute_ppt(payload: str) -> Dict[str, Any]:
         from pptx import Presentation
         from pptx.util import Inches
         
-        parts = payload.split(':')
-        filename = parts[0].strip()
-        slides_content = [s.strip() for s in parts[1].split('|')]
+        # Split on first colon only to handle filenames with colons
+        parts = payload.split(':', 1)
+        filename = parts[0].strip() if parts[0] else "presentation"
+        slides_raw = parts[1].strip() if len(parts) > 1 else "Slide 1"
+        slides_content = [s.strip() for s in slides_raw.split('|')]
         
         # Create presentation
         prs = Presentation()
@@ -569,7 +574,7 @@ def execute_ppt(payload: str) -> Dict[str, Any]:
             slide.shapes.title.text = "Content Slide"
             slide.placeholders[1].text = content
         
-        # Get unique file path
+        # Get unique file path using COM_OUTPUT_DIR
         file_path = file_manager.get_unique_path(filename, '.pptx')
         
         # Save presentation
@@ -588,9 +593,11 @@ def execute_pdf(payload: str) -> Dict[str, Any]:
     try:
         from fpdf import FPDF
         
+        # Split on first colon only - payload format is filename:content
+        # This fixes the PDF truncation bug where content after second colon was dropped
         parts = payload.split(':', 1)
-        filename = parts[0].strip()
-        content = parts[1].strip()
+        filename = parts[0].strip() if parts[0] else "document"
+        content = parts[1].strip() if len(parts) > 1 else ""
         
         # Create PDF
         pdf = FPDF()
@@ -601,7 +608,7 @@ def execute_pdf(payload: str) -> Dict[str, Any]:
         for line in content.split('\n'):
             pdf.cell(200, 10, txt=line, ln=True)
         
-        # Get unique file path
+        # Get unique file path using COM_OUTPUT_DIR
         file_path = file_manager.get_unique_path(filename, '.pdf')
         
         # Save PDF
@@ -677,13 +684,16 @@ def execute_signal(signal_text: str) -> Dict[str, Any]:
     Returns:
         Dictionary with execution result
     """
-    # Extract tool and payload
-    matches = re.match(r'@(\w+):(.+)', signal_text.strip())
+    # Extract tool and payload - fix tail-bleed by capturing only non-whitespace after signal
+    matches = re.match(r'@(XLS|PDF|PPT|GODOT|GDT|ERR):([^\s\n]+)', signal_text.strip())
     if not matches:
-        return {
-            'success': False,
-            'error': 'Invalid signal format. Use @TOOL:payload'
-        }
+        # Fallback for signals with content after filename (like PDF with content)
+        matches = re.match(r'@(\w+):(.+?)(?:\s|$)', signal_text.strip())
+        if not matches:
+            return {
+                'success': False,
+                'error': 'Invalid signal format. Use @TOOL:payload'
+            }
     
     tool_type = matches.group(1).upper()
     payload = matches.group(2)

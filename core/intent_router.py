@@ -26,7 +26,7 @@ class IntentRouter:
     Stage 2: if scores are tied (within threshold), ask LLM for 1-token classification
     """
     
-    TIE_THRESHOLD = 0.3  # If score difference is less than this, use LLM tie-breaker
+    TIE_THRESHOLD = 1.5  # If score difference is less than this, use LLM tie-breaker (raised from 0.3)
     ROUTER_PROMPT = """Classify this input into exactly one word: GODOT, OFFICE, or GENERAL.
 Input: {query}
 Reply with one word only."""
