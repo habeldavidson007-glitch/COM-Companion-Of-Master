@@ -484,12 +484,23 @@ class COMDesktopApp:
             self.mode_indicator.config(text=mode)
             
     def _execute_signal(self, prefix, payload):
-        """Execute signal bytes using the wired harness"""
-        from harness import dispatch
-        
-        # Reconstruct full signal and delegate to harness
+        """Execute signal bytes using tool_harness as the single source of truth"""
+        from tools.tool_harness import execute_signal
+
+        # Reconstruct full signal and delegate to unified harness
         signal = f"{prefix}:{payload}"
-        return dispatch(signal)
+        result = execute_signal(signal)
+        
+        if result.get('success'):
+            res = result.get('result', {})
+            if 'file_path' in res:
+                return f"✅ Created: {res['file_path']}"
+            elif 'message' in res:
+                return res['message']
+            return "✅ Signal executed successfully"
+        else:
+            error = result.get('error', 'Unknown error')
+            return f"❌ Signal execution failed: {error}"
         
     def run(self):
         """Start the desktop application"""

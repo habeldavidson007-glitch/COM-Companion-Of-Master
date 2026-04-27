@@ -206,11 +206,13 @@ class ToolHealthChecker:
     
     def _check_all_tools(self):
         """Check health of all available tools."""
+        godot_status = self._check_godot_tool()
         self.tool_status = {
             'XLS': self._check_excel_tool(),
             'PPT': self._check_powerpoint_tool(),
             'PDF': self._check_pdf_tool(),
-            'GODOT': self._check_godot_tool()
+            'GODOT': godot_status,
+            'GDT': godot_status  # Alias shares same health status
         }
     
     def _check_excel_tool(self) -> Dict[str, Any]:
@@ -708,12 +710,13 @@ def execute_signal(signal_text: str) -> Dict[str, Any]:
         cached_result['cached'] = True
         return cached_result
     
-    # Map tool types to execution functions
+    # Map tool types to execution functions (support both @GDT and @GODOT aliases)
     executors = {
         'XLS': execute_xls,
         'PPT': execute_ppt,
         'PDF': execute_pdf,
-        'GODOT': execute_godot
+        'GODOT': execute_godot,
+        'GDT': execute_godot  # Alias for @GDT shorthand
     }
     
     executor = executors.get(tool_type)

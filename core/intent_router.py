@@ -12,8 +12,9 @@ MODES = {
         "weight": 1.0
     },
     "OFFICE": {
-        "keywords": ["excel", "pdf", "ppt", "spreadsheet", "report",
-                     "dokumen", "laporan", "buat file", "tabel", "save"],
+        "keywords": ["excel", "pdf", "ppt", "pptx", "spreadsheet", "report",
+                     "dokumen", "laporan", "buat file", "tabel", "save",
+                     "write a", "create a", "make a", "generate"],
         "weight": 1.5  # Office tools get slight priority for file operations
     },
     "GENERAL": {"keywords": [], "weight": 0}

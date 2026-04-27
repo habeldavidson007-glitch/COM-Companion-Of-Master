@@ -29,12 +29,12 @@ MODES = {
 }
 
 def classify_mode(user_input: str) -> str:
-    """Pure Python keyword check for mode detection"""
-    text = user_input.lower()
-    for mode, keywords in MODES.items():
-        if any(k in text for k in keywords):
-            return mode
-    return "GENERAL"
+    """DELEGATED to IntentRouter for weighted scoring - avoids duplicate logic."""
+    from .intent_router import IntentRouter
+    # Create temporary router instance (uses same client as core)
+    # This ensures single source of truth for routing decisions
+    _router = IntentRouter()
+    return _router.route(user_input)
 
 
 # ================================================================
@@ -346,7 +346,7 @@ class COMCore:
 
     def _normalize_query(self, query: str) -> str:
         """Lowercase + strip punctuation for deterministic fast-path checks."""
-        cleaned = re.sub(r"[^a-zA-Z0-9\\s]", " ", query.lower())
+        cleaned = re.sub(r"[^\w\s]", " ", query.lower())
         return " ".join(cleaned.split())
 
     def _fast_reply_for(self, normalized_query: str) -> Optional[str]:
