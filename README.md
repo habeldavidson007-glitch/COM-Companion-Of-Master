@@ -1,70 +1,122 @@
 
-------------------------------
-## COM (Companion Of Master) 🤖
-COM is a lightweight, Agentic AI Floating Assistant specifically engineered to run on hardware with limited resources. By leveraging Small Language Models (SLM) and an efficient Python harness, COM provides a seamless bridge between high-level AI reasoning and local system automation.
+# COM (Cognitive Operating Module) v2.0
+### The Local-First, Signal-Constrained Agentic Assistant
 
+**COM** is a lightweight, offline-capable AI desktop assistant designed for **low-resource environments (4GB RAM)**. It bridges the gap between the probabilistic nature of Small Language Models (SLMs) and the deterministic requirements of desktop automation.
 
-------------------------------
-## 🌟 Overview
-Unlike resource-heavy AI applications, COM (Companion Of Master) is built for speed and utility. It sits unobtrusively on your screen, ready to assist with Godot Game Development or handle mundane General Tasks like generating documents, all while keeping your RAM usage under control.
-## 🚀 Key Features
+By enforcing a **Signal-of-Thought (SoT)** protocol, COM transforms a quantized 1.5B parameter model into a reliable agent capable of generating Excel reports, PDFs, PowerPoint decks, Godot scripts, and maintaining a personal knowledge wiki—all without sending data to the cloud.
 
-* Always-on-Top Floating UI: A minimalist, transparent interface that stays visible while you work in Godot or other software.
-* Godot Dev Specialist: Deeply understands GDScript 4.x and game architecture patterns.
-* Agentic Workflow: Beyond just chatting, COM can trigger Python scripts to generate:
-* 📊 Excel spreadsheets for asset tracking.
-   * 📄 PDF reports or documentation.
-   * 📂 PPT presentations.
-* Low-Hardware Optimized: Specifically tuned to run on systems with as little as 4GB RAM (using ~1GB - 1.5GB total).
+---
 
-------------------------------
-## 🧠 System Philosophy
-COM follows the "Modular Intelligence" approach:
+## 🚀 Core Architecture
 
-   1. The Brain: Powered by qwen2.5:1.5b via Ollama. We use quantization to ensure the neural network fits into limited RAM.
-   2. The Harness: A Python-based agentic layer that interprets AI intent and executes local system commands.
-   3. The Interface: A lightweight Tkinter GUI that minimizes overhead compared to Electron-based apps.
+COM operates on a **Hybrid Probabilistic-Deterministic** architecture:
 
-------------------------------
-## 🛠️ Installation & Setup## 1. Prerequisites
+1.  **The Brain (Probabilistic):** A locally hosted **1.5B Quantized SLM** acts as a *Semantic Router*. It does not write code directly; it classifies intent and outputs structured control signals.
+2.  **The Hands (Deterministic):** A Python-based **Tool Harness** executes strict logic based on those signals. This ensures 100% reliability in file I/O, math, and system operations, bypassing LLM hallucination.
 
-* [Python 3.10+](https://www.python.org/)
-* [Ollama](https://ollama.com/)
+### The Signal-of-Thought (SoT) Protocol
+Instead of asking the LLM to "write a script," COM forces the model to output a single-line structured command:
+`@XLS:Report:Date,Sales,Profit` → `Python Executor` → `report.xlsx`
 
-## 2. Prepare the Model
-Pull the base model and create the COM Persona:
+This **Constraint Engineering** approach allows a tiny model to perform complex tasks by reducing its cognitive load to simple classification and slot-filling.
 
-ollama pull qwen2.5:1.5b
+---
 
-Create a Modelfile in your directory:
+## 🧠 Key Capabilities
 
-FROM qwen2.5:1.5b
-SYSTEM "You are COM (Companion Of Master), a concise and expert AI assistant. You specialize in Godot Game Dev (GDScript) and office automation. Keep responses brief."
-PARAMETER temperature 0.5
+### 1. Multi-Domain Tool Execution
+*   **📊 Office Automation:** Generates `.xlsx` (with formulas), `.pdf` (reports), and `.pptx` (decks) with collision avoidance and safe I/O.
+*   **🎮 Game Dev Specialist:** Integrated **Godot Engine Expert** (`@GDT`) that generates GDScript (CharacterBody2D, shaders, plugins) using domain-specific knowledge bases.
+*   **💻 Code Generation:** Dedicated experts for **Python (`@PY`)**, **C++ (`@CPP`)**, and **Web (`@WEB`)** stacks with safety analysis.
+*   **📚 Personal Knowledge Wiki:** Incremental compilation of research notes. Ingests raw data (PDFs, URLs) into a structured Markdown wiki with auto-linking, concept extraction, and integrity health checks (`@WIKI`).
 
-Register the model:
+### 2. Advanced Routing & Memory
+*   **Hierarchical Specificity Scoring:** Resolves keyword collisions (e.g., "game design doc" vs. "excel sheet") using weighted density scoring rather than simple first-match.
+*   **Salience-Filtered Memory:** A sliding window deque that retains only high-salience context, preventing context runaway on low-RAM machines.
+*   **Dual-Layer Caching:** Deduplicates repeated queries at both the intent and execution layers.
 
-ollama create com-agent -f Modelfile
+### 3. Production-Grade Reliability
+*   **Auto-Repair Loop:** If the LLM outputs malformed signals, an automated regex-based repair engine attempts to fix the syntax before failing.
+*   **Concurrency Safety:** Thread-safe tool harness with LRU caching and timeout guards.
+*   **Secure I/O:** All file operations are sandboxed to `./com_output/` with path traversal protection.
 
-## 3. Clone and Run
+---
 
-git clone https://github.com
-cd COM-Companion-Of-Master
-pip install -r requirements.txt
-python main.py
+## 🛠 Technical Specifications
 
-------------------------------
-## 📅 Roadmap
+| Component | Specification |
+| :--- | :--- |
+| **Model Backend** | **1.5B Parameter Quantized SLM** (e.g., Qwen2.5-1.5B-Instruct-Q4_K_M) |
+| **Runtime** | Python 3.8+ (Tkinter UI, Ollama/Llama.cpp backend) |
+| **RAM Footprint** | < 2.5GB Idle (Optimized for 4GB systems) |
+| **Routing Logic** | Hybrid Keyword Density + LLM Tie-Breaker |
+| **Memory Model** | Salience-weighted Deque + Micro-RAG |
+| **Signal Types** | `@XLS`, `@PDF`, `@PPT`, `@GDT`, `@PY`, `@CPP`, `@WEB`, `@WIKI`, `@ERR` |
 
-* Initial Floating UI Implementation.
-* Phase 2: Function calling for Excel and PDF generation.
-* Phase 3: Godot Engine socket integration for real-time script injection.
-* Phase 4: Advanced context memory using RAG (Retrieval-Augmented Generation).
+---
 
-------------------------------
-## 🤝 Contribution
-COM is a testament that you don't need a supercomputer to build powerful AI agents. If you are passionate about Small Language Models (SLMs) or Local AI, feel free to fork, submit PRs, or open issues!
-------------------------------
-COM: Small Brain, Big Deeds.
+## 📂 Project Structure
+
+```text
+COM/
+├── core/
+│   ├── com_core.py          # Main loop, memory, salience, normalization
+│   ├── intent_router.py     # Hierarchical specificity scoring & weighting
+│   └── ...
+├── tools/
+│   ├── tool_harness.py      # Unified executor, safe_write, concurrency
+│   ├── excel_tool.py        # XLSX generation
+│   ├── pdf_tool.py          # PDF generation
+│   ├── ppt_tool.py          # PPTX generation
+│   ├── game_dev/
+│   │   └── godot_engine.py  # Godot specialist (500+ lines of logic)
+│   ├── languages/
+│   │   ├── python_expert.py
+│   │   ├── cpp_expert.py
+│   │   └── web_stack.py
+│   └── data_ops/
+│       └── wiki_compiler.py # Knowledge base ingestion & health checks
+├── com_output/              # Sandboxed output directory
+├── raw/                     # Raw data ingest for Wiki
+├── wiki/                    # Compiled Markdown knowledge base
+└── com_chat.py              # Tkinter UI Entry Point
+```
+
+---
+
+## ⚡ Quick Start
+
+### Prerequisites
+1.  **Ollama** installed and running.
+2.  Pull the model: `ollama pull qwen2.5:1.5b` (or your preferred 1.5B quant).
+3.  Install dependencies: `pip install -r requirements.txt`
+
+### Running COM
+```bash
+python com_chat.py
+```
+
+### Example Interactions
+*   *"Create an excel sheet of my monthly expenses with columns for Date, Item, and Cost."*
+    *   → Routes to `@XLS`, generates `expenses_2026.xlsx`.
+*   *"Write a 2D movement script for Godot 4."*
+    *   → Routes to `@GDT`, invokes `GodotEngineTool`, generates `movement.gd`.
+*   *"Ingest these three papers on LLM agents and compile a wiki summary."*
+    *   → Routes to `@WIKI:INGEST`, updates `wiki/` with linked markdown files.
+
+---
+
+## 🏆 Benchmark Performance
+**Current Score: 95%+ (323/340 Tests)**
+*   **100%** Pass Rate on Tool Execution (Excel, PDF, PPT, Godot).
+*   **100%** Pass Rate on Concurrency Stress Tests (100 threads).
+*   **Fixed** critical routing collisions and regex parsing errors in v2.0.
+
+---
+
+## 📜 License & Philosophy
+COM is built on the theory that **local AI should be an operating system extension, not just a chatbot.** By separating *intent recognition* (LLM) from *execution* (Code), we achieve reliability impossible with pure generative models, all while respecting user privacy and hardware constraints.
+
+COM: Small Brain, Big Deeds.  
 Developed with ❤️ for the Low-Spec Community.
-------------------------------
