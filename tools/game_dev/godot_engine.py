@@ -5,7 +5,7 @@ Acts as a central hub for engine internals, documentation, demos, plugins, and t
 """
 
 from typing import Dict, List, Any, Optional
-from .base import BaseTool
+from tools.base import BaseTool
 
 class GodotEngineTool(BaseTool):
     """

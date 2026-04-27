@@ -656,6 +656,108 @@ func _ready():
     except Exception as e:
         raise e
 
+def _execute_python_expert(payload: str) -> Dict[str, Any]:
+    """Execute Python Expert tool for code analysis and generation."""
+    try:
+        from tools.languages.python_expert import PythonExpertTool
+        
+        parts = payload.split(':', 1)
+        filename = parts[0].strip() if parts else "script.py"
+        code_or_action = parts[1] if len(parts) > 1 else ""
+        
+        expert = PythonExpertTool()
+        
+        # If payload looks like code, analyze it; otherwise generate template
+        if code_or_action.startswith("def ") or code_or_action.startswith("class ") or "import " in code_or_action:
+            result = expert.execute("analyze_code", code=code_or_action)
+        else:
+            result = expert.execute("generate_template", template_type=code_or_action or "script")
+        
+        # Generate file if we have code
+        if result.get('success') and result.get('code'):
+            file_path = file_manager.get_unique_path(filename if filename.endswith('.py') else f"{filename}.py", '')
+            with open(file_path, 'w') as f:
+                f.write(result['code'])
+            result['file_path'] = file_path
+        
+        return result
+    except ImportError:
+        return {
+            'success': False,
+            'error': 'PythonExpertTool not available'
+        }
+    except Exception as e:
+        raise e
+
+def _execute_cpp_expert(payload: str) -> Dict[str, Any]:
+    """Execute C++ Expert tool for code analysis and generation."""
+    try:
+        from tools.languages.cpp_expert import CppExpertTool
+        
+        parts = payload.split(':', 1)
+        filename = parts[0].strip() if parts else "program.cpp"
+        code_or_action = parts[1] if len(parts) > 1 else ""
+        
+        expert = CppExpertTool()
+        
+        # If payload looks like code, analyze it; otherwise generate template
+        if code_or_action.startswith("#include") or code_or_action.startswith("int main") or "class " in code_or_action:
+            result = expert.execute("analyze_code", code=code_or_action)
+        else:
+            result = expert.execute("generate_template", template_type=code_or_action or "program")
+        
+        # Generate file if we have code
+        if result.get('success') and result.get('code'):
+            file_path = file_manager.get_unique_path(filename if filename.endswith('.cpp') else f"{filename}.cpp", '')
+            with open(file_path, 'w') as f:
+                f.write(result['code'])
+            result['file_path'] = file_path
+        
+        return result
+    except ImportError:
+        return {
+            'success': False,
+            'error': 'CppExpertTool not available'
+        }
+    except Exception as e:
+        raise e
+
+def _execute_web_expert(payload: str) -> Dict[str, Any]:
+    """Execute Web Stack Expert tool for HTML/CSS/JS generation."""
+    try:
+        from tools.languages.web_stack import WebStackTool
+        
+        parts = payload.split(':', 1)
+        filename = parts[0].strip() if parts else "index.html"
+        code_or_action = parts[1] if len(parts) > 1 else ""
+        
+        expert = WebStackTool()
+        
+        # Determine file type and generate accordingly
+        if code_or_action.startswith("<!DOCTYPE") or code_or_action.startswith("<html"):
+            result = expert.execute("analyze_html", code=code_or_action)
+        elif code_or_action.startswith("function ") or code_or_action.startswith("const ") or "var " in code_or_action:
+            result = expert.execute("analyze_js", code=code_or_action)
+        else:
+            result = expert.execute("generate_template", template_type=code_or_action or "html")
+        
+        # Generate file if we have code
+        if result.get('success') and result.get('code'):
+            ext = '.html' if not filename.endswith(('.css', '.js')) else ''
+            file_path = file_manager.get_unique_path(filename if filename.endswith(('.html', '.css', '.js')) else f"{filename}{ext}", '')
+            with open(file_path, 'w') as f:
+                f.write(result['code'])
+            result['file_path'] = file_path
+        
+        return result
+    except ImportError:
+        return {
+            'success': False,
+            'error': 'WebStackTool not available'
+        }
+    except Exception as e:
+        raise e
+
 # =============================================================================
 # SIGNAL DETECTION & ROUTING
 # =============================================================================
@@ -685,15 +787,62 @@ def execute_signal(signal_text: str) -> Dict[str, Any]:
         Dictionary with execution result
     """
     # Extract tool and payload - fix tail-bleed by capturing only non-whitespace after signal
-    matches = re.match(r'@(XLS|PDF|PPT|GODOT|GDT|ERR):([^\s\n]+)', signal_text.strip())
-    if not matches:
-        # Fallback for signals with content after filename (like PDF with content)
-        matches = re.match(r'@(\w+):(.+?)(?:\s|$)', signal_text.strip())
-        if not matches:
+    # Special handling for PDF which can have spaces in content: @PDF:filename:content with spaces
+    if signal_text.strip().upper().startswith('@PDF:'):
+        # For PDF, capture everything after @PDF: to preserve spaces in content
+        matches = re.match(r'@PDF:(.+)$', signal_text.strip(), re.IGNORECASE)
+        if matches:
+            tool_type = 'PDF'
+            payload = matches.group(1)
+        else:
             return {
                 'success': False,
-                'error': 'Invalid signal format. Use @TOOL:payload'
+                'error': 'Invalid PDF signal format. Use @PDF:filename:content'
             }
+    elif signal_text.strip().upper().startswith('@PY:') or signal_text.strip().upper().startswith('@PYTHON:'):
+        # For Python expert, capture everything after @PY: to allow code with newlines/spaces
+        matches = re.match(r'@(?:PY|PYTHON):(.+)$', signal_text.strip(), re.IGNORECASE)
+        if matches:
+            tool_type = 'PYTHON'
+            payload = matches.group(1)
+        else:
+            return {
+                'success': False,
+                'error': 'Invalid PYTHON signal format. Use @PY:filename.py:code'
+            }
+    elif signal_text.strip().upper().startswith('@CPP:'):
+        # For C++ expert, capture everything after @CPP:
+        matches = re.match(r'@CPP:(.+)$', signal_text.strip(), re.IGNORECASE)
+        if matches:
+            tool_type = 'CPP'
+            payload = matches.group(1)
+        else:
+            return {
+                'success': False,
+                'error': 'Invalid CPP signal format. Use @CPP:filename.cpp:code'
+            }
+    elif signal_text.strip().upper().startswith('@WEB:'):
+        # For Web expert, capture everything after @WEB:
+        matches = re.match(r'@WEB:(.+)$', signal_text.strip(), re.IGNORECASE)
+        if matches:
+            tool_type = 'WEB'
+            payload = matches.group(1)
+        else:
+            return {
+                'success': False,
+                'error': 'Invalid WEB signal format. Use @WEB:filename.html:code'
+            }
+    else:
+        # For other tools (XLS, PPT, GODOT, GDT, ERR), capture only non-whitespace to prevent tail-bleed
+        matches = re.match(r'@(XLS|PPT|GODOT|GDT|ERR):([^\s\n]+)', signal_text.strip())
+        if not matches:
+            # Fallback for unknown tools
+            matches = re.match(r'@(\w+):(.+?)(?:\s|$)', signal_text.strip())
+            if not matches:
+                return {
+                    'success': False,
+                    'error': 'Invalid signal format. Use @TOOL:payload'
+                }
     
     tool_type = matches.group(1).upper()
     payload = matches.group(2)
@@ -721,12 +870,17 @@ def execute_signal(signal_text: str) -> Dict[str, Any]:
         return cached_result
     
     # Map tool types to execution functions (support both @GDT and @GODOT aliases)
+    # Also include language expert tools: PYTHON, CPP, WEB
     executors = {
         'XLS': execute_xls,
         'PPT': execute_ppt,
         'PDF': execute_pdf,
         'GODOT': execute_godot,
-        'GDT': execute_godot  # Alias for @GDT shorthand
+        'GDT': execute_godot,  # Alias for @GDT shorthand
+        'PYTHON': self._execute_python_expert,
+        'PY': self._execute_python_expert,  # Alias for @PY shorthand
+        'CPP': self._execute_cpp_expert,
+        'WEB': self._execute_web_expert
     }
     
     executor = executors.get(tool_type)

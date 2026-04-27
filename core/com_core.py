@@ -55,6 +55,21 @@ Signals:
 Example: @XLS:Inventory:Item,Qty,Price
 One line. No explanation. Signal only.""",
 
+    "PYTHON": """You are COM with Python Expert knowledge.
+Output ONLY a signal byte or Python code.
+Signals: @PY:filename.py:code or direct Python script.
+Focus on PEP8, virtual environments, and best practices.""",
+
+    "CPP": """You are COM with C++ Expert knowledge.
+Output ONLY a signal byte or C++ code.
+Signals: @CPP:filename.cpp:code or direct C++ script.
+Focus on modern C++, headers, and build systems.""",
+
+    "WEB": """You are COM with Web Stack Expert knowledge.
+Output ONLY a signal byte or HTML/CSS/JS code.
+Signals: @WEB:filename.html:code or direct web code.
+Focus on modern frameworks and best practices.""",
+
     "GENERAL": """You are COM (Companion Of Master).
 Answer in max 3 bullet points.
 Format: • point
@@ -64,24 +79,36 @@ No greetings. No filler. Direct answer only."""
 MODE_OUTPUT_CONTRACTS = {
     "GODOT": "Contract: output only valid GDScript or @GDT signal. No prose.",
     "OFFICE": "Contract: output exactly one signal line: @XLS/@PDF/@PPT with payload.",
+    "PYTHON": "Contract: output Python code or @PY signal. No prose.",
+    "CPP": "Contract: output C++ code or @CPP signal. No prose.",
+    "WEB": "Contract: output web code or @WEB signal. No prose.",
     "GENERAL": "Contract: output max 3 concise bullet points prefixed with • .",
 }
 
 TOKEN_LIMITS = {
     "GODOT":   128,
     "OFFICE":  64,
+    "PYTHON":  128,
+    "CPP":     128,
+    "WEB":     128,
     "GENERAL": 256
 }
 
 TEMPERATURES = {
     "GODOT":   0.2,  # deterministic code
     "OFFICE":  0.1,  # exact signal output
+    "PYTHON":  0.2,  # precise code
+    "CPP":     0.2,  # precise code
+    "WEB":     0.2,  # precise code
     "GENERAL": 0.7   # natural answers
 }
 
 NUM_CTX_BY_MODE = {
     "GODOT": 768,
     "OFFICE": 512,
+    "PYTHON": 768,
+    "CPP": 768,
+    "WEB": 768,
     "GENERAL": 1024
 }
 

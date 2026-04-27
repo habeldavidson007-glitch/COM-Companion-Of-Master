@@ -17,6 +17,21 @@ MODES = {
                      "write a", "create a", "make a", "generate"],
         "weight": 1.5  # Office tools get slight priority for file operations
     },
+    "PYTHON": {
+        "keywords": ["python", "py", "pip", "venv", "virtualenv", "package",
+                     "module", "import", "pep8", "flask", "django", "fastapi"],
+        "weight": 1.2
+    },
+    "CPP": {
+        "keywords": ["c++", "cpp", "header", "namespace", "std::", "compile",
+                     "linker", "cmake", "makefile", "pointer", "reference"],
+        "weight": 1.2
+    },
+    "WEB": {
+        "keywords": ["html", "css", "javascript", "react", "vue", "angular",
+                     "nodejs", "express", "api", "rest", "http", "dom"],
+        "weight": 1.2
+    },
     "GENERAL": {"keywords": [], "weight": 0}
 }
 
@@ -27,7 +42,7 @@ class IntentRouter:
     """
     
     TIE_THRESHOLD = 1.5  # If score difference is less than this, use LLM tie-breaker (raised from 0.3)
-    ROUTER_PROMPT = """Classify this input into exactly one word: GODOT, OFFICE, or GENERAL.
+    ROUTER_PROMPT = """Classify this input into exactly one word: GODOT, OFFICE, PYTHON, CPP, WEB, or GENERAL.
 Input: {query}
 Reply with one word only."""
 
@@ -87,7 +102,7 @@ Reply with one word only."""
                         temperature=0.0
                     ).strip().upper()
                     
-                    if result in ("GODOT", "OFFICE", "GENERAL"):
+                    if result in ("GODOT", "OFFICE", "PYTHON", "CPP", "WEB", "GENERAL"):
                         return result
                 except Exception:
                     pass
