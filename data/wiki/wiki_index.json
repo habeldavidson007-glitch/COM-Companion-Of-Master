@@ -1,0 +1,88 @@
+{
+  "documents": {
+    "raw/sample_research.md": {
+      "path": "data/raw/sample_research.md",
+      "hash": "927dc1a96b084eabc7b217553c011842",
+      "summary": "# Machine Learning Research Notes  ## Introduction Machine learning is a subset of artificial intelligence that enables systems to learn and improve from experience without being explicitly programmed. This field has grown exponentially in recent years. ## Key Concepts  ### Neural Networks Neural networks are computing systems inspired by biological neural networks in the brain....",
+      "concepts": [
+        "Machine Learning Research Notes",
+        "Introduction\nMachine",
+        "This",
+        "Key Concepts",
+        "Neural Networks\nNeural",
+        "They",
+        "Deep Learning\nDeep",
+        "Supervised Learning\nIn",
+        "Unsupervised Learning\nUnsupervised",
+        "Applications"
+      ],
+      "ingested_at": "2026-04-27T05:17:19.229812",
+      "word_count": 189
+    }
+  },
+  "concepts": {
+    "Machine Learning Research Notes": [
+      "raw/sample_research.md"
+    ],
+    "Introduction\nMachine": [
+      "raw/sample_research.md"
+    ],
+    "This": [
+      "raw/sample_research.md"
+    ],
+    "Key Concepts": [
+      "raw/sample_research.md"
+    ],
+    "Neural Networks\nNeural": [
+      "raw/sample_research.md"
+    ],
+    "They": [
+      "raw/sample_research.md"
+    ],
+    "Deep Learning\nDeep": [
+      "raw/sample_research.md"
+    ],
+    "Supervised Learning\nIn": [
+      "raw/sample_research.md"
+    ],
+    "Unsupervised Learning\nUnsupervised": [
+      "raw/sample_research.md"
+    ],
+    "Applications": [
+      "raw/sample_research.md"
+    ]
+  },
+  "backlinks": {
+    "Machine Learning Research Notes": [
+      "raw/sample_research.md"
+    ],
+    "Introduction\nMachine": [
+      "raw/sample_research.md"
+    ],
+    "This": [
+      "raw/sample_research.md"
+    ],
+    "Key Concepts": [
+      "raw/sample_research.md"
+    ],
+    "Neural Networks\nNeural": [
+      "raw/sample_research.md"
+    ],
+    "They": [
+      "raw/sample_research.md"
+    ],
+    "Deep Learning\nDeep": [
+      "raw/sample_research.md"
+    ],
+    "Supervised Learning\nIn": [
+      "raw/sample_research.md"
+    ],
+    "Unsupervised Learning\nUnsupervised": [
+      "raw/sample_research.md"
+    ],
+    "Applications": [
+      "raw/sample_research.md"
+    ]
+  },
+  "last_updated": "2026-04-27T05:17:19.230533"
+}

@@ -94,6 +94,26 @@ Examples:
   
 Focus on modern frameworks and best practices.""",
 
+    "WIKI": """You are COM with Knowledge Base management capabilities.
+Output ONLY a signal byte for wiki operations.
+Signals:
+  @WIKI:INGEST:filename - Ingest a document into the knowledge base
+  @WIKI:COMPILE:concept - Compile a wiki article for a concept
+  @WIKI:SEARCH:query - Search the wiki for information
+  @WIKI:HEALTH - Run health checks on the wiki
+  @WIKI:STATS - Show wiki statistics
+Examples:
+  Input: "add this research paper to my wiki"
+  Output: @WIKI:INGEST:research_paper.pdf
+  
+  Input: "create an article about machine learning"
+  Output: @WIKI:COMPILE:Machine Learning
+  
+  Input: "find documents about neural networks"
+  Output: @WIKI:SEARCH:neural networks
+
+Focus on incremental updates, low-RAM operation, and knowledge integrity.""",
+
     "GENERAL": """You are COM (Companion Of Master).
 Answer in max 3 bullet points.
 Format: • point
@@ -112,6 +132,7 @@ MODE_OUTPUT_CONTRACTS = {
     "PYTHON": "Contract: output Python code or @PY signal. No prose.",
     "CPP": "Contract: output C++ code or @CPP signal. No prose.",
     "WEB": "Contract: output web code or @WEB signal. No prose.",
+    "WIKI": "Contract: output only @WIKI signal with operation and argument. No prose.",
     "GENERAL": "Contract: output max 3 concise bullet points prefixed with • .",
 }
 
@@ -121,6 +142,7 @@ TOKEN_LIMITS = {
     "PYTHON":  128,
     "CPP":     128,
     "WEB":     128,
+    "WIKI":    64,
     "GENERAL": 256
 }
 
@@ -130,6 +152,7 @@ TEMPERATURES = {
     "PYTHON":  0.2,  # precise code
     "CPP":     0.2,  # precise code
     "WEB":     0.2,  # precise code
+    "WIKI":    0.1,  # exact signal output
     "GENERAL": 0.7   # natural answers
 }
 
@@ -139,6 +162,7 @@ NUM_CTX_BY_MODE = {
     "PYTHON": 768,
     "CPP": 768,
     "WEB": 768,
+    "WIKI": 512,
     "GENERAL": 1024
 }
 

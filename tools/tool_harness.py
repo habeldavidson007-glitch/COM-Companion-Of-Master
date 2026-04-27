@@ -253,13 +253,55 @@ class ToolHealthChecker:
     def _check_all_tools(self):
         """Check health of all available tools."""
         godot_status = self._check_godot_tool()
+        wiki_status = self._check_wiki_tool()
         self.tool_status = {
             'XLS': self._check_excel_tool(),
             'PPT': self._check_powerpoint_tool(),
             'PDF': self._check_pdf_tool(),
             'GODOT': godot_status,
-            'GDT': godot_status  # Alias shares same health status
+            'GDT': godot_status,  # Alias shares same health status
+            'PYTHON': self._check_language_tool('PythonExpertTool'),
+            'PY': self._check_language_tool('PythonExpertTool'),
+            'CPP': self._check_language_tool('CppExpertTool'),
+            'WEB': self._check_language_tool('WebStackTool'),
+            'WIKI': wiki_status
         }
+    
+    def _check_wiki_tool(self) -> Dict[str, Any]:
+        """Check if Wiki tool is available."""
+        status = {'available': False, 'reason': '', 'dependencies': []}
+        
+        try:
+            from tools.knowledge_ops.wiki_tool import WikiTool
+            status['dependencies'].append('WikiTool: OK')
+            status['dependencies'].append('filesystem: OK')
+            status['available'] = True
+        except ImportError as e:
+            status['reason'] = f'WikiTool import failed: {str(e)}'
+        
+        return status
+    
+    def _check_language_tool(self, tool_name: str) -> Dict[str, Any]:
+        """Check if a language expert tool is available."""
+        status = {'available': False, 'reason': '', 'dependencies': []}
+        
+        try:
+            if tool_name == 'PythonExpertTool':
+                from tools.languages.python_expert import PythonExpertTool
+            elif tool_name == 'CppExpertTool':
+                from tools.languages.cpp_expert import CppExpertTool
+            elif tool_name == 'WebStackTool':
+                from tools.web_stack.web_stack import WebStackTool
+            else:
+                status['reason'] = f'Unknown tool: {tool_name}'
+                return status
+            
+            status['dependencies'].append(f'{tool_name}: OK')
+            status['available'] = True
+        except ImportError as e:
+            status['reason'] = f'{tool_name} import failed: {str(e)}'
+        
+        return status
     
     def _check_excel_tool(self) -> Dict[str, Any]:
         """Check if Excel tool dependencies are available."""
@@ -804,6 +846,32 @@ def _execute_web_expert(payload: str) -> Dict[str, Any]:
     except Exception as e:
         raise e
 
+def _execute_wiki_tool(payload: str) -> Dict[str, Any]:
+    """Execute WikiTool for knowledge base operations."""
+    try:
+        from tools.knowledge_ops.wiki_tool import WikiTool
+        
+        tool = WikiTool()
+        result_text = tool.execute(payload)
+        
+        # Parse result to determine success
+        success = not result_text.startswith("❌") and "error" not in result_text.lower()
+        
+        return {
+            'success': success,
+            'result': {
+                'output': result_text,
+                'tool': 'WikiTool'
+            }
+        }
+    except ImportError:
+        return {
+            'success': False,
+            'error': 'WikiTool not available'
+        }
+    except Exception as e:
+        raise e
+
 # =============================================================================
 # SIGNAL DETECTION & ROUTING
 # =============================================================================
@@ -955,6 +1023,7 @@ def execute_signal(signal_text: str) -> Dict[str, Any]:
     
     # Map tool types to execution functions (support both @GDT and @GODOT aliases)
     # Also include language expert tools: PYTHON, CPP, WEB
+    # And knowledge base tool: WIKI
     executors = {
         'XLS': execute_xls,
         'PPT': execute_ppt,
@@ -964,7 +1033,8 @@ def execute_signal(signal_text: str) -> Dict[str, Any]:
         'PYTHON': _execute_python_expert,
         'PY': _execute_python_expert,  # Alias for @PY shorthand
         'CPP': _execute_cpp_expert,
-        'WEB': _execute_web_expert
+        'WEB': _execute_web_expert,
+        'WIKI': _execute_wiki_tool
     }
     
     executor = executors.get(tool_type)

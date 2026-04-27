@@ -43,6 +43,14 @@ MODES = {
         "specificity_multiplier": 2.0,
         "phrases": ["html page", "css style", "javascript function", "react component"]
     },
+    "WIKI": {
+        "keywords": ["wiki", "knowledge", "research", "article", "document", "ingest",
+                     "compile", "summarize", "concept", "backlink", "index", "reference",
+                     "learn", "study", "paper", "note", "archive"],
+        "weight": 1.3,  # Slightly higher than language tools for knowledge tasks
+        "specificity_multiplier": 2.5,
+        "phrases": ["wiki article", "knowledge base", "research paper", "compile wiki", "ingest document"]
+    },
     "GENERAL": {"keywords": [], "weight": 0, "specificity_multiplier": 1.0, "phrases": []}
 }
 
