@@ -1,0 +1,9 @@
+# COM Data Directory
+# All runtime data, raw sources, compiled wiki, and logs live here.
+# This directory is git-ignored to prevent committing large or sensitive data.
+
+raw/
+wiki/
+logs/
+*.json
+*.md

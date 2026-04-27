@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+"""
+COM CLI - Command-line interface for COM harness tools.
+Usage: com <command> [options]
+"""
+import sys
+import argparse
+from pathlib import Path
+
+# Imports now work via pip install -e .
+from com.tools.safe_io import SafeIO
+from com.wiki.compiler import WikiCompiler
+from com.wiki.indexer import WikiIndexer
+from com.wiki.retriever import WikiRetriever
+from com.wiki.health import WikiHealthChecker
+from com.tools.signal_parser import SignalParser
+
+
+def cmd_init(args):
+    """Initialize COM data directories."""
+    data_dir = args.data_dir or "data"
+    io = SafeIO(data_dir)
+    
+    io.ensure_dir("raw")
+    io.ensure_dir("wiki")
+    io.ensure_dir("logs")
+    
+    print(f"✓ Initialized COM data directory at: {data_dir}")
+    print(f"  - raw/   : Place source documents here")
+    print(f"  - wiki/  : Compiled knowledge base")
+    print(f"  - logs/  : System logs and reports")
+
+
+def cmd_compile(args):
+    """Compile raw documents into wiki."""
+    data_dir = args.data_dir or "data"
+    llm_host = args.llm_host or "http://localhost:11434"
+    
+    compiler = WikiCompiler(data_dir, llm_host=llm_host)
+    results = compiler.compile_all(incremental=not args.force)
+    
+    if results:
+        print(f"\n✓ Compiled {len(results)} documents:")
+        for r in results:
+            print(f"  - {r['title']} -> {r['wiki']}")
+    else:
+        print("No documents compiled (all up-to-date or no raw files)")
+
+
+def cmd_index(args):
+    """Show wiki index statistics."""
+    data_dir = args.data_dir or "data"
+    indexer = WikiIndexer(data_dir)
+    stats = indexer.get_stats()
+    
+    print("\n📊 Wiki Index Statistics")
+    print(f"  Documents:     {stats['total_documents']}")
+    print(f"  Concepts:      {stats['total_concepts']}")
+    print(f"  Backlinks:     {stats['total_backlinks']}")
+    print(f"  Last Updated:  {stats['last_updated']}")
+
+
+def cmd_search(args):
+    """Search wiki content."""
+    data_dir = args.data_dir or "data"
+    retriever = WikiRetriever(data_dir)
+    
+    results = retriever.search(args.query, top_k=args.top_k)
+    
+    if not results:
+        print("No results found.")
+        return
+    
+    print(f"\n🔍 Search results for: '{args.query}'\n")
+    for i, (path, snippet, score) in enumerate(results, 1):
+        print(f"{i}. {path} (score: {score:.3f})")
+        print(f"   {snippet}\n")
+
+
+def cmd_health(args):
+    """Run health check on wiki."""
+    data_dir = args.data_dir or "data"
+    checker = WikiHealthChecker(data_dir)
+    
+    if args.export:
+        report_path = checker.export_report()
+        print(f"✓ Health report exported to: {report_path}")
+    else:
+        report = checker.check_all()
+        
+        print("\n🏥 Wiki Health Report\n")
+        print(f"Documents: {report.stats.get('total_documents', 0)}")
+        print(f"Concepts:  {report.stats.get('total_concepts', 0)}\n")
+        
+        if report.orphans:
+            print(f"⚠️  Orphaned documents: {len(report.orphans)}")
+            for o in report.orphans[:5]:
+                print(f"   - {o}")
+            if len(report.orphans) > 5:
+                print(f"   ... and {len(report.orphans) - 5} more")
+        
+        if report.missing_summaries:
+            print(f"\n⚠️  Missing summaries: {len(report.missing_summaries)}")
+        
+        if report.broken_links:
+            print(f"\n⚠️  Broken links: {len(report.broken_links)}")
+        
+        if report.suggestions:
+            print("\n💡 Suggestions:")
+            for s in report.suggestions:
+                print(f"   • {s}")
+        
+        if not (report.orphans or report.missing_summaries or report.broken_links):
+            print("✅ Wiki is healthy!")
+
+
+def cmd_signal(args):
+    """Test signal parsing."""
+    parser = SignalParser()
+    
+    if args.test_strict:
+        is_valid, signals = parser.validate_strict(args.text)
+        print(f"Valid: {is_valid}")
+        if not is_valid:
+            print("Errors:", parser.errors)
+    else:
+        signals = parser.parse(args.text)
+    
+    if signals:
+        print(f"\nFound {len(signals)} signal(s):\n")
+        for sig in signals:
+            print(f"  @{sig.action}:{sig.target}")
+            if sig.parameters:
+                for k, v in sig.parameters.items():
+                    print(f"      {k}={v}")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="com",
+        description="COM Harness Tools CLI"
+    )
+    subparsers = parser.add_subparsers(dest="command", help="Commands")
+    
+    # Init command
+    p_init = subparsers.add_parser("init", help="Initialize data directories")
+    p_init.add_argument("--data-dir", default="data", help="Data directory path")
+    p_init.set_defaults(func=cmd_init)
+    
+    # Compile command
+    p_compile = subparsers.add_parser("compile", help="Compile raw docs to wiki")
+    p_compile.add_argument("--data-dir", default="data", help="Data directory")
+    p_compile.add_argument("--llm-host", default="http://localhost:11434", help="Ollama host")
+    p_compile.add_argument("--force", action="store_true", help="Force recompile all")
+    p_compile.set_defaults(func=cmd_compile)
+    
+    # Index command
+    p_index = subparsers.add_parser("index", help="Show index statistics")
+    p_index.add_argument("--data-dir", default="data", help="Data directory")
+    p_index.set_defaults(func=cmd_index)
+    
+    # Search command
+    p_search = subparsers.add_parser("search", help="Search wiki")
+    p_search.add_argument("query", help="Search query")
+    p_search.add_argument("--data-dir", default="data", help="Data directory")
+    p_search.add_argument("--top-k", type=int, default=5, help="Top results")
+    p_search.set_defaults(func=cmd_search)
+    
+    # Health command
+    p_health = subparsers.add_parser("health", help="Run health check")
+    p_health.add_argument("--data-dir", default="data", help="Data directory")
+    p_health.add_argument("--export", action="store_true", help="Export report to JSON")
+    p_health.set_defaults(func=cmd_health)
+    
+    # Signal command
+    p_signal = subparsers.add_parser("signal", help="Test signal parsing")
+    p_signal.add_argument("text", nargs="?", default="", help="Text to parse")
+    p_signal.add_argument("--test-strict", action="store_true", help="Strict validation mode")
+    p_signal.set_defaults(func=cmd_signal)
+    
+    args = parser.parse_args()
+    
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+    
+    try:
+        args.func(args)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

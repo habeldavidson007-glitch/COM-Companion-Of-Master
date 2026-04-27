@@ -1,10 +1,40 @@
 ```
-# Excel files
-*.xlsx
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.py~
+*.py.class
+*.pyc.class
+*.pyo.class
+*.so
+*.egg-info/
+build/
+dist/
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.tox/
+.eggs/
 
-# Godot script files
-*.gd
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
 
-# Build outputs
-com_output/
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+*.env.*
 ```

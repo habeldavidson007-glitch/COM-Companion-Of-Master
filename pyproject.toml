@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "com-harness"
+version = "0.1.0"
+description = "COM Harness Tools and Wiki System"
+requires-python = ">=3.8"
+dependencies = [
+    "requests",
+    "ollama",
+    "scikit-learn",
+    "numpy"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "mypy"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
