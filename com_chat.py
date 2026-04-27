@@ -17,10 +17,8 @@ from typing import Optional, List, Dict
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from core.com_core import COMCore, classify_mode, is_signal, parse_signal
 
-# Import tool modules for direct execution
-from tools.excel_tool import run as excel_run
-from tools.pdf_tool import run as pdf_run
-from tools.ppt_tool import run as ppt_run
+# Note: Tool execution is now delegated to harness.py for unified dispatch
+# Direct imports removed to avoid duplicate code paths
 
 
 class COMDesktopApp:
@@ -486,21 +484,12 @@ class COMDesktopApp:
             self.mode_indicator.config(text=mode)
             
     def _execute_signal(self, prefix, payload):
-        """Execute signal bytes directly"""
-        try:
-            if prefix == "@XLS":
-                return excel_run(payload)
-            elif prefix == "@PDF":
-                return pdf_run(payload)
-            elif prefix == "@PPT":
-                return ppt_run(payload)
-            elif prefix == "@GDT":
-                return f"🎮 GDScript signal: {prefix}:{payload}"
-            elif prefix == "@ERR":
-                return f"⚠️ Error signal: {payload}"
-        except Exception as e:
-            return f"❌ Signal execution failed: {str(e)}"
-        return None
+        """Execute signal bytes using the wired harness"""
+        from harness import dispatch
+        
+        # Reconstruct full signal and delegate to harness
+        signal = f"{prefix}:{payload}"
+        return dispatch(signal)
         
     def run(self):
         """Start the desktop application"""

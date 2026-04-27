@@ -6,15 +6,17 @@ correct tool function. Executes. Returns status string to UI.
 No LLM knowledge needed on this side.
 """
 
-from tools import excel_tool, pdf_tool, ppt_tool, godot_tool
+from tools.excel_tool import run as excel_run
+from tools.pdf_tool import run as pdf_run
+from tools.ppt_tool import run as ppt_run
+from tools.godot_tool import run as godot_run
 
-# PHASE 1: STUB VERSION FOR EARLY TESTING
-# Replace these lambdas with actual tool imports in Phase 2
+# Production tool map - wired to actual implementations
 TOOL_MAP = {
-    "@XLS": lambda p: f"[STUB] Excel would run with: {p}",
-    "@PDF": lambda p: f"[STUB] PDF would run with: {p}",
-    "@PPT": lambda p: f"[STUB] PPT would run with: {p}",
-    "@GDT": lambda p: f"[STUB] Godot would run with: {p}",
+    "@XLS": excel_run,
+    "@PDF": pdf_run,
+    "@PPT": ppt_run,
+    "@GDT": godot_run,
     "@ERR": lambda p: f"[ERROR] {p}"
 }
 
