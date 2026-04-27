@@ -711,35 +711,76 @@ def execute_pdf(payload: str) -> Dict[str, Any]:
         raise e
 
 def execute_godot(payload: str) -> Dict[str, Any]:
-    """Execute Godot tool to generate template files."""
+    """Execute Godot tool using GodotEngineTool for expert analysis and generation."""
     try:
-        parts = payload.split(':')
-        template_name = parts[0].strip()
-        params = ':'.join(parts[1:]) if len(parts) > 1 else ""
+        from tools.game_dev import GodotEngineTool
         
-        # Create a simple GDScript template
-        script_content = f"""# Generated Godot Script
-# Template: {template_name}
-# Parameters: {params}
-# Generated at: {datetime.now().isoformat()}
-
-extends Node
-
-func _ready():
-    print("{template_name} initialized")
-"""
+        # Parse payload: CATEGORY:DETAIL or action:params
+        parts = payload.split(':', 1)
+        category = parts[0].strip().upper()
+        params = parts[1] if len(parts) > 1 else ""
         
-        # Get unique file path
-        file_path = file_manager.get_unique_path(template_name, '.gd')
+        # Initialize the expert tool
+        godot_tool = GodotEngineTool()
         
-        # Write script
-        with open(file_path, 'w') as f:
+        # Map signal categories to GodotEngineTool actions
+        action_map = {
+            'MOV': 'analyze_gdscript',  # Movement scripts
+            'PHY': 'explain_engine_architecture',  # Physics
+            'ANI': 'find_demo_pattern',  # Animation
+            'SHA': 'generate_shader_snippet',  # Shaders
+            'DBG': 'debug_scene_tree',  # Debugging
+            'CPP': 'cpp_extension_guide',  # C++ extensions
+            'OPT': 'optimize_performance',  # Performance
+            'PLG': 'suggest_plugin',  # Plugin suggestions
+        }
+        
+        action = action_map.get(category, 'analyze_gdscript')
+        
+        # Execute with appropriate parameters
+        if action == 'analyze_gdscript':
+            # Generate a template script based on category
+            code = f"# {category} Script\n# Params: {params}\nextends Node3D\n\nfunc _ready():\n    print('{category} initialized')\n"
+            result = godot_tool.execute(action, code=code)
+            script_content = code
+        elif action == 'explain_engine_architecture':
+            result = godot_tool.execute(action, topic=params or "SceneTree")
+            script_content = f"# Architecture: {params or 'SceneTree'}\n# {result.get('data', {}).get('description', 'See result')}\n"
+        elif action == 'find_demo_pattern':
+            result = godot_tool.execute(action, mechanic=params or "player_controller")
+            script_content = f"# Pattern for: {params or 'player_controller'}\n# See patterns in: {[p['repo'] for p in result.get('patterns', [])]}\n"
+        elif action == 'generate_shader_snippet':
+            result = godot_tool.execute(action, effect=params or "outline")
+            script_content = result.get('snippet', '// Shader not found')
+        elif action == 'debug_scene_tree':
+            result = godot_tool.execute(action, error=params or "null instance")
+            script_content = f"# Debug strategies for: {params or 'null instance'}\n# " + "\n# ".join(result.get('strategies', []))
+        elif action == 'cpp_extension_guide':
+            result = godot_tool.execute(action, class_name=params or "MyClass")
+            script_content = f"# C++ Guide for: {params or 'MyClass'}\n# Steps: {result.get('steps', [])}\n"
+        elif action == 'optimize_performance':
+            result = godot_tool.execute(action, bottleneck=params or "draw_calls")
+            script_content = f"# Optimization for: {params or 'draw_calls'}\n# Tips: " + "\n# ".join(result.get('tips', []))
+        elif action == 'suggest_plugin':
+            result = godot_tool.execute(action, feature=params or "steam")
+            script_content = f"# Plugins for: {params or 'steam'}\n# " + "\n# ".join([f"{p['name']}: {p['desc']}" for p in result.get('plugins', [])])
+        else:
+            result = {'success': False, 'error': f'Unknown action: {action}'}
+            script_content = f"# Error: {result.get('error', 'Unknown error')}\n"
+        
+        # Generate filename from category and params
+        safe_name = re.sub(r'[^a-zA-Z0-9]', '_', (category + '_' + params)[:30])
+        file_path = file_manager.get_unique_path(safe_name, '.gd')
+        
+        # Write the generated content
+        with open(file_path, 'w', encoding='utf-8') as f:
             f.write(script_content)
         
         return {
             'tool': 'GODOT',
             'file_path': file_path,
-            'template': template_name
+            'category': category,
+            'expert_analysis': result
         }
     except Exception as e:
         raise e
