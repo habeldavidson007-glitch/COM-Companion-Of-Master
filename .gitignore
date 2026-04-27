@@ -1,24 +1,10 @@
 ```
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+# Excel files
+*.xlsx
 
-# Logs and temp files
-*.log
-*.tmp
+# Godot script files
+*.gd
 
-# Environment
-.env
-.env.local
-*.env.*
-
-# Editors
-.vscode/
-.idea/
-
-# Dependencies
-.venv/
-venv/
+# Build outputs
+com_output/
 ```
