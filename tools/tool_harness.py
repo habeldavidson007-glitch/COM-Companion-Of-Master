@@ -809,10 +809,57 @@ def _execute_web_expert(payload: str) -> Dict[str, Any]:
 # =============================================================================
 
 def extract_signals(text: str) -> List[Tuple[str, str]]:
-    """Extract all signals from text in format @TOOL:payload"""
-    pattern = r'@(\w+):([^\s@]+)'
-    matches = re.findall(pattern, text)
-    return [(tool.upper(), payload) for tool, payload in matches]
+    """Extract all signals from text in format @TOOL:payload
+    
+    Handles multi-line payloads for PDF, PY, CPP, WEB by extracting complete signals.
+    For other tools, stops at whitespace to prevent tail-bleed.
+    """
+    signals = []
+    
+    # Pattern to find signal starts
+    signal_start_pattern = r'@(\w+):'
+    
+    for match in re.finditer(signal_start_pattern, text):
+        tool_type = match.group(1).upper()
+        start_pos = match.end()  # Position right after the colon
+        
+        # Normalize aliases
+        tool_type_map = {'PYTHON': 'PYTHON', 'PY': 'PYTHON', 'GDT': 'GODOT'}
+        normalized_tool = tool_type_map.get(tool_type, tool_type)
+        
+        # Determine if this tool allows spaces/newlines in payload
+        space_sensitive_tools = {'PDF', 'PYTHON', 'CPP', 'WEB'}
+        
+        if normalized_tool in space_sensitive_tools:
+            # For space-sensitive tools, capture until next @signal or end of text
+            remaining_text = text[start_pos:]
+            
+            # Find next signal start
+            next_signal = re.search(r'\s+@\w+:', remaining_text)
+            if next_signal:
+                payload = remaining_text[:next_signal.start()].strip()
+            else:
+                # Capture until end, but stop at common sentence endings if they're followed by non-code text
+                payload = remaining_text.rstrip()
+                
+                # Clean up trailing punctuation that's not part of code
+                if payload and payload[-1] in '.!?' and len(payload) < 200:
+                    # Check if this looks like end of sentence vs code
+                    if not any(c in payload for c in ['{', '}', '(', ')', ';', '=']):
+                        payload = payload[:-1].rstrip()
+        else:
+            # For XLS, PPT, GODOT, GDT, ERR: capture only non-whitespace to prevent tail-bleed
+            remaining_text = text[start_pos:]
+            whitespace_match = re.search(r'[\s\n]', remaining_text)
+            if whitespace_match:
+                payload = remaining_text[:whitespace_match.start()]
+            else:
+                payload = remaining_text
+        
+        if payload:
+            signals.append((tool_type, payload))
+    
+    return signals
 
 def has_signals(text: str) -> bool:
     """Check if text contains any tool signals."""
@@ -832,66 +879,57 @@ def execute_signal(signal_text: str) -> Dict[str, Any]:
     Returns:
         Dictionary with execution result
     """
-    # Extract tool and payload - fix tail-bleed by capturing only non-whitespace after signal
-    # Special handling for PDF which can have spaces in content: @PDF:filename:content with spaces
-    if signal_text.strip().upper().startswith('@PDF:'):
-        # For PDF, capture everything after @PDF: to preserve spaces in content
-        matches = re.match(r'@PDF:(.+)$', signal_text.strip(), re.IGNORECASE)
-        if matches:
-            tool_type = 'PDF'
-            payload = matches.group(1)
-        else:
-            return {
-                'success': False,
-                'error': 'Invalid PDF signal format. Use @PDF:filename:content'
-            }
-    elif signal_text.strip().upper().startswith('@PY:') or signal_text.strip().upper().startswith('@PYTHON:'):
-        # For Python expert, capture everything after @PY: to allow code with newlines/spaces
-        matches = re.match(r'@(?:PY|PYTHON):(.+)$', signal_text.strip(), re.IGNORECASE)
-        if matches:
-            tool_type = 'PYTHON'
-            payload = matches.group(1)
-        else:
-            return {
-                'success': False,
-                'error': 'Invalid PYTHON signal format. Use @PY:filename.py:code'
-            }
-    elif signal_text.strip().upper().startswith('@CPP:'):
-        # For C++ expert, capture everything after @CPP:
-        matches = re.match(r'@CPP:(.+)$', signal_text.strip(), re.IGNORECASE)
-        if matches:
-            tool_type = 'CPP'
-            payload = matches.group(1)
-        else:
-            return {
-                'success': False,
-                'error': 'Invalid CPP signal format. Use @CPP:filename.cpp:code'
-            }
-    elif signal_text.strip().upper().startswith('@WEB:'):
-        # For Web expert, capture everything after @WEB:
-        matches = re.match(r'@WEB:(.+)$', signal_text.strip(), re.IGNORECASE)
-        if matches:
-            tool_type = 'WEB'
-            payload = matches.group(1)
-        else:
-            return {
-                'success': False,
-                'error': 'Invalid WEB signal format. Use @WEB:filename.html:code'
-            }
-    else:
-        # For other tools (XLS, PPT, GODOT, GDT, ERR), capture only non-whitespace to prevent tail-bleed
-        matches = re.match(r'@(XLS|PPT|GODOT|GDT|ERR):([^\s\n]+)', signal_text.strip())
-        if not matches:
-            # Fallback for unknown tools
-            matches = re.match(r'@(\w+):(.+?)(?:\s|$)', signal_text.strip())
-            if not matches:
-                return {
-                    'success': False,
-                    'error': 'Invalid signal format. Use @TOOL:payload'
-                }
+    # Unified signal parsing: extract tool_type and payload in one pass
+    # Special handling for tools that allow spaces/newlines in payload (PDF, PY, CPP, WEB)
+    signal_text = signal_text.strip()
     
-    tool_type = matches.group(1).upper()
-    payload = matches.group(2)
+    # Define patterns for tools with space-sensitive payloads vs strict payloads
+    space_sensitive_tools = {'PDF', 'PY', 'PYTHON', 'CPP', 'WEB'}
+    
+    # First, extract the tool type from the signal
+    tool_match = re.match(r'@(\w+):', signal_text, re.IGNORECASE)
+    if not tool_match:
+        return {
+            'success': False,
+            'error': 'Invalid signal format. Use @TOOL:payload'
+        }
+    
+    raw_tool_type = tool_match.group(1).upper()
+    
+    # Normalize aliases
+    tool_type_map = {
+        'PYTHON': 'PYTHON',
+        'PY': 'PYTHON',
+        'GDT': 'GODOT',
+    }
+    tool_type = tool_type_map.get(raw_tool_type, raw_tool_type)
+    
+    # Extract payload based on whether tool allows spaces
+    if tool_type in space_sensitive_tools:
+        # Capture everything after @TOOL: including spaces and newlines
+        payload_match = re.match(r'@[\w]+:(.+)$', signal_text, re.DOTALL)
+        if not payload_match:
+            return {
+                'success': False,
+                'error': f'Invalid {tool_type} signal format. Use @{raw_tool_type}:payload'
+            }
+        payload = payload_match.group(1).strip()
+    else:
+        # For XLS, PPT, GODOT, GDT, ERR: capture only non-whitespace to prevent tail-bleed
+        payload_match = re.match(r'@[\w]+:([^\s\n]+)', signal_text)
+        if not payload_match:
+            return {
+                'success': False,
+                'error': f'Invalid {tool_type} signal format. Use @{raw_tool_type}:payload'
+            }
+        payload = payload_match.group(1)
+    
+    # Validate we have both tool_type and payload
+    if not tool_type or not payload:
+        return {
+            'success': False,
+            'error': 'Invalid signal format. Missing tool type or payload.'
+        }
     
     # 1. Check tool availability
     if not health_checker.is_tool_available(tool_type):
