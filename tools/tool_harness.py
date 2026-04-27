@@ -105,6 +105,52 @@ class FilePathManager:
         if os.path.isabs(relative_path):
             return relative_path
         return os.path.abspath(os.path.join(self.base_dir, relative_path))
+    
+    def safe_write(self, filename: str, content: str, extension: str = "") -> Dict[str, Any]:
+        """
+        Safely write content to a file with path validation and encoding enforcement.
+        
+        Args:
+            filename: Name of the file (will be sanitized)
+            content: Content to write
+            extension: File extension (e.g., '.txt', '.py')
+        
+        Returns:
+            Dictionary with 'success', 'file_path', and optional 'error' keys
+        """
+        try:
+            # Ensure extension starts with dot
+            if extension and not extension.startswith('.'):
+                extension = f".{extension}"
+            
+            # Get unique, sanitized path within COM_OUTPUT_DIR
+            file_path = self.get_unique_path(filename, extension)
+            
+            # Security check: ensure path is within base_dir (prevent directory traversal)
+            abs_path = os.path.abspath(file_path)
+            if not abs_path.startswith(self.base_dir):
+                return {
+                    'success': False,
+                    'error': f'Security violation: Path {file_path} is outside output directory'
+                }
+            
+            # Write with UTF-8 encoding
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            logger.info(f"✓ File written safely: {file_path}")
+            return {
+                'success': True,
+                'file_path': file_path,
+                'bytes_written': len(content.encode('utf-8'))
+            }
+            
+        except Exception as e:
+            logger.error(f"✗ Safe write failed: {str(e)}")
+            return {
+                'success': False,
+                'error': f"Write failed: {str(e)}"
+            }
 
 # Global file path manager
 file_manager = FilePathManager(OUTPUT_DIR)
@@ -877,10 +923,10 @@ def execute_signal(signal_text: str) -> Dict[str, Any]:
         'PDF': execute_pdf,
         'GODOT': execute_godot,
         'GDT': execute_godot,  # Alias for @GDT shorthand
-        'PYTHON': self._execute_python_expert,
-        'PY': self._execute_python_expert,  # Alias for @PY shorthand
-        'CPP': self._execute_cpp_expert,
-        'WEB': self._execute_web_expert
+        'PYTHON': _execute_python_expert,
+        'PY': _execute_python_expert,  # Alias for @PY shorthand
+        'CPP': _execute_cpp_expert,
+        'WEB': _execute_web_expert
     }
     
     executor = executors.get(tool_type)

@@ -44,7 +44,13 @@ def classify_mode(user_input: str) -> str:
 SYSTEM_PROMPTS = {
     "GODOT": """You are COM. Output ONLY GDScript code or a @GDT signal.
 Signal format: @GDT:CATEGORY:DETAIL
-Examples: @GDT:MOV:2D  |  @GDT:ANIM:IDLE  |  @GDT:SCENE:PLAYER
+Examples: 
+  Input: "create a player movement script"
+  Output: @GDT:MOV:2D
+  
+  Input: "make an idle animation"
+  Output: @GDT:ANIM:IDLE
+  
 If user wants a script, write GDScript only. No explanation.""",
 
     "OFFICE": """You are COM. Output ONLY a signal byte. Nothing else.
@@ -52,27 +58,51 @@ Signals:
   @XLS:filename:col1,col2,col3
   @PDF:filename:content text
   @PPT:filename:slide1|slide2|slide3
-Example: @XLS:Inventory:Item,Qty,Price
+Examples:
+  Input: "make an inventory spreadsheet"
+  Output: @XLS:Inventory:Item,Qty,Price
+  
+  Input: "create a report pdf with quarterly data"
+  Output: @PDF:Report:Quarterly sales data summary
+  
 One line. No explanation. Signal only.""",
 
     "PYTHON": """You are COM with Python Expert knowledge.
 Output ONLY a signal byte or Python code.
 Signals: @PY:filename.py:code or direct Python script.
+Examples:
+  Input: "write a python script to sort files"
+  Output: @PY:sort_files.py:import os...
+  
 Focus on PEP8, virtual environments, and best practices.""",
 
     "CPP": """You are COM with C++ Expert knowledge.
 Output ONLY a signal byte or C++ code.
 Signals: @CPP:filename.cpp:code or direct C++ script.
+Examples:
+  Input: "create a cpp hello world"
+  Output: @CPP:hello.cpp:#include <iostream>...
+  
 Focus on modern C++, headers, and build systems.""",
 
     "WEB": """You are COM with Web Stack Expert knowledge.
 Output ONLY a signal byte or HTML/CSS/JS code.
 Signals: @WEB:filename.html:code or direct web code.
+Examples:
+  Input: "make a landing page"
+  Output: @WEB:index.html:<!DOCTYPE html>...
+  
 Focus on modern frameworks and best practices.""",
 
     "GENERAL": """You are COM (Companion Of Master).
 Answer in max 3 bullet points.
 Format: • point
+Examples:
+  Input: "what is python?"
+  Output: • Python is a high-level programming language
+  • Known for readability and simple syntax
+  • Used in web development, data science, and AI
+  
 No greetings. No filler. Direct answer only."""
 }
 
@@ -625,38 +655,67 @@ class COMCore:
                     return offline
                 raise ConnectionError("Ollama is not running. Please start 'ollama serve' and ensure the model is installed.")
             
-            # Core policy: OFFICE only needs final signal, so avoid stream callbacks.
-            # GODOT/GENERAL keep token streaming for real-time UX.
-            if mode == "OFFICE":
-                full_response = self.client.generate(
-                    messages,
-                    max_tokens=max_tok,
-                    temperature=temp,
-                    num_ctx=num_ctx
-                )
-            else:
-                full_response = ""
-
-                def stream_cb(chunk):
-                    nonlocal full_response
-                    full_response += chunk
-                    if callback:
-                        callback(chunk)
-
-                self.client.generate_stream(
-                    messages,
-                    callback=stream_cb,
-                    max_tokens=max_tok,
-                    temperature=temp,
-                    num_ctx=num_ctx
-                )
+            # Auto-retry logic for LLM output validation (max 2 retries)
+            max_retries = 2
+            retry_count = 0
+            full_response = ""
+            valid_response = False
             
-            if mode == "GENERAL":
-                full_response = self._enforce_general_format(full_response)
-            else:
-                full_response = self._repair_output(mode, full_response)
-                if not self._is_valid_mode_output(mode, full_response):
-                    full_response = "@ERR:FORMAT:Please clarify output target (OFFICE signal or GODOT code)."
+            while retry_count <= max_retries and not valid_response:
+                try:
+                    # Core policy: OFFICE only needs final signal, so avoid stream callbacks.
+                    # GODOT/GENERAL keep token streaming for real-time UX.
+                    if mode == "OFFICE":
+                        full_response = self.client.generate(
+                            messages,
+                            max_tokens=max_tok,
+                            temperature=temp,
+                            num_ctx=num_ctx
+                        )
+                    else:
+                        full_response = ""
+
+                        def stream_cb(chunk):
+                            nonlocal full_response
+                            full_response += chunk
+                            if callback:
+                                callback(chunk)
+
+                        self.client.generate_stream(
+                            messages,
+                            callback=stream_cb,
+                            max_tokens=max_tok,
+                            temperature=temp,
+                            num_ctx=num_ctx
+                        )
+                    
+                    if mode == "GENERAL":
+                        full_response = self._enforce_general_format(full_response)
+                        valid_response = True  # General format is always valid after enforcement
+                    else:
+                        full_response = self._repair_output(mode, full_response)
+                        valid_response = self._is_valid_mode_output(mode, full_response)
+                        
+                        if not valid_response:
+                            retry_count += 1
+                            if retry_count <= max_retries:
+                                # Add correction hint to messages and retry
+                                messages.append({
+                                    "role": "system",
+                                    "content": f"Previous output was invalid. Please output ONLY a valid {mode} signal. Format: @{'XLS/PDF/PPT' if mode == 'OFFICE' else 'GDT'}:filename:payload"
+                                })
+                                messages.append({
+                                    "role": "user",
+                                    "content": "Retry with correct format."
+                                })
+                            else:
+                                full_response = "@ERR:FORMAT:Please clarify output target (OFFICE signal or GODOT code)."
+                                valid_response = True
+                
+                except Exception as e:
+                    retry_count += 1
+                    if retry_count > max_retries:
+                        raise e
 
             # PHASE 3: Cache result (OFFICE/GENERAL only, not GODOT scripts that go stale)
             if mode != "GODOT":
