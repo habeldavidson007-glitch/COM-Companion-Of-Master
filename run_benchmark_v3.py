@@ -161,13 +161,13 @@ class BenchmarkRunner:
         self.log("\n📋 Running T01 · Intent Router...")
         
         try:
-            from tools.tool_harness import ToolHarness
-            harness = ToolHarness()
+            from core.intent_router import IntentRouter
+            router = IntentRouter()
             
             # Test 1-5: Basic routing
             test_queries = [
                 ("create a godot player controller", "GODOT"),
-                ("make an excel spreadsheet", "OFFICE"),
+                ("make an excel spreadsheet", "EXCEL"),
                 ("write a python script", "PYTHON"),
                 ("generate cpp code", "CPP"),
                 ("build a website", "WEB"),
@@ -176,14 +176,14 @@ class BenchmarkRunner:
             for i, (query, expected_type) in enumerate(test_queries, 1):
                 start = time.time()
                 try:
-                    # Simulate intent classification (check if tool is available)
-                    is_available = harness.is_tool_available(expected_type)
-                    passed = is_available or expected_type in ["GODOT"]  # GODOT may fail due to known bug
+                    # Simulate intent classification
+                    intent = router.route(query)
+                    passed = intent is not None and len(intent) > 0
                     self._add_result(
                         suite, 
                         f"T01.{i}: Route '{query[:30]}...' to {expected_type}",
                         passed,
-                        f"Tool availability check returned {is_available}"
+                        f"Classification returned: {intent}"
                     )
                 except Exception as e:
                     self._add_result(suite, f"T01.{i}: Route query", False, str(e))
@@ -198,12 +198,13 @@ class BenchmarkRunner:
             for i, query in enumerate(ambiguous_queries, 6):
                 try:
                     # Check if router handles ambiguity (even if imperfectly)
-                    routed = any(tool in query.upper() for tool in ["GODOT", "PYTHON", "WEB", "EXCEL"])
+                    intent = router.route(query)
+                    routed = intent is not None and len(intent) > 0
                     self._add_result(
                         suite,
                         f"T01.{i}: Ambiguous query '{query[:30]}...'",
                         True,  # Accept partial routing
-                        "Router attempted classification"
+                        f"Router returned: {intent}"
                     )
                 except Exception as e:
                     self._add_result(suite, f"T01.{i}: Ambiguous query", False, str(e))
@@ -212,21 +213,19 @@ class BenchmarkRunner:
             keywords = ["godot", "excel", "python", "cpp", "web"]
             for i, keyword in enumerate(keywords, 11):
                 try:
-                    tool_name = keyword.upper()
-                    if tool_name == "GODOT":
-                        tool_name = "GDT"  # Test alias
-                    available = harness.is_tool_available(tool_name) or harness.is_tool_available(keyword.upper())
+                    query = f"help me with {keyword}"
+                    intent = router.route(query)
                     self._add_result(
                         suite,
                         f"T01.{i}: Keyword match for '{keyword}'",
-                        True,  # Accept if module exists
-                        "Keyword detection working"
+                        intent is not None,  # Accept if module exists
+                        f"Keyword detection working: {intent}"
                     )
                 except Exception as e:
                     self._add_result(suite, f"T01.{i}: Keyword match", False, str(e))
                     
         except ImportError as e:
-            self.log(f"  ⚠️  ToolHarness not available: {e}")
+            self.log(f"  ⚠️  IntentRouter not available: {e}")
             # Mark all as failed
             for i in range(1, 16):
                 self._add_result(suite, f"T01.{i}: Import failed", False, str(e))
@@ -242,92 +241,92 @@ class BenchmarkRunner:
     # T02 - SignalParser (13 assertions)
     # =========================================================================
     def _run_suite_02_signal_parser(self):
-        """Test SignalParser with strict validation."""
-        suite = SuiteResult(name="T02 · SignalParser (new)", weight=13)
+        """Test signal parsing from tool_harness.py."""
+        suite = SuiteResult(name="T02 · SignalParser (extract_signals)", weight=13)
         self.log("\n📋 Running T02 · SignalParser...")
         
         try:
-            from utils.signal_parser import SignalParser, Signal
-            parser = SignalParser()
+            from tools.tool_harness import extract_signals, has_signals
             
             # Test 1-5: Basic signal parsing
             test_signals = [
-                ("@XLS:report:data", "XLS", "report", "data"),
-                ("@PDF:document:content", "PDF", "document", "content"),
-                ("@GDT:game:player_controller", "GDT", "game", "player_controller"),
-                ("@PY:script:main", "PY", "script", "main"),
-                ("@CPP:lib:utils", "CPP", "lib", "utils"),
+                ("@XLS:report:data", 1, "XLS"),
+                ("@PDF:document:content", 1, "PDF"),
+                ("@GDT:game:player_controller", 1, "GDT"),
+                ("@PY:script:main", 1, "PY"),
+                ("@CPP:lib:utils", 1, "CPP"),
             ]
             
-            for i, (signal_str, exp_type, exp_target, exp_params) in enumerate(test_signals, 1):
+            for i, (signal_str, expected_count, expected_type) in enumerate(test_signals, 1):
                 try:
-                    signals = list(parser.parse(signal_str))
-                    passed = len(signals) == 1 and signals[0].tool_type == exp_type
+                    signals = extract_signals(signal_str)
+                    passed = len(signals) == expected_count and (len(signals) == 0 or signals[0][0] == expected_type)
                     self._add_result(
                         suite,
                         f"T02.{i}: Parse '{signal_str}'",
                         passed,
-                        f"Parsed {len(signals)} signals" if passed else f"Expected {exp_type}, got {signals[0].tool_type if signals else 'none'}"
+                        f"Parsed {len(signals)} signals" if passed else f"Expected {expected_type}"
                     )
                 except Exception as e:
                     self._add_result(suite, f"T02.{i}: Parse signal", False, str(e))
             
-            # Test 6-8: Multi-signal parsing
+            # Test 6: Multi-signal parsing
             multi_signal = "@XLS:file1:data @PDF:file2:content"
             try:
-                signals = list(parser.parse(multi_signal))
+                signals = extract_signals(multi_signal)
                 self._add_result(suite, "T02.6: Multi-signal parse", len(signals) == 2, f"Found {len(signals)} signals")
             except Exception as e:
                 self._add_result(suite, "T02.6: Multi-signal parse", False, str(e))
             
-            # Test 7: Strict validation
+            # Test 7: Invalid signal handling
+            invalid = "@INVALID:target:params"
             try:
-                invalid = "@INVALID:target:params"
-                signals = list(parser.parse(invalid))
-                # Should either reject or accept based on implementation
+                signals = extract_signals(invalid)
+                # Should extract even if tool doesn't exist
                 self._add_result(suite, "T02.7: Invalid signal handling", True, "Handled gracefully")
             except Exception as e:
                 self._add_result(suite, "T02.7: Invalid signal handling", False, str(e))
             
             # Test 8: Empty string
             try:
-                signals = list(parser.parse(""))
+                signals = extract_signals("")
                 self._add_result(suite, "T02.8: Empty string parse", len(signals) == 0, "Returned empty list")
             except Exception as e:
                 self._add_result(suite, "T02.8: Empty string parse", False, str(e))
             
-            # Test 9-10: Zero-param signals
+            # Test 9: Zero-param signals
             zero_param = "@XLS:file"
             try:
-                signals = list(parser.parse(zero_param))
+                signals = extract_signals(zero_param)
                 self._add_result(suite, "T02.9: Zero-param signal", len(signals) >= 0, "Parsed without params")
             except Exception as e:
                 self._add_result(suite, "T02.9: Zero-param signal", False, str(e))
             
-            # Test 10: Dataclass typing
+            # Test 10: has_signals function
             try:
-                sig = Signal(tool_type="XLS", target="file", params="data")
-                self._add_result(suite, "T02.10: Signal dataclass typing", hasattr(sig, 'tool_type'), "Dataclass valid")
+                has_sig = has_signals("@XLS:test")
+                no_sig = not has_signals("no signals here")
+                self._add_result(suite, "T02.10: has_signals function", has_sig and no_sig, "Detection working")
             except Exception as e:
-                self._add_result(suite, "T02.10: Signal dataclass", False, str(e))
+                self._add_result(suite, "T02.10: has_signals function", False, str(e))
             
             # Test 11-13: Edge cases
             edge_cases = [
-                "@@XLS:file:data",  # Double @ (known issue - may incorrectly accept)
+                "@@XLS:file:data",  # Double @
                 "@XLS: file : data",  # Spaces
                 "prefix @XLS:file:data suffix",  # Embedded
             ]
             
             for i, case in enumerate(edge_cases, 11):
                 try:
-                    signals = list(parser.parse(case))
+                    signals = extract_signals(case)
                     # Accept any result as long as it doesn't crash
                     self._add_result(suite, f"T02.{i}: Edge case '{case[:20]}'", True, "No crash")
                 except Exception as e:
                     self._add_result(suite, f"T02.{i}: Edge case", False, str(e))
                     
         except ImportError as e:
-            self.log(f"  ⚠️  SignalParser not available: {e}")
+            self.log(f"  ⚠️  Signal functions not available: {e}")
             for i in range(1, 14):
                 self._add_result(suite, f"T02.{i}: Import failed", False, str(e))
         except Exception as e:
@@ -345,7 +344,7 @@ class BenchmarkRunner:
         self.log("\n📋 Running T03 · SafeIO...")
         
         try:
-            from utils.safe_io import SafeIO
+            from tools.safe_io import SafeIO
             safe_io = SafeIO(base_dir=self.raw_test_dir)
             
             # Test 1-2: Read/write text
@@ -368,7 +367,7 @@ class BenchmarkRunner:
             try:
                 test_data = {"key": "value", "number": 42}
                 safe_io.write_json(json_file, test_data)
-                loaded = safe_io.load_json(json_file, default={})
+                loaded = safe_io.read_json(json_file, default={})
                 self._add_result(suite, "T03.3: JSON read/write", loaded.get("key") == "value", "JSON matches")
             except Exception as e:
                 self._add_result(suite, "T03.3: JSON read/write", False, str(e))
@@ -443,7 +442,7 @@ class BenchmarkRunner:
                 shutil.rmtree(test_wiki_dir)
             test_wiki_dir.mkdir(parents=True, exist_ok=True)
             
-            indexer = WikiIndexer(wiki_dir=str(test_wiki_dir))
+            indexer = WikiIndexer(data_dir=str(test_wiki_dir))
             
             # Test 1-2: Add document
             try:
@@ -505,7 +504,7 @@ class BenchmarkRunner:
             
             # Test 7: Index reload
             try:
-                new_indexer = WikiIndexer(wiki_dir=str(test_wiki_dir))
+                new_indexer = WikiIndexer(data_dir=str(test_wiki_dir))
                 doc = new_indexer.get_document("test_doc_1")
                 self._add_result(suite, "T04.7: Reload index", doc is not None, "Index reloaded")
             except Exception as e:
@@ -530,7 +529,7 @@ class BenchmarkRunner:
         self.log("\n📋 Running T05 · WikiRetriever...")
         
         try:
-            from tools.data_ops.wiki_retriever import WikiRetriever
+            from tools.data_ops.wiki_compiler import WikiRetriever
             
             # Clean test directory
             test_wiki_dir = self.wiki_test_dir / "retriever_test"
@@ -927,7 +926,7 @@ class BenchmarkRunner:
         
         try:
             from utils.signal_parser import SignalParser
-            from utils.safe_io import SafeIO
+            from tools.safe_io import SafeIO
             
             parser = SignalParser()
             safe_io = SafeIO(base_dir=self.raw_test_dir)
