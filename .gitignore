@@ -1,65 +1,41 @@
 ```
-# Python
-__pycache__/
+# Compiled Python files
 *.pyc
-*.pyo
-*.pyd
-*.py~
-*.py.class
-*.py.backup
-*.swp
-*.swo
+__pycache__/
 
 # Virtual environments
-venv/
 .venv/
+venv/
 env/
-ENV/
-.ENV/
-
-# Dependencies
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Build artifacts
-dist/
-build/
-*.egg-info/
-.eggs/
-.coverage
-coverage/
-htmlcov/
-.tox/
-.nox/
-.pytest_cache/
-.mypy_cache/
-.hypothesis/
 
 # Logs
 *.log
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-Thumbs.db:encryptable
-
-# Environment variables
+# Environment files
 .env
 .env.local
-.env.*
-!.env.example
+*.env.*
 
-# IDE specific
+# Editor/IDE files
 .vscode/
 .idea/
-*.sublime-project
-*.sublime-workspace
-nbproject/
+*.swp
+*.swo
+*.tmp
+
+# Build/dist directories
+dist/
+build/
+target/
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Dependency caches
+node_modules/
+.mypy_cache/
+.pytest_cache/
+.gradle/
 ```

@@ -1,159 +1,124 @@
-# File: core/cognitive_engine.py
 import ollama
 import json
 import re
 import logging
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
+from typing import Dict, Any, Optional
+from tools.tool_registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
-
-@dataclass
-class ThoughtStep:
-    type: str  # 'thought', 'action', 'observation', 'reflection', 'answer'
-    content: str
 
 class CognitiveEngine:
     def __init__(self, model_name: str = "com-v4-cognitive"):
         self.model_name = model_name
-        self.max_iterations = 5
-        self.history: List[Dict[str, str]] = []
-        
+        self.history = []
+        # Fast path keywords
+        self.greetings = {'hello', 'hi', 'hey', 'good morning', 'good night', 'thanks', 'thank you'}
+
     def chat(self, user_query: str) -> str:
-        """Main entry point for V4 Cognitive Chat."""
-        logger.info(f"Processing query with V4 Engine: {user_query[:50]}...")
-        
-        # Add user query to history
-        self.history.append({"role": "user", "content": user_query})
-        
+        """Main entry point: Commander Pattern."""
+        logger.info(f"Processing: {user_query[:50]}...")
+
+        # 1. FAST PATH: Instant response for greetings
+        if self._is_greeting(user_query):
+            return self._fast_reply(user_query)
+
         try:
-            # Start the Reflection Loop
-            final_response = self._run_reflection_loop(user_query)
+            # 2. PHASE 1: Intent Classification (LLM outputs JSON only)
+            intent_data = self._classify_intent(user_query)
             
-            # Add assistant response to history
-            self.history.append({"role": "assistant", "content": final_response})
+            # 3. PHASE 2: Execution (Python does the heavy lifting)
+            observation = ""
+            if intent_data.get("action") != "none":
+                observation = self._execute_tool(intent_data)
+            
+            # 4. PHASE 3: Synthesis (LLM formats the result)
+            final_response = self._synthesize_response(user_query, intent_data, observation)
+            
             return final_response
-            
+
         except Exception as e:
-            logger.error(f"V4 Engine failed: {e}")
-            return f"System Error: {str(e)}. Falling back to basic mode."
+            logger.error(f"Commander Engine Error: {e}")
+            return f"System error: {str(e)}. Trying basic mode..."
 
-    def _run_reflection_loop(self, query: str) -> str:
-        """Executes the Thought -> Action -> Reflection cycle."""
-        steps: List[ThoughtStep] = []
-        current_context = query
-        
-        for i in range(self.max_iterations):
-            logger.debug(f"Iteration {i+1}/{self.max_iterations}")
-            
-            # 1. Generate Thought/Action
-            response = self._call_model(current_context, steps)
-            
-            # Parse the response for structured tags
-            thought = self._extract_tag(response, "thought")
-            action = self._extract_tag(response, "action")
-            answer = self._extract_tag(response, "answer")
-            
-            if thought:
-                steps.append(ThoughtStep("thought", thought))
-                logger.info(f"Thought: {thought[:100]}...")
-            
-            if action:
-                # Execute Tool
-                observation = self._execute_action(action)
-                steps.append(ThoughtStep("observation", observation))
-                current_context = f"Previous Action Result: {observation}\nContinue reasoning."
-                continue # Loop again to reflect on result
-            
-            if answer:
-                # Final Answer Found
-                steps.append(ThoughtStep("answer", answer))
-                return self._format_final_output(steps)
-            
-            # If no tags found but we have text, treat as simple answer (fallback)
-            if not thought and not action and not answer:
-                clean_text = re.sub(r'<.*?>', '', response).strip()
-                if clean_text:
-                    return clean_text
-                    
-            # If we have thought but no action/answer, force a conclusion
-            if thought and not action and not answer:
-                return self._synthesize_conclusion(steps)
-        
-        return "I reached the maximum reasoning depth without a clear conclusion."
+    def _is_greeting(self, text: str) -> bool:
+        clean = text.lower().strip().strip('?!.')
+        return clean in self.greetings or len(clean.split()) <= 2 and clean in self.greetings
 
-    def _call_model(self, context: str, steps: List[ThoughtStep]) -> str:
-        """Calls Ollama with the current cognitive context."""
-        # Build the prompt dynamically
-        prompt_parts = [f"<|query|>\n{context}\n</|query|>"]
-        
-        # Inject recent steps as context
-        if steps:
-            recent_steps = steps[-3:] # Keep last 3 steps in context
-            history_str = "\n".join([f"<{s.type}>{s.content}</{s.type}>" for s in recent_steps])
-            prompt_parts.insert(0, f"<|history|>\n{history_str}\n</|history|>")
-        
-        full_prompt = "\n".join(prompt_parts)
-        
+    def _fast_reply(self, text: str) -> str:
         try:
-            response = ollama.chat(
-                model=self.model_name,
-                messages=[{"role": "user", "content": full_prompt}],
-                options={"temperature": 0.3, "num_predict": 1024}
+            resp = ollama.chat(model=self.model_name, messages=[{"role": "user", "content": text}])
+            return resp['message']['content']
+        except:
+            return "Hello! I am ready."
+
+    def _classify_intent(self, query: str) -> Dict[str, Any]:
+        """Forces LLM to output STRICT JSON only."""
+        prompt = f"""
+Analyze the user query and output ONLY a valid JSON object. No markdown, no text outside JSON.
+Schema: {{"action": "tool_name_or_none", "arguments": {{}}}}
+
+Available Tools:
+- calculate: For math (args: expression)
+- search_wiki: For local knowledge (args: query)
+- read_file: For reading files (args: path)
+- web_search: For live info (args: query)
+- none: For chat/opinion
+
+User Query: "{query}"
+
+JSON Output:
+"""
+        try:
+            resp = ollama.chat(
+                model=self.model_name, 
+                messages=[{"role": "user", "content": prompt}],
+                options={"temperature": 0.1, "num_predict": 150}
             )
-            return response['message']['content']
+            content = resp['message']['content']
+            # Clean markdown if LLM adds it
+            content = re.sub(r'```json|```', '', content).strip()
+            return json.loads(content)
         except Exception as e:
-            raise Exception(f"Ollama connection failed: {e}")
+            logger.warning(f"Intent parsing failed: {e}. Defaulting to 'none'.")
+            return {"action": "none", "arguments": {}}
 
-    def _execute_action(self, action_json: str) -> str:
-        """Parses and executes a tool action."""
-        try:
-            # Clean JSON string
-            json_match = re.search(r'\{.*\}', action_json, re.DOTALL)
-            if json_match:
-                data = json.loads(json_match.group())
-                tool_name = data.get("name", "unknown")
-                args = data.get("arguments", {})
-                
-                logger.info(f"Executing tool: {tool_name}")
-                
-                # TODO: Integrate with your existing tools from com_core.py
-                # For now, return a mock observation
-                return f"Tool '{tool_name}' executed with args {args}. Result: Success (Mock)."
-            else:
-                return "Invalid JSON format in action tag."
-        except json.JSONDecodeError:
-            return "Error: Could not parse action JSON."
-        except Exception as e:
-            return f"Tool execution error: {str(e)}"
-
-    def _synthesize_conclusion(self, steps: List[ThoughtStep]) -> str:
-        """Forces a conclusion if the model stops mid-thought."""
-        thoughts = [s.content for s in steps if s.type == "thought"]
-        if not thoughts:
-            return "I have processed your request."
+    def _execute_tool(self, intent: Dict[str, Any]) -> str:
+        """Python executes the tool instantly."""
+        action = intent.get("action")
+        args = intent.get("arguments", {})
         
-        last_thought = thoughts[-1]
-        return f"Based on my analysis: {last_thought}"
+        if action == "none":
+            return ""
+        
+        logger.info(f"Executing Tool: {action} with {args}")
+        try:
+            return ToolRegistry.execute(action, args)
+        except Exception as e:
+            return f"Tool execution failed: {str(e)}"
 
-    def _format_final_output(self, steps: List[ThoughtStep]) -> str:
-        """Formats the final response for the user."""
-        # In V4, we might want to hide the raw XML tags from the user 
-        # or show a summarized version. For now, return the clean answer.
-        answer_step = next((s for s in steps if s.type == "answer"), None)
-        if answer_step:
-            return answer_step.content
-        return "No final answer generated."
+    def _synthesize_response(self, query: str, intent: Dict[str, Any], observation: str) -> str:
+        """LLM formats the final answer based on tool output."""
+        if not observation:
+            # No tool used, just chat
+            prompt = f"User: {query}\nAssistant:"
+            try:
+                resp = ollama.chat(model=self.model_name, messages=[{"role": "user", "content": prompt}])
+                return resp['message']['content']
+            except:
+                return "I processed your request."
+        
+        # Tool was used, format the result
+        prompt = f"""
+User asked: "{query}"
+Tool Result: {observation}
 
-    def _extract_tag(self, text: str, tag_name: str) -> Optional[str]:
-        """Extracts content between <tag>...</tag>."""
-        pattern = f"<{tag_name}>(.*?)</{tag_name}>"
-        match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-        if match:
-            return match.group(1).strip()
-        return None
+Provide a clear, natural language answer based on the tool result. Do not mention the tool name, just give the answer.
+"""
+        try:
+            resp = ollama.chat(model=self.model_name, messages=[{"role": "user", "content": prompt}])
+            return resp['message']['content']
+        except:
+            return f"Result: {observation}"
 
     def reset(self):
-        """Clears conversation history."""
         self.history = []
-        logger.info("Conversation history cleared.")
