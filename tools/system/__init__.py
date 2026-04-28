@@ -1,6 +1,6 @@
-"""System Tools Package (Placeholder)"""
-# Reserved for future system-level tools:
-# - shell_runner.py: Safe command execution
-# - file_manager.py: File operations
+"""System Tools Package"""
+# System-level tools for desktop interaction and OS operations
 
-__all__ = []
+from tools.system.desktop_harness import DesktopHarness
+
+__all__ = ["DesktopHarness"]
