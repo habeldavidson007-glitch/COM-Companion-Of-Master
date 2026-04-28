@@ -1,0 +1,82 @@
+{
+  "timestamp": "2026-04-28T07:52:36.075871",
+  "overall_score": 9.183673469387756,
+  "target_score": 87.8,
+  "meets_target": false,
+  "total_assertions": 98,
+  "passed": 9,
+  "failed": 89,
+  "elapsed_seconds": 2.2874624729156494,
+  "suites": [
+    {
+      "name": "T01 \u00b7 Intent Router (3-mode)",
+      "score": 0.0,
+      "passed": 0,
+      "failed": 15,
+      "weight": 15
+    },
+    {
+      "name": "T02 \u00b7 SignalParser (new)",
+      "score": 0.0,
+      "passed": 0,
+      "failed": 13,
+      "weight": 13
+    },
+    {
+      "name": "T03 \u00b7 SafeIO (new)",
+      "score": 0.0,
+      "passed": 0,
+      "failed": 8,
+      "weight": 8
+    },
+    {
+      "name": "T04 \u00b7 WikiIndexer (new)",
+      "score": 0.0,
+      "passed": 0,
+      "failed": 0,
+      "weight": 7
+    },
+    {
+      "name": "T05 \u00b7 WikiRetriever TF-IDF (new)",
+      "score": 0.0,
+      "passed": 0,
+      "failed": 8,
+      "weight": 8
+    },
+    {
+      "name": "T06 \u00b7 WikiHealthChecker (new)",
+      "score": 0.0,
+      "passed": 0,
+      "failed": 10,
+      "weight": 10
+    },
+    {
+      "name": "T07 \u00b7 Tool Harness (legacy)",
+      "score": 0.0,
+      "passed": 0,
+      "failed": 8,
+      "weight": 8
+    },
+    {
+      "name": "T08 \u00b7 COMCore + Memory + Logger",
+      "score": 85.71428571428571,
+      "passed": 6,
+      "failed": 1,
+      "weight": 7
+    },
+    {
+      "name": "T09 \u00b7 Edge Cases + Stress",
+      "score": 0.0,
+      "passed": 0,
+      "failed": 13,
+      "weight": 13
+    },
+    {
+      "name": "T10 \u00b7 Architecture Integration",
+      "score": 33.33333333333333,
+      "passed": 3,
+      "failed": 6,
+      "weight": 9
+    }
+  ]
+}
