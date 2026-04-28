@@ -727,7 +727,19 @@ class COMCore:
                     elapsed_ms = int((time.time() - start_time) * 1000)
                     self.logger.log("OFFLINE", query, offline, cache_hit, elapsed_ms)
                     return offline
-                raise ConnectionError("Ollama is not running. Please start 'ollama serve' and ensure the model is installed.")
+                # For non-GENERAL modes without Ollama, provide helpful offline guidance
+                if mode == "OFFICE":
+                    offline_msg = "@ERR:OFFLINE:Ollama unavailable. Please start 'ollama serve' for file operations."
+                elif mode == "GODOT":
+                    offline_msg = "@ERR:OFFLINE:Ollama unavailable. Please start 'ollama serve' for code generation."
+                else:
+                    offline_msg = f"@ERR:OFFLINE:Ollama unavailable for {mode} mode. Please start 'ollama serve'."
+                if callback:
+                    callback(offline_msg)
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                self.logger.log("OFFLINE", query, offline_msg, cache_hit, elapsed_ms)
+                return offline_msg
+            raise ConnectionError("Ollama is not running. Please start 'ollama serve' and ensure the model is installed.")
             
             # Core policy: OFFICE only needs final signal, so avoid stream callbacks.
             # GODOT/GENERAL keep token streaming for real-time UX.
