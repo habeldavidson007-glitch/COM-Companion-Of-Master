@@ -15,7 +15,16 @@ from typing import Optional, List, Dict
 
 # Add current directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from core.com_core import COMCore, classify_mode, is_signal, parse_signal
+
+# V4 Cognitive Engine Import (Replaces V3 COMCore)
+try:
+    from core.cognitive_engine import CognitiveEngine
+    USE_V4 = True
+    print("✅ COM v4 Cognitive Engine loaded")
+except ImportError:
+    from core.com_core import COMCore
+    USE_V4 = False
+    print("⚠️  Falling back to COM v3 Core")
 
 # Import tool modules for direct execution
 from tools.excel_tool import run as excel_run
@@ -30,13 +39,24 @@ class COMDesktopApp:
         self.root = None
         self.chat_window = None
         self.mascot_window = None
-        self.com_brain = COMCore()
+        
+        # Initialize V4 or V3 brain
+        if USE_V4:
+            self.com_brain = CognitiveEngine(model_name="com-v4-cognitive")
+            print("🧠 COM v4 Cognitive Engine initialized")
+        else:
+            self.com_brain = COMCore()
+            print("🧠 COM v3 Core initialized")
+            
         self.messages: List[Dict] = []
         self.is_processing = False
         self.current_file_path = None
         self._window_closed = False
         self._ui_queue = queue.Queue()
-        threading.Thread(target=self.com_brain.client.warmup, daemon=True).start()
+        
+        # Warmup only for V3 (V4 doesn't have client.warmup)
+        if not USE_V4 and hasattr(self.com_brain, 'client'):
+            threading.Thread(target=self.com_brain.client.warmup, daemon=True).start()
         
     def create_mascot(self):
         """Create floating mascot window that opens chat on click"""
@@ -328,20 +348,26 @@ class COMDesktopApp:
                         return
                     self._ui_queue.put(func)
                 
-                def callback(chunk):
-                    response_chunks.append(chunk)
-                    # Safely update UI in main thread
-                    safe_ui_update(lambda c=chunk: self._append_to_last_message(c))
+                # V4 uses simple chat() method, V3 uses process_query with callback
+                if USE_V4:
+                    # V4 Cognitive Engine - no streaming callback, just get full response
+                    response = self.com_brain.chat(user_input)
+                    safe_ui_update(lambda r=response: self._append_to_last_message(r))
+                else:
+                    # V3 COMCore - streaming with callback
+                    def callback(chunk):
+                        response_chunks.append(chunk)
+                        safe_ui_update(lambda c=chunk: self._append_to_last_message(c))
+                    
+                    response = self.com_brain.process_query(user_input, callback=callback)
                 
-                response = self.com_brain.process_query(user_input, callback=callback)
-                
-                # Check if response is a signal that needs tool execution
-                if is_signal(response):
+                # V3 signal handling (V4 handles tools internally)
+                if not USE_V4 and 'is_signal' in globals() and is_signal(response):
                     prefix, payload = parse_signal(response)
                     tool_result = self._execute_signal(prefix, payload)
                     if tool_result:
                         safe_ui_update(lambda r=tool_result: self._add_system_message(r))
-                
+                        
             except Exception as e:
                 error_msg = f"Error: {str(e)}"
                 safe_ui_update(lambda m=error_msg: self._add_system_message(m, tag='error'))
