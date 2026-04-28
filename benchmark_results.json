@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-04-28T15:25:25.639404",
-  "overall_score": 96.93877551020408,
+  "timestamp": "2026-04-28T15:30:51.696814",
+  "overall_score": 97.95918367346938,
   "target_score": 90.0,
   "meets_target": true,
   "total_assertions": 98,
-  "passed": 95,
-  "failed": 3,
-  "elapsed_seconds": 2.187941312789917,
+  "passed": 96,
+  "failed": 2,
+  "elapsed_seconds": 2.15718936920166,
   "suites": [
     {
       "name": "T01 \u00b7 Intent Router (3-mode)",
@@ -73,9 +73,9 @@
     },
     {
       "name": "T10 \u00b7 Architecture Integration",
-      "score": 88.88888888888889,
-      "passed": 8,
-      "failed": 1,
+      "score": 100.0,
+      "passed": 9,
+      "failed": 0,
       "weight": 9
     }
   ]

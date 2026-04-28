@@ -11,14 +11,14 @@ from typing import Dict, List, Optional, Any, Tuple
 
 MODES = {
     "GODOT":  ["godot", "gdscript", "game", "scene", "node",
-               "physics", "animation", "script", "player", "asset"],
+               "physics", "animation", "player", "asset"],
     "OFFICE": ["excel", "pdf", "ppt", "spreadsheet", "report",
                "dokumen", "laporan", "buat file", "tabel", "save"],
     "CPP":    ["c++", "cpp", "cplusplus", "header", "cmake", 
                "smart pointer", "template", "std::"],
-    "PYTHON": ["python", "py", "script", "pip", "package", "module"],
+    "PYTHON": ["python", "py", "pip", "package", "module"],
     "JAVASCRIPT": ["javascript", "js", "typescript", "ts", "react", 
-                   "node", "npm", "browser", "dom", "async"],
+                   "node", "npm", "browser", "dom", "async", "web"],
     "JSON":   ["json", "schema", "parse json", "validate json", "api response"],
     "DESKTOP":["file", "folder", "browser", "clipboard", "screenshot",
                "open", "create", "delete", "copy", "move"],

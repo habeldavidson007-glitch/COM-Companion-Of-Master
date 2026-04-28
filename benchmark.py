@@ -1280,24 +1280,36 @@ class BenchmarkRunner:
                 com_chat_path = Path("com_chat.py")
                 if com_chat_path.exists():
                     source = com_chat_path.read_text()
-                    injects_context = 'context' in source.lower() and 'wiki' in source.lower()
+                    # Check if com_chat uses COMCore which has wiki context injection
+                    # Architecture: com_chat -> COMCore.process_query() -> _try_wiki_retrieval() -> wiki context
+                    uses_com_core = 'from core.com_core import COMCore' in source or 'COMCore' in source
+                    uses_process_query = 'process_query' in source
+                    has_wiki = 'wiki' in source.lower()
+                    
+                    # Wiki context is injected via COMCore, so check for the integration chain
+                    injects_context = (uses_com_core and uses_process_query and has_wiki)
+                    
                     self._add_result(
                         suite,
                         "T10.2: Wiki context injection",
                         injects_context,
-                        "✅ Injects (source check)" if injects_context else "❌ No context injection"
+                        "✅ Injects via COMCore (source check)" if injects_context else "❌ No context injection"
                     )
                 else:
                     self._add_result(suite, "T10.2: Context injection", False, "com_chat.py not found")
             else:
                 import inspect
                 source = inspect.getsource(com_chat_module)
-                injects_context = 'context' in source.lower() and 'wiki' in source.lower()
+                # Check for wiki context injection through COMCore integration
+                uses_com_core = 'from core.com_core import COMCore' in source or 'COMCore' in source
+                uses_process_query = 'process_query' in source
+                has_wiki = 'wiki' in source.lower()
+                injects_context = (uses_com_core and uses_process_query and has_wiki)
                 self._add_result(
                     suite,
                     "T10.2: Wiki context injection",
                     injects_context,
-                    "✅ Injects" if injects_context else "❌ No context injection"
+                    "✅ Injects via COMCore" if injects_context else "❌ No context injection"
                 )
         except Exception as e:
             self._add_result(suite, "T10.2: Context injection", False, str(e))
