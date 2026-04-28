@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-04-28T17:03:45.996997",
-  "overall_score": 85.71428571428571,
+  "timestamp": "2026-04-28T15:05:49.857781",
+  "overall_score": 84.6938775510204,
   "target_score": 90.0,
   "meets_target": false,
   "total_assertions": 98,
-  "passed": 84,
-  "failed": 14,
-  "elapsed_seconds": 4.415080785751343,
+  "passed": 83,
+  "failed": 15,
+  "elapsed_seconds": 2.1418633460998535,
   "suites": [
     {
       "name": "T01 \u00b7 Intent Router (3-mode)",
@@ -24,9 +24,9 @@
     },
     {
       "name": "T03 \u00b7 SafeIO (new)",
-      "score": 87.5,
-      "passed": 7,
-      "failed": 1,
+      "score": 75.0,
+      "passed": 6,
+      "failed": 2,
       "weight": 8
     },
     {

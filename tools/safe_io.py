@@ -19,15 +19,47 @@ class SafeIO:
         self.base_dir.mkdir(parents=True, exist_ok=True)
     
     def _resolve_path(self, path: str) -> Path:
-        """Resolve path relative to base directory."""
+        """Resolve path relative to base directory with security checks."""
         p = Path(path)
+        
+        # If path is absolute, check if it's within base_dir
         if p.is_absolute():
-            return p
-        return self.base_dir / p
+            resolved = p.resolve()
+            base_resolved = self.base_dir.resolve()
+            
+            try:
+                resolved.relative_to(base_resolved)
+                return resolved
+            except ValueError:
+                raise PermissionError(f"Path traversal detected: {path} is outside base directory {self.base_dir}")
+        
+        # For relative paths, first check if it's already within base_dir context
+        # (handles case where path already includes base_dir prefix)
+        full_path = self.base_dir / p
+        full_resolved = full_path.resolve()
+        base_resolved = self.base_dir.resolve()
+        
+        # Double-check: ensure no path traversal via ../
+        try:
+            full_resolved.relative_to(base_resolved)
+            return full_resolved
+        except ValueError:
+            raise PermissionError(f"Path traversal detected: {path} attempts to escape base directory")
     
     def ensure_dir(self, path: str) -> None:
         """Ensure directory exists."""
-        dir_path = self._resolve_path(path).parent
+        # Convert to string if Path object is passed
+        path_str = str(path)
+        
+        # If path looks like a directory (ends with / or has no file extension), create it directly
+        p = Path(path_str)
+        if path_str.endswith('/') or (p.suffix == '' and '/' in path_str):
+            # It's a directory path
+            dir_path = self._resolve_path(path_str)
+        else:
+            # It's a file path, create parent directory
+            dir_path = self._resolve_path(path_str).parent
+        
         dir_path.mkdir(parents=True, exist_ok=True)
     
     def read_text(self, path: str, encoding: str = 'utf-8') -> str:

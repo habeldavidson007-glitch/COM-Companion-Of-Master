@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Any
 from pathlib import Path
 from datetime import datetime
 import re
+import json
 from dataclasses import dataclass
 
 from core.com_core import OllamaClient
