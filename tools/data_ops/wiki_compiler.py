@@ -11,10 +11,21 @@ from typing import Dict, List, Optional, Any
 from pathlib import Path
 from datetime import datetime
 import re
+from dataclasses import dataclass
 
 from core.com_core import OllamaClient
 from tools.safe_io import SafeIO
 from tools.data_ops.wiki_indexer import WikiIndexer
+
+
+@dataclass
+class HealthIssue:
+    """Represents a health check issue found in the wiki."""
+    type: str  # 'orphaned_backlink', 'missing_summary', 'broken_link'
+    severity: str  # 'low', 'medium', 'high'
+    document: str
+    message: str
+    details: Optional[Dict] = None
 
 
 class WikiCompiler:

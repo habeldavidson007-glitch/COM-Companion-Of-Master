@@ -1,171 +1,82 @@
 {
-  "total_tests": 20,
-  "passed_tests": 3,
-  "failed_tests": 0,
-  "skipped_tests": 17,
-  "score_percentage": 100.0,
-  "verdict": "\ud83c\udfc6 GOLD STANDARD - Production Ready (Zero Technical Debt)",
-  "timestamp": "2026-04-28T09:24:02.734125",
-  "results": [
+  "timestamp": "2026-04-28T09:32:14.949660",
+  "overall_score": 63.26530612244898,
+  "target_score": 90.0,
+  "meets_target": false,
+  "total_assertions": 98,
+  "passed": 62,
+  "failed": 36,
+  "elapsed_seconds": 2.1419425010681152,
+  "suites": [
     {
-      "name": "Router Import",
-      "passed": false,
-      "message": "IntentRouter class not found",
-      "duration": 0.0005624294281005859,
-      "category": "Router",
-      "skipped": true
+      "name": "T01 \u00b7 Intent Router (3-mode)",
+      "score": 86.66666666666667,
+      "passed": 13,
+      "failed": 0,
+      "weight": 15
     },
     {
-      "name": "Router Classification",
-      "passed": false,
-      "message": "IntentRouter not available",
-      "duration": 1.049041748046875e-05,
-      "category": "Router",
-      "skipped": true
+      "name": "T02 \u00b7 SignalParser (extract_signals)",
+      "score": 100.0,
+      "passed": 13,
+      "failed": 0,
+      "weight": 13
     },
     {
-      "name": "Signal Parser Import",
-      "passed": false,
-      "message": "No signal parser class found",
-      "duration": 1.4024474620819092,
-      "category": "SignalParser",
-      "skipped": true
+      "name": "T03 \u00b7 SafeIO (new)",
+      "score": 75.0,
+      "passed": 6,
+      "failed": 2,
+      "weight": 8
     },
     {
-      "name": "Signal Parsing Logic",
-      "passed": false,
-      "message": "Harness not available",
-      "duration": 0.00034046173095703125,
-      "category": "SignalParser",
-      "skipped": true
+      "name": "T04 \u00b7 WikiIndexer",
+      "score": 100.0,
+      "passed": 7,
+      "failed": 0,
+      "weight": 7
     },
     {
-      "name": "SafeIO Import",
-      "passed": false,
-      "message": "SafeIO class not found",
-      "duration": 0.00022673606872558594,
-      "category": "SafeIO",
-      "skipped": true
+      "name": "T05 \u00b7 WikiRetriever",
+      "score": 62.5,
+      "passed": 5,
+      "failed": 3,
+      "weight": 8
     },
     {
-      "name": "SafeIO Operations",
-      "passed": false,
-      "message": "SafeIO not available",
-      "duration": 2.5272369384765625e-05,
-      "category": "SafeIO",
-      "skipped": true
+      "name": "T06 \u00b7 WikiHealthChecker (new)",
+      "score": 30.0,
+      "passed": 3,
+      "failed": 7,
+      "weight": 10
     },
     {
-      "name": "Indexer Import",
-      "passed": false,
-      "message": "WikiIndexer class not found",
-      "duration": 0.0010409355163574219,
-      "category": "Indexer",
-      "skipped": true
+      "name": "T07 \u00b7 Tool Harness",
+      "score": 75.0,
+      "passed": 6,
+      "failed": 2,
+      "weight": 8
     },
     {
-      "name": "Indexer Backlinks",
-      "passed": false,
-      "message": "WikiIndexer not available",
-      "duration": 1.1682510375976562e-05,
-      "category": "Indexer",
-      "skipped": true
+      "name": "T08 \u00b7 COMCore + Memory + Logger",
+      "score": 85.71428571428571,
+      "passed": 6,
+      "failed": 1,
+      "weight": 7
     },
     {
-      "name": "Retriever Import",
-      "passed": false,
-      "message": "WikiRetriever class not found",
-      "duration": 0.0015888214111328125,
-      "category": "Retriever",
-      "skipped": true
+      "name": "T09 \u00b7 Edge Cases + Stress",
+      "score": 0.0,
+      "passed": 0,
+      "failed": 13,
+      "weight": 13
     },
     {
-      "name": "Retriever Search",
-      "passed": false,
-      "message": "WikiRetriever not available",
-      "duration": 1.049041748046875e-05,
-      "category": "Retriever",
-      "skipped": true
-    },
-    {
-      "name": "HealthChecker Import",
-      "passed": false,
-      "message": "HealthChecker class not found",
-      "duration": 8.821487426757812e-06,
-      "category": "Health",
-      "skipped": true
-    },
-    {
-      "name": "Health Check Execution",
-      "passed": false,
-      "message": "HealthChecker not available",
-      "duration": 7.3909759521484375e-06,
-      "category": "Health",
-      "skipped": true
-    },
-    {
-      "name": "Harness Import",
-      "passed": false,
-      "message": "ToolHarness class not found",
-      "duration": 0.0003910064697265625,
-      "category": "Harness",
-      "skipped": true
-    },
-    {
-      "name": "Harness Tool Registration",
-      "passed": false,
-      "message": "Harness not available",
-      "duration": 0.0003120899200439453,
-      "category": "Harness",
-      "skipped": true
-    },
-    {
-      "name": "Core Import",
-      "passed": false,
-      "message": "COMCore class not found",
-      "duration": 1.7642974853515625e-05,
-      "category": "Core",
-      "skipped": true
-    },
-    {
-      "name": "Core Initialization",
-      "passed": false,
-      "message": "COMCore not available",
-      "duration": 7.3909759521484375e-06,
-      "category": "Core",
-      "skipped": true
-    },
-    {
-      "name": "Error Handling (Missing File)",
-      "passed": true,
-      "message": "Exception caught for missing file (acceptable)",
-      "duration": 0.0001678466796875,
-      "category": "Edge",
-      "skipped": false
-    },
-    {
-      "name": "Concurrent Access Safety",
-      "passed": true,
-      "message": "Concurrent access handled safely",
-      "duration": 0.002167940139770508,
-      "category": "Edge",
-      "skipped": false
-    },
-    {
-      "name": "Wiki-to-Core Integration",
-      "passed": true,
-      "message": "WikiRetriever integrated in Core",
-      "duration": 0.0003643035888671875,
-      "category": "Integration",
-      "skipped": false
-    },
-    {
-      "name": "LiveFetcher Integration",
-      "passed": false,
-      "message": "LiveFetcher not found",
-      "duration": 0.4799234867095947,
-      "category": "Integration",
-      "skipped": true
+      "name": "T10 \u00b7 Architecture Integration",
+      "score": 33.33333333333333,
+      "passed": 3,
+      "failed": 6,
+      "weight": 9
     }
   ]
 }
