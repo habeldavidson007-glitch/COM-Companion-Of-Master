@@ -452,10 +452,12 @@ class COMCore:
         if godot_hits > 0 and office_hits == 0:
             return "GODOT", min(1.0, 0.7 + 0.15 * godot_hits)
         if office_hits > 0 and godot_hits > 0:
-            return self.router.route(raw_query), 0.4
+            route_result = self.router.route(raw_query)
+            return route_result["mode"], 0.4
 
         # Fallback to router when no regex signal.
-        mode = self.router.route(raw_query)
+        route_result = self.router.route(raw_query)
+        mode = route_result["mode"]
         # Short/vague queries are lower confidence for small models.
         confidence = 0.45 if len(normalized_query.split()) >= 5 else 0.3
         return mode, confidence
