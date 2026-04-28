@@ -67,23 +67,30 @@ One line. No explanation. Signal only.""",
 
     "GENERAL": """You are COM v4 - a pure INTENT ROUTER.
 You NEVER generate answers, explanations, or content.
-You ONLY output signal bytes in format: @HARNESS:payload
+You ONLY output ONE signal byte in format: @TYPE:payload
 
-Available harnesses:
-  @WIKI:topic - For knowledge/research questions
-  @WEB:topic - For current events/live data
-  @CHAT:greeting - For greetings (hello, hi, hey)
-  @CHAT:thanks - For thanks (thank you, thanks)
-  @CODE:language:description - For code generation requests
-  @ERR:clarification - If query is ambiguous
+STEP 1: Analyze the query intent
+STEP 2: Choose EXACTLY ONE type:
+  @WIKI:topic - For knowledge/research questions (what is, explain, define, describe)
+  @WEB:topic - For current events/live data (news, today, latest, current)
+  @CHAT:greeting - For greetings ONLY (hello, hi, hey, good morning)
+  @CHAT:thanks - For thanks ONLY (thank you, thanks, appreciate)
+  @CODE:language:description - For code generation requests (write code, create script)
+  @ERR:clarification - If query is ambiguous or unclear
+
+CRITICAL RULES:
+- Output EXACTLY ONE line starting with @TYPE:
+- NEVER output multiple @ symbols
+- NEVER list all types like @WIKI:@WEB:@CHAT
+- Pick the SINGLE best match
 
 Examples:
 User: 'Hello' → @CHAT:greeting
 User: 'What is AI?' → @WIKI:artificial intelligence definition
-User: 'AI innovation trends' → @WIKI:AI innovation trends 2024
-User: 'Thanks' → @CHAT:thanks
+User: 'Write python script' → @CODE:python:script description
+User: 'Current AI news' → @WEB:AI news latest
 
-Output ONE signal line only. No explanation."""
+Your response must be exactly one line like: @TYPE:payload"""
 }
 
 MODE_OUTPUT_CONTRACTS = {
@@ -143,13 +150,41 @@ VALID_PREFIXES = {"@GDT", "@XLS", "@PDF", "@PPT", "@ERR", "@WIKI", "@WEB", "@CHA
 
 def is_signal(text: str) -> bool:
     """Validate LLM output before passing to harness"""
-    return text.strip()[:4] in VALID_PREFIXES
+    stripped = text.strip()
+    # Check if it starts with a valid prefix (need at least 5 chars: @TYPE:)
+    if len(stripped) < 6:
+        return False
+    # Reject malformed signals with multiple @ symbols
+    if stripped.count('@') > 1:
+        return False
+    # Extract prefix up to first colon
+    if ':' not in stripped:
+        return False
+    prefix = stripped.split(':')[0]
+    return prefix in VALID_PREFIXES
 
 def parse_signal(text: str) -> Tuple[str, str]:
     """Parse signal into prefix and payload
     "@XLS:Inventory:Item,Qty" → ("@XLS", "Inventory:Item,Qty")
+    Handles malformed outputs by extracting first valid signal
     """
-    parts = text.strip().split(":", 1)
+    stripped = text.strip()
+    
+    # If the response contains multiple @ symbols (malformed), extract the first valid one
+    if stripped.count('@') > 1:
+        # Try to find first valid signal pattern
+        match = re.search(r'@(WIKI|WEB|CHAT|CODE|ERR|GDT|XLS|PDF|PPT):([^@\n]+)', stripped)
+        if match:
+            return f"@{match.group(1)}", match.group(2).strip()
+        # Fallback: just take everything after first @
+        first_at = stripped.find('@')
+        rest = stripped[first_at+1:]
+        parts = rest.split(":", 1)
+        if len(parts) == 2:
+            return f"@{parts[0]}", parts[1]
+    
+    # Normal parsing
+    parts = stripped.split(":", 1)
     prefix = parts[0]
     payload = parts[1] if len(parts) > 1 else ""
     return prefix, payload
@@ -381,7 +416,8 @@ class COMCore:
         self._knowledge_indicators = [
             'what is', 'who is', 'explain', 'define', 'describe', 
             'tell me about', 'how does', 'why is', 'when did',
-            'what are', 'give me information', 'summarize'
+            'what are', 'give me information', 'summarize',
+            'ai evolution', 'ai trends', 'current ai', 'project recommendation'
         ]
 
     def _normalize_query(self, query: str) -> str:
@@ -452,10 +488,12 @@ class COMCore:
         if godot_hits > 0 and office_hits == 0:
             return "GODOT", min(1.0, 0.7 + 0.15 * godot_hits)
         if office_hits > 0 and godot_hits > 0:
-            return self.router.route(raw_query), 0.4
+            route_result = self.router.route(raw_query)
+            return route_result["mode"], 0.4
 
         # Fallback to router when no regex signal.
-        mode = self.router.route(raw_query)
+        route_result = self.router.route(raw_query)
+        mode = route_result["mode"]
         # Short/vague queries are lower confidence for small models.
         confidence = 0.45 if len(normalized_query.split()) >= 5 else 0.3
         return mode, confidence
@@ -689,7 +727,19 @@ class COMCore:
                     elapsed_ms = int((time.time() - start_time) * 1000)
                     self.logger.log("OFFLINE", query, offline, cache_hit, elapsed_ms)
                     return offline
-                raise ConnectionError("Ollama is not running. Please start 'ollama serve' and ensure the model is installed.")
+                # For non-GENERAL modes without Ollama, provide helpful offline guidance
+                if mode == "OFFICE":
+                    offline_msg = "@ERR:OFFLINE:Ollama unavailable. Please start 'ollama serve' for file operations."
+                elif mode == "GODOT":
+                    offline_msg = "@ERR:OFFLINE:Ollama unavailable. Please start 'ollama serve' for code generation."
+                else:
+                    offline_msg = f"@ERR:OFFLINE:Ollama unavailable for {mode} mode. Please start 'ollama serve'."
+                if callback:
+                    callback(offline_msg)
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                self.logger.log("OFFLINE", query, offline_msg, cache_hit, elapsed_ms)
+                return offline_msg
+            raise ConnectionError("Ollama is not running. Please start 'ollama serve' and ensure the model is installed.")
             
             # Core policy: OFFICE only needs final signal, so avoid stream callbacks.
             # GODOT/GENERAL keep token streaming for real-time UX.
