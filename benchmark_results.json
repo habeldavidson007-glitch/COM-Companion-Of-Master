@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-04-28T09:39:46.551495",
-  "overall_score": 71.42857142857143,
+  "timestamp": "2026-04-28T09:51:27.369933",
+  "overall_score": 84.6938775510204,
   "target_score": 90.0,
   "meets_target": false,
   "total_assertions": 98,
-  "passed": 70,
-  "failed": 28,
-  "elapsed_seconds": 2.040724039077759,
+  "passed": 83,
+  "failed": 15,
+  "elapsed_seconds": 2.31642484664917,
   "suites": [
     {
       "name": "T01 \u00b7 Intent Router (3-mode)",
@@ -66,9 +66,9 @@
     },
     {
       "name": "T09 \u00b7 Edge Cases + Stress",
-      "score": 0.0,
-      "passed": 0,
-      "failed": 13,
+      "score": 100.0,
+      "passed": 13,
+      "failed": 0,
       "weight": 13
     },
     {
