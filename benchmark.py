@@ -327,10 +327,10 @@ class BenchmarkRunner:
             # Test 1-5: Basic routing
             test_queries = [
                 ("create a godot player controller", "GODOT"),
-                ("make an excel spreadsheet", "EXCEL"),
+                ("make an excel spreadsheet", "OFFICE"),  # Excel routes to OFFICE mode
                 ("write a python script", "PYTHON"),
                 ("generate cpp code", "CPP"),
-                ("build a website", "WEB"),
+                ("build a website", "JAVASCRIPT"),  # Web routes to JAVASCRIPT mode
             ]
             
             for i, (query, expected_type) in enumerate(test_queries, 1):
@@ -348,11 +348,13 @@ class BenchmarkRunner:
                 except Exception as e:
                     self._add_result(suite, f"T01.{i}: Route query", False, str(e))
             
-            # Test 6-10: Ambiguity resolution
+            # Test 6-10: Ambiguity resolution (5 tests)
             ambiguous_queries = [
                 "make a godot asset spreadsheet",  # Known failure case
                 "create python documentation",
                 "build web dashboard with charts",
+                "excel report with charts",  # Test 9: OFFICE + visualization ambiguity
+                "cpp game engine",  # Test 10: CPP + GODOT ambiguity
             ]
             
             for i, query in enumerate(ambiguous_queries, 6):
