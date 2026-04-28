@@ -105,3 +105,19 @@ class SafeIO:
             file_path.unlink()
             return True
         return False
+
+    def _is_path_traversal(self, path: str) -> bool:
+        """Check if path attempts directory traversal attack."""
+        try:
+            resolved = (self.base_dir / path).resolve()
+            return not str(resolved).startswith(str(self.base_dir.resolve()))
+        except Exception:
+            return True
+
+    def validate_path(self, path: str) -> bool:
+        """Validate path is safe to access."""
+        if self._is_path_traversal(path):
+            return False
+        # Block common dangerous patterns
+        dangerous_patterns = ['../', '..\\', '/etc/', '/proc/', '/sys/']
+        return not any(p in path for p in dangerous_patterns)
