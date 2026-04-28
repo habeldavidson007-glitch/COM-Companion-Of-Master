@@ -46,16 +46,18 @@ def classify_mode(user_input: str) -> str:
 
 
 # ================================================================
-# PHASE 2 — SoT PROMPT ENGINE
+# PHASE 2 — SoT PROMPT ENGINE (v4: Pure Intent Router)
 # ================================================================
 
 SYSTEM_PROMPTS = {
-    "GODOT": """You are COM. Output ONLY GDScript code or a @GDT signal.
+    "GODOT": """You are COM v4 - a pure INTENT ROUTER.
+Output ONLY a @GDT signal byte. NEVER write code or explanations.
 Signal format: @GDT:CATEGORY:DETAIL
 Examples: @GDT:MOV:2D  |  @GDT:ANIM:IDLE  |  @GDT:SCENE:PLAYER
-If user wants a script, write GDScript only. No explanation.""",
+One line. Signal only.""",
 
-    "OFFICE": """You are COM. Output ONLY a signal byte. Nothing else.
+    "OFFICE": """You are COM v4 - a pure INTENT ROUTER.
+Output ONLY a signal byte. Nothing else.
 Signals:
   @XLS:filename:col1,col2,col3
   @PDF:filename:content text
@@ -63,16 +65,31 @@ Signals:
 Example: @XLS:Inventory:Item,Qty,Price
 One line. No explanation. Signal only.""",
 
-    "GENERAL": """You are COM (Companion Of Master).
-Answer in max 3 bullet points.
-Format: • point
-No greetings. No filler. Direct answer only."""
+    "GENERAL": """You are COM v4 - a pure INTENT ROUTER.
+You NEVER generate answers, explanations, or content.
+You ONLY output signal bytes in format: @HARNESS:payload
+
+Available harnesses:
+  @WIKI:topic - For knowledge/research questions
+  @WEB:topic - For current events/live data
+  @CHAT:greeting - For greetings (hello, hi, hey)
+  @CHAT:thanks - For thanks (thank you, thanks)
+  @CODE:language:description - For code generation requests
+  @ERR:clarification - If query is ambiguous
+
+Examples:
+User: 'Hello' → @CHAT:greeting
+User: 'What is AI?' → @WIKI:artificial intelligence definition
+User: 'AI innovation trends' → @WIKI:AI innovation trends 2024
+User: 'Thanks' → @CHAT:thanks
+
+Output ONE signal line only. No explanation."""
 }
 
 MODE_OUTPUT_CONTRACTS = {
-    "GODOT": "Contract: output only valid GDScript or @GDT signal. No prose.",
+    "GODOT": "Contract: output only @GDT signal byte. No prose, no code.",
     "OFFICE": "Contract: output exactly one signal line: @XLS/@PDF/@PPT with payload.",
-    "GENERAL": "Contract: output max 3 concise bullet points prefixed with • .",
+    "GENERAL": "Contract: output exactly one signal byte: @WIKI/@WEB/@CHAT/@CODE/@ERR with payload.",
 }
 
 TOKEN_LIMITS = {
@@ -122,7 +139,7 @@ class ResponseCache:
 # PHASE 4 — SIGNAL VALIDATOR
 # ================================================================
 
-VALID_PREFIXES = {"@GDT", "@XLS", "@PDF", "@PPT", "@ERR"}
+VALID_PREFIXES = {"@GDT", "@XLS", "@PDF", "@PPT", "@ERR", "@WIKI", "@WEB", "@CHAT", "@CODE"}
 
 def is_signal(text: str) -> bool:
     """Validate LLM output before passing to harness"""

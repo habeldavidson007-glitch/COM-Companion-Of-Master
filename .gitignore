@@ -1,49 +1,40 @@
-```gitignore
-# Python compiled files
-*.pyc
+```
+# Python
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
 
-# Dependencies
-.venv/
-venv/
-node_modules/
+# Build and distribution artifacts
+dist/
+build/
+*.egg-info/
 
-# Logs and temp files
+# Logs
 *.log
-*.tmp
 
-# Environment files
+# Environment variables
 .env
 .env.local
 *.env.*
 
-# Editors
-.vscode/
-.idea/
-
 # Coverage reports
+.coverage
 coverage/
 htmlcov/
-.coverage
 
-# MyPy cache
-.mypy_cache/
-
-# Pytest cache
-.pytest_cache/
-```
-# Logs & Debug
-logs/
-*.log
-__pycache__/
+# IDE specific
 .vscode/
 .idea/
+*.swp
+*.swo
+*.tmp
 
-# Config & Secrets
-config.yaml
-.env
-*.key
+# OS generated files
+.DS_Store
+Thumbs.db
 
-# Benchmark Artifacts
-benchmark_results.json
-data/raw/samples/
+# Testing
+.pytest_cache/
+.mypy_cache/
+```

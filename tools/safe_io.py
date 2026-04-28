@@ -19,16 +19,52 @@ class SafeIO:
         self.base_dir.mkdir(parents=True, exist_ok=True)
     
     def _resolve_path(self, path: str) -> Path:
-        """Resolve path relative to base directory."""
+        """Resolve path relative to base directory with security checks."""
         p = Path(path)
+        
+        # Resolve to absolute path first
         if p.is_absolute():
-            return p
-        return self.base_dir / p
+            resolved = p.resolve()
+        else:
+            # For relative paths, check if they already exist relative to cwd
+            # If the path already exists and is within or equal to base_dir, use it directly
+            cwd_resolved = p.resolve()
+            base_resolved = self.base_dir.resolve()
+            
+            # If the resolved path starts with base_dir, it's already relative to base_dir
+            try:
+                cwd_resolved.relative_to(base_resolved)
+                return cwd_resolved
+            except ValueError:
+                pass
+            
+            # Otherwise, treat it as relative to base_dir
+            resolved = (self.base_dir / p).resolve()
+        
+        # Ensure the resolved path is within base_dir
+        base_resolved = self.base_dir.resolve()
+        
+        try:
+            resolved.relative_to(base_resolved)
+            return resolved
+        except ValueError:
+            raise PermissionError(f"Path traversal detected: {path} is outside base directory {self.base_dir}")
     
     def ensure_dir(self, path: str) -> None:
         """Ensure directory exists."""
-        dir_path = self._resolve_path(path).parent
-        dir_path.mkdir(parents=True, exist_ok=True)
+        # Convert to string if Path object is passed
+        path_str = str(path)
+        
+        # Use _resolve_path to get the final absolute path
+        # This handles both relative and absolute paths correctly
+        target_path = self._resolve_path(path_str)
+        
+        # Create the directory structure
+        try:
+            target_path.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            # Re-raise with more context
+            raise RuntimeError(f"Failed to create directory {target_path}: {e}")
     
     def read_text(self, path: str, encoding: str = 'utf-8') -> str:
         """Read text file safely."""
@@ -41,8 +77,12 @@ class SafeIO:
     
     def write_text(self, path: str, content: str, encoding: str = 'utf-8') -> None:
         """Write text file atomically (prevents corruption on crash)."""
-        file_path = self._resolve_path(path)
-        self.ensure_dir(path)
+        # Convert Path to string if needed
+        path_str = str(path)
+        file_path = self._resolve_path(path_str)
+        
+        # Ensure parent directory exists (not the file path itself)
+        self.ensure_dir(file_path.parent)
         
         # Write to temp file first, then rename (atomic operation)
         temp_fd, temp_path = tempfile.mkstemp(
@@ -92,9 +132,8 @@ class SafeIO:
         files = []
         for f in dir_path.glob(pattern):
             if f.is_file():
-                # Return relative path from base_dir
-                rel_path = f.relative_to(self.base_dir)
-                files.append(str(rel_path))
+                # Return the full path as string for compatibility
+                files.append(str(f))
         
         return sorted(files)
     
