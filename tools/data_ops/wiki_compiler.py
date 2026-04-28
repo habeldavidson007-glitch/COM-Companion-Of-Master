@@ -7,14 +7,26 @@ Division of Labor:
 - Python (this module): File I/O, ingestion, compilation, indexing
 - LLM: Only refines summaries and resolves ambiguities
 """
+import logging
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 from datetime import datetime
 import re
+from dataclasses import dataclass
 
 from core.com_core import OllamaClient
 from tools.safe_io import SafeIO
 from tools.data_ops.wiki_indexer import WikiIndexer
+
+
+@dataclass
+class HealthIssue:
+    """Represents a health check issue found in the wiki."""
+    type: str  # 'orphaned_backlink', 'missing_summary', 'broken_link'
+    severity: str  # 'low', 'medium', 'high'
+    document: str
+    message: str
+    details: Optional[Dict] = None
 
 
 class WikiCompiler:
@@ -589,3 +601,119 @@ class HealthChecker:
             logger = logging.getLogger(__name__)
             logger.error(f"Find orphans failed: {e}")
             return []
+    
+    def generate_suggestions(self, issues: List[Dict[str, Any]]) -> List[str]:
+        """
+        Generate actionable suggestions based on health check issues.
+        Returns list of suggestion strings.
+        """
+        suggestions = []
+        
+        for issue in issues:
+            issue_type = issue.get('type', '')
+            doc = issue.get('document', 'unknown')
+            
+            if issue_type == 'orphaned_backlink':
+                suggestions.append(f"Remove or fix broken backlink in '{doc}'")
+            elif issue_type == 'missing_summary':
+                suggestions.append(f"Add summary to document '{doc}'")
+            elif issue_type == 'broken_link':
+                target = issue.get('details', {}).get('broken_link', 'unknown')
+                suggestions.append(f"Fix broken link [[{target}]] in '{doc}' or create the missing document")
+        
+        if not suggestions:
+            suggestions.append("Wiki integrity is healthy - no actions needed")
+        
+        return suggestions
+    
+    def export_to_json(self, issues: List[Dict[str, Any]], output_path: str) -> bool:
+        """
+        Export health check results to JSON file.
+        Returns True if successful, False otherwise.
+        """
+        try:
+            from datetime import datetime
+            
+            export_data = {
+                'timestamp': datetime.now().isoformat(),
+                'total_issues': len(issues),
+                'issues_by_severity': {
+                    'high': len([i for i in issues if i.get('severity') == 'high']),
+                    'medium': len([i for i in issues if i.get('severity') == 'medium']),
+                    'low': len([i for i in issues if i.get('severity') == 'low'])
+                },
+                'issues': issues,
+                'suggestions': self.generate_suggestions(issues)
+            }
+            
+            self.io.write_text(output_path, json.dumps(export_data, indent=2))
+            return True
+            
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Export to JSON failed: {e}")
+            return False
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """
+        Get health check statistics.
+        Returns dict with counts of issues by type and severity.
+        """
+        try:
+            indexer = WikiIndexer(str(self.wiki_dir.parent))
+            documents = indexer.index.get("documents", {})
+            
+            stats = {
+                'total_documents': len(documents),
+                'documents_with_backlinks': 0,
+                'documents_without_summaries': 0,
+                'total_backlinks': 0
+            }
+            
+            for doc_data in documents.values():
+                backlinks = doc_data.get("backlinks", [])
+                if backlinks:
+                    stats['documents_with_backlinks'] += 1
+                    stats['total_backlinks'] += len(backlinks)
+                
+                if not doc_data.get('summary'):
+                    stats['documents_without_summaries'] += 1
+            
+            return stats
+            
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Get stats failed: {e}")
+            return {'error': str(e)}
+    
+    def auto_fix_missing_summaries(self) -> int:
+        """
+        Auto-generate summaries for documents missing them.
+        Returns count of summaries generated.
+        """
+        try:
+            indexer = WikiIndexer(str(self.wiki_dir.parent))
+            documents = indexer.index.get("documents", {})
+            fixed_count = 0
+            
+            for doc_id, doc_data in documents.items():
+                if not doc_data.get('summary'):
+                    # Read document content
+                    doc_path = self.wiki_dir / f"{doc_id}.md"
+                    if doc_path.exists():
+                        content = doc_path.read_text(encoding='utf-8')
+                        # Generate simple summary (first paragraph or 200 chars)
+                        first_para = content.split('\n\n')[1] if '\n\n' in content else content[:200]
+                        summary = first_para[:200].strip()
+                        
+                        # Update index
+                        indexer.index['documents'][doc_id]['summary'] = summary
+                        fixed_count += 1
+            
+            indexer.save_index()
+            return fixed_count
+            
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Auto-fix failed: {e}")
+            return 0
