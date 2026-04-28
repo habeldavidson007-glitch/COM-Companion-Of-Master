@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-04-28T15:10:08.976434",
-  "overall_score": 90.81632653061224,
+  "timestamp": "2026-04-28T15:14:25.557495",
+  "overall_score": 87.75510204081633,
   "target_score": 90.0,
-  "meets_target": true,
+  "meets_target": false,
   "total_assertions": 98,
-  "passed": 89,
-  "failed": 9,
-  "elapsed_seconds": 2.0977070331573486,
+  "passed": 86,
+  "failed": 12,
+  "elapsed_seconds": 2.1246628761291504,
   "suites": [
     {
       "name": "T01 \u00b7 Intent Router (3-mode)",
@@ -24,9 +24,9 @@
     },
     {
       "name": "T03 \u00b7 SafeIO (new)",
-      "score": 87.5,
-      "passed": 7,
-      "failed": 1,
+      "score": 37.5,
+      "passed": 3,
+      "failed": 5,
       "weight": 8
     },
     {
@@ -38,9 +38,9 @@
     },
     {
       "name": "T05 \u00b7 WikiRetriever",
-      "score": 87.5,
-      "passed": 7,
-      "failed": 1,
+      "score": 100.0,
+      "passed": 8,
+      "failed": 0,
       "weight": 8
     },
     {

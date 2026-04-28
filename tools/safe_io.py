@@ -33,16 +33,14 @@ class SafeIO:
             except ValueError:
                 raise PermissionError(f"Path traversal detected: {path} is outside base directory {self.base_dir}")
         
-        # For relative paths, first check if it's already within base_dir context
-        # (handles case where path already includes base_dir prefix)
-        full_path = self.base_dir / p
-        full_resolved = full_path.resolve()
+        # For relative paths, resolve them relative to base_dir
+        full_path = (self.base_dir / p).resolve()
         base_resolved = self.base_dir.resolve()
         
-        # Double-check: ensure no path traversal via ../
+        # Ensure no path traversal via ../
         try:
-            full_resolved.relative_to(base_resolved)
-            return full_resolved
+            full_path.relative_to(base_resolved)
+            return full_path
         except ValueError:
             raise PermissionError(f"Path traversal detected: {path} attempts to escape base directory")
     
@@ -51,16 +49,28 @@ class SafeIO:
         # Convert to string if Path object is passed
         path_str = str(path)
         
-        # If path looks like a directory (ends with / or has no file extension), create it directly
+        # Handle both relative and absolute paths
         p = Path(path_str)
-        if path_str.endswith('/') or (p.suffix == '' and '/' in path_str):
-            # It's a directory path
-            dir_path = self._resolve_path(path_str)
-        else:
-            # It's a file path, create parent directory
-            dir_path = self._resolve_path(path_str).parent
         
-        dir_path.mkdir(parents=True, exist_ok=True)
+        # If it's a Path object with multiple levels (nested dirs), handle it properly
+        if not p.is_absolute():
+            # For relative paths like "level1/level2/level3"
+            # We need to create them relative to base_dir
+            target_path = self.base_dir / p
+        else:
+            # For absolute paths, validate they're within base_dir
+            try:
+                target_path = Path(self._resolve_path(path_str))
+            except PermissionError:
+                # If outside base_dir, raise error
+                raise
+        
+        # Create the directory structure
+        try:
+            target_path.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            # Re-raise with more context
+            raise RuntimeError(f"Failed to create directory {target_path}: {e}")
     
     def read_text(self, path: str, encoding: str = 'utf-8') -> str:
         """Read text file safely."""

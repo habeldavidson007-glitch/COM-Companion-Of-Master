@@ -410,6 +410,17 @@ class WikiRetriever:
         # Filter out the original document
         return [(p, s) for p, _, s in results if p != path][:top_k]
 
+    def format_context(self, results: List[tuple]) -> str:
+        """Format search results into context string for LLM."""
+        if not results:
+            return ""
+        
+        formatted_parts = []
+        for path, snippet, score in results:
+            formatted_parts.append(f"[Source: {path}]\n{snippet}\n")
+        
+        return "\n---\n".join(formatted_parts)
+
 
 class HealthChecker:
     """
