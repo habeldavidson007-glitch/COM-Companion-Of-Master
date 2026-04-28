@@ -1,0 +1,25 @@
+{
+  "documents": {
+    "wiki_test_article": {
+      "path": "wiki/test_article.md",
+      "title": "Untitled",
+      "summary": "Summary generation failed: OllamaClient.generate() got an unexpected keyword argument 'mode'",
+      "concepts": [
+        "general",
+        "concept"
+      ],
+      "word_count": 34,
+      "created": "2026-04-28T14:12:41.683749"
+    }
+  },
+  "concepts": {
+    "general": [
+      "wiki_test_article"
+    ],
+    "concept": [
+      "wiki_test_article"
+    ]
+  },
+  "backlinks": {},
+  "last_updated": "2026-04-28T14:12:41.683808"
+}
