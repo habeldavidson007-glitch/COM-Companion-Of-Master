@@ -15,15 +15,22 @@ class SafeIO:
     """Thread-safe file I/O operations with atomic writes."""
     
     def __init__(self, base_dir: str = "./data"):
-        self.base_dir = Path(base_dir)
+        self.base_dir = Path(base_dir).resolve()  # Always store as absolute path
         self.base_dir.mkdir(parents=True, exist_ok=True)
     
     def _resolve_path(self, path: str) -> Path:
         """Resolve path relative to base directory."""
         p = Path(path)
         if p.is_absolute():
-            return p
-        return self.base_dir / p
+            resolved = p.resolve()
+        else:
+            resolved = (self.base_dir / p).resolve()
+        
+        # Security check: ensure resolved path is within base_dir
+        if not resolved.is_relative_to(self.base_dir):
+            raise ValueError(f"Path traversal denied: {path} resolves outside base directory")
+        
+        return resolved
     
     def ensure_dir(self, path: str) -> None:
         """Ensure directory exists."""

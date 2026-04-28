@@ -196,7 +196,15 @@ Concepts:"""
         print(f"Found {len(raw_files)} raw files to process")
 
         for raw_path in raw_files:
-            result = self.compile_file(raw_path) if incremental else self.compile_file(raw_path)
+            if incremental:
+                result = self.compile_file(raw_path)
+            else:
+                # Force mode: delete existing wiki output before compiling
+                wiki_filename = raw_path.replace('.txt', '.md').replace('.raw', '.md')
+                wiki_path = f"{self.wiki_dir}/{wiki_filename}"
+                if self.io.exists(wiki_path):
+                    self.io.delete(wiki_path)
+                result = self.compile_file(raw_path)
             if result:
                 results.append(result)
 
@@ -292,6 +300,7 @@ class WikiRetriever:
     def load_wiki(self) -> None:
         """Load all wiki markdown files."""
         self.documents = {}
+        self.snippets = {}  # Store short snippets for display
 
         try:
             md_files = self.io.list_files("wiki", "*.md")
@@ -302,8 +311,10 @@ class WikiRetriever:
 
                 try:
                     content = self.io.read_text(path)
-                    # Store first 2000 chars for speed (adjust as needed)
-                    self.documents[path] = content[:2000]
+                    # Store full content for TF-IDF indexing
+                    self.documents[path] = content
+                    # Store first 200 chars for display snippets
+                    self.snippets[path] = content[:200].replace("\n", " ").strip() + "..."
                 except Exception:
                     continue
 
