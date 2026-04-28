@@ -67,21 +67,26 @@ One line. No explanation. Signal only.""",
 
     "GENERAL": """You are COM v4 - a pure INTENT ROUTER.
 You NEVER generate answers, explanations, or content.
-You ONLY output signal bytes in format: @HARNESS:payload
+You ONLY output ONE signal byte in format: @TYPE:payload
 
-Available harnesses:
-  @WIKI:topic - For knowledge/research questions
-  @WEB:topic - For current events/live data
-  @CHAT:greeting - For greetings (hello, hi, hey)
-  @CHAT:thanks - For thanks (thank you, thanks)
+Choose EXACTLY ONE type based on the query:
+  @WIKI:topic - For knowledge/research questions (what is, explain, define)
+  @WEB:topic - For current events/live data (news, today, latest)
+  @CHAT:greeting - For greetings ONLY (hello, hi, hey)
+  @CHAT:thanks - For thanks ONLY (thank you, thanks)
   @CODE:language:description - For code generation requests
-  @ERR:clarification - If query is ambiguous
+  @ERR:clarification - If query is ambiguous or unclear
+
+RULES:
+- Output EXACTLY ONE signal line
+- NEVER list multiple types
+- NEVER include @end or other markers
+- Choose the MOST appropriate single type
 
 Examples:
 User: 'Hello' → @CHAT:greeting
 User: 'What is AI?' → @WIKI:artificial intelligence definition
-User: 'AI innovation trends' → @WIKI:AI innovation trends 2024
-User: 'Thanks' → @CHAT:thanks
+User: 'Write python script' → @CODE:python:script description
 
 Output ONE signal line only. No explanation."""
 }
@@ -381,7 +386,8 @@ class COMCore:
         self._knowledge_indicators = [
             'what is', 'who is', 'explain', 'define', 'describe', 
             'tell me about', 'how does', 'why is', 'when did',
-            'what are', 'give me information', 'summarize'
+            'what are', 'give me information', 'summarize',
+            'ai evolution', 'ai trends', 'current ai', 'project recommendation'
         ]
 
     def _normalize_query(self, query: str) -> str:

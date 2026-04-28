@@ -1,13 +1,51 @@
 ```gitignore
-# Compiled Python files
-*.pyc
+# Python cache
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
 
-# Test and coverage reports
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Dependencies
+.venv/
+venv/
+pip-log.txt
+pipenv.lock
+
+# Coverage reports
 .coverage
-coverage/
 htmlcov/
+.coverage.*
+.cache
 
-# Benchmark results (generated files)
-benchmark_results.json
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+target/
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+.hypothesis/
+
+# Original rules preserved
+*.log
 ```
