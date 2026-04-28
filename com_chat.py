@@ -117,6 +117,10 @@ class COMDesktopApp:
             
     def _animate_mascot(self, canvas):
         """Animate mascot floating up and down"""
+        # Stop animation if window is destroyed
+        if not self.mascot_window or not self.mascot_window.winfo_exists():
+            return
+            
         if self.animating_up:
             self.animation_offset -= 0.5
             if self.animation_offset <= -8:
@@ -139,10 +143,15 @@ class COMDesktopApp:
             
     def _tooltip_loop(self):
         """Show tooltip periodically"""
-        if self.mascot_window:
-            self.tooltip.lift()
-            self.mascot_window.after(2000, lambda: self.tooltip.lower())
-            self.mascot_window.after(5000, self._tooltip_loop)
+        if not self.mascot_window or not self.mascot_window.winfo_exists():
+            return
+        if self.tooltip:
+            try:
+                self.tooltip.lift()
+                self.mascot_window.after(2000, lambda: self.tooltip.lower())
+                self.mascot_window.after(5000, self._tooltip_loop)
+            except:
+                pass
     
     def open_chat(self):
         """Open the main chat window"""
@@ -172,7 +181,11 @@ class COMDesktopApp:
         # Handle window close event
         def on_close():
             self._window_closed = True
-            self.chat_window.destroy()
+            if self.chat_window:
+                try:
+                    self.chat_window.destroy()
+                except:
+                    pass
             self.chat_window = None
         
         self.chat_window.protocol("WM_DELETE_WINDOW", on_close)
@@ -574,6 +587,19 @@ class COMDesktopApp:
             self.mascot_window.mainloop()
         except KeyboardInterrupt:
             print("\n👋 COM shutting down...")
+        except Exception as e:
+            print(f"\n👋 COM encountered an error: {e}")
+        finally:
+            # Cleanup
+            try:
+                if self.mascot_window:
+                    self.mascot_window.destroy()
+                if self.chat_window:
+                    self.chat_window.destroy()
+                if self.root:
+                    self.root.destroy()
+            except:
+                pass
 
 
 def main():
