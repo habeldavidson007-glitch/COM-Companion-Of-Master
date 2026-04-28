@@ -367,7 +367,7 @@ class BenchmarkRunner:
             try:
                 test_data = {"key": "value", "number": 42}
                 safe_io.write_json(json_file, test_data)
-                loaded = safe_io.read_json(json_file, default={})
+                loaded = safe_io.read_json(json_file)
                 self._add_result(suite, "T03.3: JSON read/write", loaded.get("key") == "value", "JSON matches")
             except Exception as e:
                 self._add_result(suite, "T03.3: JSON read/write", False, str(e))
