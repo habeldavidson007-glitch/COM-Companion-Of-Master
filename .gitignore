@@ -32,3 +32,18 @@ htmlcov/
 # Pytest cache
 .pytest_cache/
 ```
+# Logs & Debug
+logs/
+*.log
+__pycache__/
+.vscode/
+.idea/
+
+# Config & Secrets
+config.yaml
+.env
+*.key
+
+# Benchmark Artifacts
+benchmark_results.json
+data/raw/samples/
