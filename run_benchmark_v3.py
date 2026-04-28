@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-COM v3 Benchmark Suite
-======================
-Runs all 10 test suites from the PR benchmark report (98 assertions, target: 87.8%)
+COM v3 Benchmark Suite - Strict Validation Protocol
+===================================================
+Runs all 10 test suites with ZERO TOLERANCE policy.
 
 Test Suites (all HARD level):
 1. T01 - Intent Router (15 assertions)
@@ -16,7 +16,7 @@ Test Suites (all HARD level):
 9. T09 - Edge Cases + Stress + Adversarial (13 assertions)
 10. T10 - Architecture Integration (9 assertions)
 
-Overall Target: 87.8% (86/98 assertions)
+Overall Target: 90% MINIMUM | 100% MANDATORY
 """
 
 import os
@@ -101,7 +101,7 @@ class BenchmarkRunner:
         self.log("COM v3 BENCHMARK SUITE")
         self.log("=" * 70)
         self.log(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        self.log(f"Target Score: 87.8% (86/98 assertions)")
+        self.log(f"Target Score: 90.0% (86/98 assertions)")
         self.log("=" * 70)
         self.log("")
         
@@ -1227,18 +1227,19 @@ class BenchmarkRunner:
         self.log("=" * 70)
         
         # Overall verdict
-        target_score = 87.8
+        target_score = 90.0
         meets_target = overall_score >= target_score
-        
-        if meets_target:
-            self.log(f"\n✅ OVERALL SCORE: {overall_score:.1f}% - MEETS TARGET ({target_score}%)")
-            self.log("   🎉 Ready for merge consideration!")
+
+        if overall_score == 100.0:
+            self.log(f"\n🏆 OVERALL SCORE: {overall_score:.1f}% - GOLD STANDARD (100% MANDATORY)")
+            self.log("   ✅ Production Ready - Zero Technical Debt")
+        elif meets_target:
+            self.log(f"\n✅ OVERALL SCORE: {overall_score:.1f}% - MEETS MINIMUM ({target_score}%)")
+            self.log("   ⚠️  Passable but technical debt exists - review recommended")
         else:
-            self.log(f"\n❌ OVERALL SCORE: {overall_score:.1f}% - BELOW TARGET ({target_score}%)")
-            self.log(f"   ⚠️  Gap: {target_score - overall_score:.1f}%")
+            self.log(f"\n❌ OVERALL SCORE: {overall_score:.1f}% - BELOW MINIMUM ({target_score}%)")
+            self.log(f"   🚫 CRITICAL FAIL: Gap of {target_score - overall_score:.1f}%")
             self.log("\n   BLOCKERS TO FIX:")
-            
-            # Identify failing suites
             for suite in self.suite_results:
                 if suite.score < 80:
                     self.log(f"   • {suite.name} ({suite.score:.0f}%)")
@@ -1300,7 +1301,7 @@ def main():
     
     try:
         results = runner.run_all_suites()
-        return 0 if results['overall_score'] >= 87.8 else 1
+        return 0 if results['overall_score'] >= 90.0 else 1
     finally:
         runner.cleanup()
 
