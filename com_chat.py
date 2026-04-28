@@ -486,7 +486,7 @@ class COMDesktopApp:
             self.mode_indicator.config(text=mode)
             
     def _execute_signal(self, prefix, payload):
-        """Execute signal bytes directly"""
+        """Execute signal bytes - LLM is BRAIN only, HARNESS generates all answers"""
         try:
             if prefix == "@XLS":
                 return excel_run(payload)
@@ -495,12 +495,66 @@ class COMDesktopApp:
             elif prefix == "@PPT":
                 return ppt_run(payload)
             elif prefix == "@GDT":
-                return f"🎮 GDScript signal: {prefix}:{payload}"
+                # Godot harness generates GDScript code based on signal
+                try:
+                    from tools.game_dev.godot_engine_run import run as godot_run
+                    return godot_run(payload)
+                except Exception as e:
+                    return f"🎮 GDScript signal received: {payload}\n(Code generation harness loading...)"
+            elif prefix == "@WIKI":
+                # Wiki harness retrieves knowledge and generates answer
+                from tools.data_ops.wiki_compiler import WikiRetriever
+                retriever = WikiRetriever(data_dir="data")
+                results = retriever.search(payload, top_k=3)
+                if results:
+                    answer = self._synthesize_wiki_results(results)
+                    return f"📚 From knowledge base:\n{answer}"
+                else:
+                    # Fall back to web search or suggest compilation
+                    return f"📖 No wiki content for '{payload}'. Consider adding source documents to data/raw/"
+            elif prefix == "@WEB":
+                # Web harness fetches live data and generates answer
+                from tools.data_ops.live_fetcher import fetch_live_data
+                result = fetch_live_data(payload)
+                if result:
+                    return f"🌐 Live data:\n{result}"
+                else:
+                    return f"🌐 Unable to fetch live data for '{payload}'"
+            elif prefix == "@CODE":
+                # Code harness generates code with explanation
+                from tools.languages.python_expert import generate_code
+                return generate_code(payload)
+            elif prefix == "@CHAT":
+                # Chat harness handles greetings/thanks - NO LLM involvement
+                return self._chat_harness_response(payload)
             elif prefix == "@ERR":
-                return f"⚠️ Error signal: {payload}"
+                return f"⚠️ {payload}"
         except Exception as e:
             return f"❌ Signal execution failed: {str(e)}"
         return None
+    
+    def _chat_harness_response(self, payload):
+        """Chat harness for conversational responses - deterministic, no LLM"""
+        chat_responses = {
+            "greeting": "💬 Hi, I am COM. Ready to help with tasks.",
+            "thanks": "💬 You're welcome! What's next?",
+            "ack": "💬 Acknowledged.",
+            "confirm": "💬 Confirmed.",
+        }
+        return chat_responses.get(payload, f"💬 How can I assist you? ({payload})")
+    
+    def _synthesize_wiki_results(self, results):
+        """Synthesize wiki search results into coherent answer"""
+        if not results:
+            return "No relevant information found."
+        
+        synthesized = []
+        for i, result in enumerate(results[:3], 1):
+            title = result.get('title', 'Unknown')
+            content = result.get('content', '')[:200]  # Limit length
+            synthesized.append(f"{i}. **{title}**: {content}...")
+        
+        return "\n".join(synthesized)
         
     def run(self):
         """Start the desktop application"""
