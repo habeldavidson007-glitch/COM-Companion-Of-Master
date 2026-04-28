@@ -16,6 +16,14 @@ from .intent_router import IntentRouter
 from .context_compressor import ContextCompressor
 from .session_logger import SessionLogger
 
+# Import wiki components for knowledge integration
+try:
+    from tools.data_ops.wiki_compiler import WikiRetriever
+    WIKI_AVAILABLE = True
+except ImportError:
+    WIKI_AVAILABLE = False
+    WikiRetriever = None
+
 # ================================================================
 # PHASE 1 — MODE CLASSIFIER
 # ================================================================
@@ -311,6 +319,15 @@ class COMCore:
         self.compressor = ContextCompressor(client=self.client)
         self.logger = SessionLogger()
         
+        # Initialize wiki retriever for knowledge integration (FIX: Integration Gap)
+        if WIKI_AVAILABLE:
+            try:
+                self.wiki_retriever = WikiRetriever(data_dir="data")
+            except Exception as e:
+                self.wiki_retriever = None
+        else:
+            self.wiki_retriever = None
+        
         # Processing state with timeout safety
         self.is_processing = False
         self._processing_start = 0
@@ -343,6 +360,12 @@ class COMCore:
             r"\b\d+(?:\.\d+)?\s?(gb|mb|ms|s|sec|seconds|minutes|hours|%)\b",
         ]
         self._fact_snippets = deque(maxlen=12)
+        # Knowledge query indicators for wiki retrieval
+        self._knowledge_indicators = [
+            'what is', 'who is', 'explain', 'define', 'describe', 
+            'tell me about', 'how does', 'why is', 'when did',
+            'what are', 'give me information', 'summarize'
+        ]
 
     def _normalize_query(self, query: str) -> str:
         """Lowercase + strip punctuation for deterministic fast-path checks."""
@@ -506,18 +529,69 @@ class COMCore:
         scored.sort(reverse=True, key=lambda x: x[0])
         return [s for _, s in scored[:top_k]]
     
+    def _is_knowledge_query(self, normalized_query: str) -> bool:
+        """Check if query appears to be a knowledge/research question."""
+        return any(indicator in normalized_query for indicator in self._knowledge_indicators)
+    
+    def _try_wiki_retrieval(self, query: str) -> Optional[str]:
+        """
+        Try to retrieve relevant wiki content for knowledge queries.
+        FIX: Integration Gap - This method wires up WikiRetriever to the core.
+        Returns wiki context string or None.
+        """
+        if not self.wiki_retriever:
+            return None
+        
+        normalized = self._normalize_query(query)
+        
+        # Only use wiki for knowledge-type queries
+        if not self._is_knowledge_query(normalized):
+            return None
+        
+        try:
+            results = self.wiki_retriever.search(query, top_k=3)
+            
+            if not results:
+                return None
+            
+            # Format results as context
+            context_parts = []
+            for path, snippet, score in results:
+                if score > 0.1:  # Minimum relevance threshold
+                    context_parts.append(f"From {path}:\n{snippet}")
+            
+            if context_parts:
+                return "\n\n".join(context_parts)
+        except Exception as e:
+            # Silently fail - wiki is optional enhancement
+            pass
+        
+        return None
+    
     def check_status(self) -> Dict:
         """Check system status"""
-        return {
+        base_status = {
             "ollama_running": self.client.check_connection(),
             "model": self.client.model,
             "memory_size": len(self.memory.history),
             "max_memory": self.memory.max_messages,
             "cache_size": len(self.cache._cache)
         }
+        
+        # Add wiki status if available
+        if self.wiki_retriever:
+            base_status["wiki_available"] = True
+            try:
+                base_status["wiki_loaded"] = self.wiki_retriever._loaded
+            except:
+                base_status["wiki_loaded"] = False
+        else:
+            base_status["wiki_available"] = False
+        
+        return base_status
     
     def process_query(self, query: str, callback=None) -> str:
-        """Process user query with full pipeline"""
+        """Process user query with full pipeline including wiki integration"""
         start_time = time.time()
         cache_hit = False
         normalized_query = self._normalize_query(query)
@@ -540,6 +614,9 @@ class COMCore:
                     callback(quick)
                 return quick
 
+            # FIX: Integration Gap - Check wiki for knowledge queries BEFORE routing
+            wiki_context = self._try_wiki_retrieval(query)
+            
             mode, route_conf = self._route_with_confidence(normalized_query, query)
             if route_conf < 0.35:
                 clarification = self._clarification_question(mode)
@@ -568,7 +645,14 @@ class COMCore:
             context = self.memory.get_context()
             messages = [{"role": "system", "content": system}]
             messages.append({"role": "system", "content": MODE_OUTPUT_CONTRACTS[mode]})
-            if mode == "GENERAL":
+            
+            # Add wiki context if available (FIX: Integration Gap)
+            if wiki_context and mode == "GENERAL":
+                messages.append({
+                    "role": "system",
+                    "content": f"[Wiki Knowledge Base]:\n{wiki_context}\n\nUse this information when answering."
+                })
+            elif mode == "GENERAL":
                 snippets = self._retrieve_snippets(query, top_k=2)
                 if snippets:
                     memory_hint = " | ".join(snippets)

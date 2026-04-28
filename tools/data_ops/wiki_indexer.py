@@ -9,7 +9,7 @@ from typing import Dict, List, Set, Any
 from pathlib import Path
 from datetime import datetime
 
-from ..tools.safe_io import SafeIO
+from tools.safe_io import SafeIO
 
 
 class WikiIndexer:

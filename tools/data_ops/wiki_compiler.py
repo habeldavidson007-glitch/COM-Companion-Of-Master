@@ -23,10 +23,20 @@ class WikiCompiler:
     def __init__(self, data_dir: str = "data", llm_host: str = "http://localhost:11434"):
         self.io = SafeIO(data_dir)
         self.indexer = WikiIndexer(data_dir)
-        self.llm = OllamaClient(host=llm_host)
+        # Lazy load LLM client only when needed
+        self._llm = None
+        self._llm_host = llm_host
 
         self.raw_dir = "raw"
         self.wiki_dir = "wiki"
+    
+    @property
+    def llm(self):
+        """Lazy load LLM client."""
+        if self._llm is None:
+            from core.com_core import OllamaClient
+            self._llm = OllamaClient()
+        return self._llm
 
     def _extract_title(self, content: str) -> str:
         """Extract title from markdown (first heading or filename)."""
