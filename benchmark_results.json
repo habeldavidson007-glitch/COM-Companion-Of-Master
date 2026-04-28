@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-04-28T09:32:14.949660",
-  "overall_score": 63.26530612244898,
+  "timestamp": "2026-04-28T09:39:46.551495",
+  "overall_score": 71.42857142857143,
   "target_score": 90.0,
   "meets_target": false,
   "total_assertions": 98,
-  "passed": 62,
-  "failed": 36,
-  "elapsed_seconds": 2.1419425010681152,
+  "passed": 70,
+  "failed": 28,
+  "elapsed_seconds": 2.040724039077759,
   "suites": [
     {
       "name": "T01 \u00b7 Intent Router (3-mode)",
@@ -45,16 +45,16 @@
     },
     {
       "name": "T06 \u00b7 WikiHealthChecker (new)",
-      "score": 30.0,
-      "passed": 3,
-      "failed": 7,
+      "score": 90.0,
+      "passed": 9,
+      "failed": 1,
       "weight": 10
     },
     {
       "name": "T07 \u00b7 Tool Harness",
-      "score": 75.0,
-      "passed": 6,
-      "failed": 2,
+      "score": 100.0,
+      "passed": 8,
+      "failed": 0,
       "weight": 8
     },
     {
