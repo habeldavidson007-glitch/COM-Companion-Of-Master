@@ -1,0 +1,157 @@
+
+<h2 class="sr-only">COM merge decision: do not merge the PR branch into master yet — 3 blockers must be resolved first</h2>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.w{font-family:var(--font-sans);padding:0 0 2rem}
+.verdict{background:var(--color-background-secondary);border-radius:var(--border-radius-lg);border:2px solid #E24B4A;padding:1.25rem 1.5rem;margin-bottom:1.5rem}
+.v-label{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#A32D2D;margin-bottom:6px;font-weight:500}
+.v-title{font-size:20px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px}
+.v-sub{font-size:13px;color:var(--color-text-secondary)}
+.sec{margin-bottom:1.75rem}
+.sec-hdr{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary);padding-bottom:7px;margin-bottom:12px}
+.finding-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1.5rem}
+.fcard{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1rem 1.1rem}
+.fc-label{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+.fc-item{display:flex;gap:7px;font-size:12px;color:var(--color-text-secondary);padding:3px 0;line-height:1.5;align-items:flex-start}
+.dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.dot-g{background:#639922}.dot-r{background:#E24B4A}.dot-a{background:#BA7517}.dot-b{background:#378ADD}
+.blockers{display:flex;flex-direction:column;gap:0}
+.blocker{padding:12px 0;border-bottom:0.5px solid var(--color-border-tertiary)}
+.blocker:last-child{border-bottom:none}
+.bl-hdr{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.bl-num{width:20px;height:20px;border-radius:50%;background:#FCEBEB;color:#791F1F;font-size:11px;font-weight:500;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.bl-title{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.bl-body{font-size:12px;color:var(--color-text-secondary);line-height:1.65;padding-left:28px}
+.bl-fix{font-size:11px;background:#EAF3DE;color:#3B6D11;padding:4px 10px;border-radius:4px;display:inline-block;margin:5px 0 0 28px;font-family:var(--font-mono)}
+.path-wrap{display:flex;flex-direction:column;gap:10px;margin-bottom:1.5rem}
+.path{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1rem 1.1rem}
+.path-hdr{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.path-badge{font-size:11px;font-weight:500;padding:3px 8px;border-radius:4px}
+.pb-no{background:#FCEBEB;color:#791F1F}
+.pb-yes{background:#EAF3DE;color:#3B6D11}
+.path-title{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.path-body{font-size:12px;color:var(--color-text-secondary);line-height:1.65}
+.steps{display:flex;flex-direction:column;gap:0}
+.step{display:flex;gap:12px;padding:10px 0;border-bottom:0.5px solid var(--color-border-tertiary)}
+.step:last-child{border-bottom:none}
+.step-n{width:22px;height:22px;border-radius:50%;background:var(--color-background-secondary);font-size:11px;font-weight:500;color:var(--color-text-secondary);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.step-body{flex:1}
+.step-title{font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:3px}
+.step-detail{font-size:12px;color:var(--color-text-secondary);line-height:1.55}
+code{font-family:var(--font-mono);font-size:11px;background:var(--color-background-secondary);padding:1px 4px;border-radius:3px}
+.tag{font-size:10px;font-weight:500;padding:2px 6px;border-radius:3px;display:inline-block}
+.tag-r{background:#FCEBEB;color:#791F1F}
+.tag-a{background:#FAEEDA;color:#633806}
+.tag-g{background:#EAF3DE;color:#3B6D11}
+.tag-b{background:#E6F1FB;color:#0C447C}
+</style>
+
+<div class="w">
+
+<div class="verdict">
+  <div class="v-label">Merge recommendation</div>
+  <div class="v-title">Do not merge yet — 3 blockers must be fixed first</div>
+  <div class="v-sub">The PR is purely additive (11 new files, zero changes to master's 22 files). Master stability is not at risk. But the PR introduces broken infrastructure that would create false confidence if merged unresolved.</div>
+</div>
+
+<div class="sec">
+  <div class="sec-hdr">What the diff actually shows</div>
+  <div class="finding-grid">
+    <div class="fcard">
+      <div class="fc-label" style="color:#3B6D11">Safe — no regressions possible</div>
+      <div class="fc-item"><span class="dot dot-g"></span><span>All 22 shared files are byte-for-byte identical between master and PR — confirmed by MD5</span></div>
+      <div class="fc-item"><span class="dot dot-g"></span><span>PR adds only <code>src/com/</code> directory — 11 new files, zero edits to existing ones</span></div>
+      <div class="fc-item"><span class="dot dot-g"></span><span>Master's Tkinter UI, COMCore, tool_harness, all tools are untouched</span></div>
+      <div class="fc-item"><span class="dot dot-g"></span><span>Merging cannot break anything that currently works</span></div>
+    </div>
+    <div class="fcard">
+      <div class="fc-label" style="color:#A32D2D">Risky — PR ships broken infrastructure</div>
+      <div class="fc-item"><span class="dot dot-r"></span><span>WikiIndexer backlinks are permanently unreadable due to key mismatch bug</span></div>
+      <div class="fc-item"><span class="dot dot-r"></span><span>Wiki system is fully built but never called — zero impact on user experience after merge</span></div>
+      <div class="fc-item"><span class="dot dot-r"></span><span>Two model configs (qwen2.5 vs smollm2) with no switching layer — one is always wrong</span></div>
+      <div class="fc-item"><span class="dot dot-r"></span><span><code>auto_fix_missing_summaries()</code> is a public stub — looks functional, does nothing</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-hdr">3 blockers before merge</div>
+  <div class="blockers">
+    <div class="blocker">
+      <div class="bl-hdr"><span class="bl-num">1</span><span class="bl-title">Fix the backlink key mismatch in WikiIndexer</span></div>
+      <div class="bl-body"><code>add_backlink()</code> stores raw path strings as keys. <code>get_backlinks()</code> transforms the path to a doc_id before lookup. They never match — the entire backlink graph is written correctly but permanently unreadable. Every orphan detection result, every concept graph traversal, every health report is wrong because of this single inconsistency.</div>
+      <div class="bl-fix">indexer.py: standardize add_backlink() to use the same doc_id transform as get_backlinks()</div>
+    </div>
+    <div class="blocker">
+      <div class="bl-hdr"><span class="bl-num">2</span><span class="bl-title">Wire WikiRetriever into com_chat.py — or don't ship it yet</span></div>
+      <div class="bl-body">The wiki layer is the entire purpose of this PR. After merging, a user runs <code>com compile</code>, populates 50 documents, and then asks COM a question. The LLM gets zero context from any of those documents. The wiki is a filing cabinet that no one ever opens. Either add the three lines of retrieval injection into <code>process_query()</code> before merging, or hold the PR until that is done. Shipping infrastructure without the wire-up is shipping half a feature.</div>
+      <div class="bl-fix">com_chat.py: call WikiRetriever.search(query, top_k=3) and prepend snippets to system prompt</div>
+    </div>
+    <div class="blocker">
+      <div class="bl-hdr"><span class="bl-num">3</span><span class="bl-title">Resolve the dual model config — pick one or add a config switch</span></div>
+      <div class="bl-body">Master targets <code>qwen2.5:0.5b</code> via direct Ollama calls in <code>com_core.py</code>. The PR's <code>src/com/core/client.py</code> hardcodes <code>smollm2:1.7b-instruct-q4_K_M</code>. After merging, both layers are active with different models, different token limits, and no user-facing way to choose. The README says smollm2 is the new default, but the running system still calls qwen2.5. A single <code>MODEL</code> constant in a shared config file, or an environment variable, resolves this completely.</div>
+      <div class="bl-fix">config.py: MODEL = os.getenv("COM_MODEL", "smollm2:1.7b-instruct-q4_K_M")</div>
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-hdr">What to do</div>
+  <div class="path-wrap">
+    <div class="path">
+      <div class="path-hdr"><span class="path-badge pb-yes">Recommended</span><span class="path-title">Fix the 3 blockers in the PR branch, then merge</span></div>
+      <div class="path-body">The fixes are small — the backlink bug is a one-line change, the wiki wire-up is about 8 lines, the model config is 3 lines. None require redesign. The PR's architecture is sound: SafeIO, SignalParser, and WikiRetriever are production-quality modules that genuinely improve COM. They just need to be connected. Estimated work: 1–2 hours. After that, this PR is a clear improvement over master and safe to merge.</div>
+    </div>
+    <div class="path">
+      <div class="path-hdr"><span class="path-badge pb-no">Not recommended</span><span class="path-title">Merge now as-is</span></div>
+      <div class="path-body">Technically safe — master won't break. But the wiki system will be present, documented, and nonfunctional. Users who read the README will try <code>com compile</code> and <code>com search</code>, see them work, and then notice that COM still gives context-blind answers. That is worse than the feature not existing yet, because it creates the expectation of RAG without delivering it.</div>
+    </div>
+    <div class="path">
+      <div class="path-hdr"><span class="path-badge pb-no">Not recommended</span><span class="path-title">Close the PR and keep master as-is</span></div>
+      <div class="path-body">Master has its own existing bug: the <code>@GDT</code> token is in <code>VALID_PREFIXES</code> and the harness GODOT system prompt instructs the LLM to output <code>@GDT</code> signals — but <code>harness.py</code> dispatches <code>@GDT</code> to a stub while <code>tool_harness.py</code> only has <code>'GODOT'</code> as the executor key. Closing the PR and staying on master doesn't eliminate technical debt, it just freezes it.</div>
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-hdr">Exact steps to make this PR mergeable</div>
+  <div class="steps">
+    <div class="step">
+      <span class="step-n">1</span>
+      <div class="step-body">
+        <div class="step-title">Fix <code>WikiIndexer.add_backlink()</code> <span class="tag tag-r">20 min</span></div>
+        <div class="step-detail">In <code>src/com/wiki/indexer.py</code>, change <code>add_backlink()</code> to apply the same <code>path.replace("/","_").replace(".md","")</code> transform to both source and target before storing. Then re-run the backlink test — it should pass.</div>
+      </div>
+    </div>
+    <div class="step">
+      <span class="step-n">2</span>
+      <div class="step-body">
+        <div class="step-title">Wire retriever into query pipeline <span class="tag tag-a">45 min</span></div>
+        <div class="step-detail">In <code>COMCore.process_query()</code> or <code>com_chat.py._execute_signal()</code>, instantiate <code>WikiRetriever(data_dir)</code>, call <code>search(query, top_k=3)</code>, and if results exist, prepend a context block to the system prompt before the Ollama call. Add a fallback for when the wiki is empty or not compiled yet.</div>
+      </div>
+    </div>
+    <div class="step">
+      <span class="step-n">3</span>
+      <div class="step-body">
+        <div class="step-title">Add shared model config <span class="tag tag-a">20 min</span></div>
+        <div class="step-detail">Create <code>src/com/config.py</code> with <code>MODEL = os.getenv("COM_MODEL", "smollm2:1.7b-instruct-q4_K_M")</code>. Import it in both <code>client.py</code> and wherever <code>com_core.py</code> makes its Ollama call. Document the env var in the README.</div>
+      </div>
+    </div>
+    <div class="step">
+      <span class="step-n">4</span>
+      <div class="step-body">
+        <div class="step-title">Fix the 2000-char TF-IDF truncation <span class="tag tag-g">10 min</span></div>
+        <div class="step-detail">In <code>WikiRetriever.load_wiki()</code>, store <code>content[:200]</code> as the snippet but index the full content for TF-IDF. Split the single assignment into two variables. Preserves search quality on long documents.</div>
+      </div>
+    </div>
+    <div class="step">
+      <span class="step-n">5</span>
+      <div class="step-body">
+        <div class="step-title">Remove or implement <code>auto_fix_missing_summaries()</code> <span class="tag tag-g">10 min</span></div>
+        <div class="step-detail">Either implement the 10-line body (iterate missing paths, re-run <code>_generate_summary()</code>, write back to wiki file and index) or replace the body with <code>raise NotImplementedError("auto_fix not yet implemented")</code> so callers fail loudly instead of silently.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
