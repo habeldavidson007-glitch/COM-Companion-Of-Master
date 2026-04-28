@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-04-28T15:19:58.117285",
-  "overall_score": 91.83673469387756,
+  "timestamp": "2026-04-28T15:25:25.639404",
+  "overall_score": 96.93877551020408,
   "target_score": 90.0,
   "meets_target": true,
   "total_assertions": 98,
-  "passed": 90,
-  "failed": 8,
-  "elapsed_seconds": 2.146510601043701,
+  "passed": 95,
+  "failed": 3,
+  "elapsed_seconds": 2.187941312789917,
   "suites": [
     {
       "name": "T01 \u00b7 Intent Router (3-mode)",
@@ -45,9 +45,9 @@
     },
     {
       "name": "T06 \u00b7 WikiHealthChecker (new)",
-      "score": 80.0,
-      "passed": 8,
-      "failed": 2,
+      "score": 100.0,
+      "passed": 10,
+      "failed": 0,
       "weight": 10
     },
     {
@@ -59,9 +59,9 @@
     },
     {
       "name": "T08 \u00b7 COMCore + Memory + Logger",
-      "score": 85.71428571428571,
-      "passed": 6,
-      "failed": 1,
+      "score": 100.0,
+      "passed": 7,
+      "failed": 0,
       "weight": 7
     },
     {
@@ -73,9 +73,9 @@
     },
     {
       "name": "T10 \u00b7 Architecture Integration",
-      "score": 66.66666666666666,
-      "passed": 6,
-      "failed": 3,
+      "score": 88.88888888888889,
+      "passed": 8,
+      "failed": 1,
       "weight": 9
     }
   ]
