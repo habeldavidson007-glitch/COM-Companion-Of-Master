@@ -1,10 +1,52 @@
 ```
-# Excel files
-*.xlsx
+# Configuration files
+*.env
+*.env.local
+*.env.*
 
-# Godot script files
-*.gd
+# Logs
+*.log
 
-# Build outputs
-com_output/
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules/
+venv/
+.venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.julia/
+zig*/
+target/
+.gradle/
+
+# Build artifacts
+dist/
+build/
+*.pyc
+*.class
+*.o
+*.exe
+*.dll
+*.so
+*.a
+*.obj
+*.out
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Editors
+.vscode/
+.idea/
 ```
