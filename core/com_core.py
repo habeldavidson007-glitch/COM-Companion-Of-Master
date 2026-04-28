@@ -69,26 +69,28 @@ One line. No explanation. Signal only.""",
 You NEVER generate answers, explanations, or content.
 You ONLY output ONE signal byte in format: @TYPE:payload
 
-Choose EXACTLY ONE type based on the query:
-  @WIKI:topic - For knowledge/research questions (what is, explain, define)
-  @WEB:topic - For current events/live data (news, today, latest)
-  @CHAT:greeting - For greetings ONLY (hello, hi, hey)
-  @CHAT:thanks - For thanks ONLY (thank you, thanks)
-  @CODE:language:description - For code generation requests
+STEP 1: Analyze the query intent
+STEP 2: Choose EXACTLY ONE type:
+  @WIKI:topic - For knowledge/research questions (what is, explain, define, describe)
+  @WEB:topic - For current events/live data (news, today, latest, current)
+  @CHAT:greeting - For greetings ONLY (hello, hi, hey, good morning)
+  @CHAT:thanks - For thanks ONLY (thank you, thanks, appreciate)
+  @CODE:language:description - For code generation requests (write code, create script)
   @ERR:clarification - If query is ambiguous or unclear
 
-RULES:
-- Output EXACTLY ONE signal line
-- NEVER list multiple types
-- NEVER include @end or other markers
-- Choose the MOST appropriate single type
+CRITICAL RULES:
+- Output EXACTLY ONE line starting with @TYPE:
+- NEVER output multiple @ symbols
+- NEVER list all types like @WIKI:@WEB:@CHAT
+- Pick the SINGLE best match
 
 Examples:
 User: 'Hello' → @CHAT:greeting
 User: 'What is AI?' → @WIKI:artificial intelligence definition
 User: 'Write python script' → @CODE:python:script description
+User: 'Current AI news' → @WEB:AI news latest
 
-Output ONE signal line only. No explanation."""
+Your response must be exactly one line like: @TYPE:payload"""
 }
 
 MODE_OUTPUT_CONTRACTS = {
@@ -148,13 +150,41 @@ VALID_PREFIXES = {"@GDT", "@XLS", "@PDF", "@PPT", "@ERR", "@WIKI", "@WEB", "@CHA
 
 def is_signal(text: str) -> bool:
     """Validate LLM output before passing to harness"""
-    return text.strip()[:4] in VALID_PREFIXES
+    stripped = text.strip()
+    # Check if it starts with a valid prefix (need at least 5 chars: @TYPE:)
+    if len(stripped) < 6:
+        return False
+    # Reject malformed signals with multiple @ symbols
+    if stripped.count('@') > 1:
+        return False
+    # Extract prefix up to first colon
+    if ':' not in stripped:
+        return False
+    prefix = stripped.split(':')[0]
+    return prefix in VALID_PREFIXES
 
 def parse_signal(text: str) -> Tuple[str, str]:
     """Parse signal into prefix and payload
     "@XLS:Inventory:Item,Qty" → ("@XLS", "Inventory:Item,Qty")
+    Handles malformed outputs by extracting first valid signal
     """
-    parts = text.strip().split(":", 1)
+    stripped = text.strip()
+    
+    # If the response contains multiple @ symbols (malformed), extract the first valid one
+    if stripped.count('@') > 1:
+        # Try to find first valid signal pattern
+        match = re.search(r'@(WIKI|WEB|CHAT|CODE|ERR|GDT|XLS|PDF|PPT):([^@\n]+)', stripped)
+        if match:
+            return f"@{match.group(1)}", match.group(2).strip()
+        # Fallback: just take everything after first @
+        first_at = stripped.find('@')
+        rest = stripped[first_at+1:]
+        parts = rest.split(":", 1)
+        if len(parts) == 2:
+            return f"@{parts[0]}", parts[1]
+    
+    # Normal parsing
+    parts = stripped.split(":", 1)
     prefix = parts[0]
     payload = parts[1] if len(parts) > 1 else ""
     return prefix, payload
