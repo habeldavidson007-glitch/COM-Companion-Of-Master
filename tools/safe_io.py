@@ -124,9 +124,8 @@ class SafeIO:
         files = []
         for f in dir_path.glob(pattern):
             if f.is_file():
-                # Return relative path from base_dir
-                rel_path = f.relative_to(self.base_dir)
-                files.append(str(rel_path))
+                # Return the full path as string for compatibility
+                files.append(str(f))
         
         return sorted(files)
     

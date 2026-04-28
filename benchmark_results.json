@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-04-28T15:05:49.857781",
-  "overall_score": 84.6938775510204,
+  "timestamp": "2026-04-28T15:10:08.976434",
+  "overall_score": 90.81632653061224,
   "target_score": 90.0,
-  "meets_target": false,
+  "meets_target": true,
   "total_assertions": 98,
-  "passed": 83,
-  "failed": 15,
-  "elapsed_seconds": 2.1418633460998535,
+  "passed": 89,
+  "failed": 9,
+  "elapsed_seconds": 2.0977070331573486,
   "suites": [
     {
       "name": "T01 \u00b7 Intent Router (3-mode)",
@@ -24,9 +24,9 @@
     },
     {
       "name": "T03 \u00b7 SafeIO (new)",
-      "score": 75.0,
-      "passed": 6,
-      "failed": 2,
+      "score": 87.5,
+      "passed": 7,
+      "failed": 1,
       "weight": 8
     },
     {
@@ -38,9 +38,9 @@
     },
     {
       "name": "T05 \u00b7 WikiRetriever",
-      "score": 62.5,
-      "passed": 5,
-      "failed": 3,
+      "score": 87.5,
+      "passed": 7,
+      "failed": 1,
       "weight": 8
     },
     {
@@ -73,9 +73,9 @@
     },
     {
       "name": "T10 \u00b7 Architecture Integration",
-      "score": 33.33333333333333,
-      "passed": 3,
-      "failed": 6,
+      "score": 66.66666666666666,
+      "passed": 6,
+      "failed": 3,
       "weight": 9
     }
   ]

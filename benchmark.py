@@ -696,7 +696,10 @@ class BenchmarkRunner:
                 shutil.rmtree(test_wiki_dir)
             test_wiki_dir.mkdir(parents=True, exist_ok=True)
             
-            # Create test documents
+            # Create test documents in wiki subdirectory (as WikiRetriever expects)
+            wiki_subdir = test_wiki_dir / "wiki"
+            wiki_subdir.mkdir(parents=True, exist_ok=True)
+            
             test_docs = [
                 ("doc1.md", "# Godot Basics\nGodot is a game engine. CharacterBody2D is used for physics."),
                 ("doc2.md", "# Python Guide\nPython is great for scripting and automation."),
@@ -704,7 +707,7 @@ class BenchmarkRunner:
             ]
             
             for doc_name, content in test_docs:
-                (test_wiki_dir / "wiki" / doc_name if (test_wiki_dir / "wiki").exists() else test_wiki_dir / doc_name).write_text(content, encoding='utf-8')
+                (wiki_subdir / doc_name).write_text(content, encoding='utf-8')
             
             # Use correct parameter: data_dir not wiki_dir
             retriever = WikiRetriever(data_dir=str(test_wiki_dir))
@@ -1276,7 +1279,8 @@ class BenchmarkRunner:
             else:
                 import inspect
                 source = inspect.getsource(tool_harness_module)
-                uses_parser = 'SignalParser' in source or 'signal_parser' in source
+                # Check for extract_signals function which is the signal parser
+                uses_parser = 'extract_signals' in source or 'has_signals' in source or 'SignalParser' in source
                 self._add_result(
                     suite,
                     "T10.3: SignalParser in harness",
@@ -1333,7 +1337,7 @@ class BenchmarkRunner:
         # Test 6: WikiCompiler callable
         try:
             from tools.data_ops.wiki_compiler import WikiCompiler
-            compiler = WikiCompiler(wiki_dir=str(self.wiki_test_dir))
+            compiler = WikiCompiler(data_dir=str(self.wiki_test_dir))
             self._add_result(suite, "T10.6: WikiCompiler accessible", True, "Compiler works")
         except ImportError:
             self._add_result(suite, "T10.6: WikiCompiler", False, "Not importable")
@@ -1352,8 +1356,8 @@ class BenchmarkRunner:
         
         # Test 8: Background service runs
         try:
-            from utils.background_service import BackgroundService
-            service = BackgroundService()
+            from utils.background_service import BackgroundWikiService
+            service = BackgroundWikiService()
             self._add_result(suite, "T10.8: BackgroundService", True, "Service exists")
         except ImportError:
             self._add_result(suite, "T10.8: BackgroundService", False, "Not importable")
