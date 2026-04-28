@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-04-28T15:14:25.557495",
-  "overall_score": 87.75510204081633,
+  "timestamp": "2026-04-28T15:19:58.117285",
+  "overall_score": 91.83673469387756,
   "target_score": 90.0,
-  "meets_target": false,
+  "meets_target": true,
   "total_assertions": 98,
-  "passed": 86,
-  "failed": 12,
-  "elapsed_seconds": 2.1246628761291504,
+  "passed": 90,
+  "failed": 8,
+  "elapsed_seconds": 2.146510601043701,
   "suites": [
     {
       "name": "T01 \u00b7 Intent Router (3-mode)",
@@ -24,9 +24,9 @@
     },
     {
       "name": "T03 \u00b7 SafeIO (new)",
-      "score": 37.5,
-      "passed": 3,
-      "failed": 5,
+      "score": 100.0,
+      "passed": 8,
+      "failed": 0,
       "weight": 8
     },
     {
@@ -45,9 +45,9 @@
     },
     {
       "name": "T06 \u00b7 WikiHealthChecker (new)",
-      "score": 90.0,
-      "passed": 9,
-      "failed": 1,
+      "score": 80.0,
+      "passed": 8,
+      "failed": 2,
       "weight": 10
     },
     {

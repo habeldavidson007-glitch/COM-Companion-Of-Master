@@ -22,48 +22,42 @@ class SafeIO:
         """Resolve path relative to base directory with security checks."""
         p = Path(path)
         
-        # If path is absolute, check if it's within base_dir
+        # Resolve to absolute path first
         if p.is_absolute():
             resolved = p.resolve()
+        else:
+            # For relative paths, check if they already exist relative to cwd
+            # If the path already exists and is within or equal to base_dir, use it directly
+            cwd_resolved = p.resolve()
             base_resolved = self.base_dir.resolve()
             
+            # If the resolved path starts with base_dir, it's already relative to base_dir
             try:
-                resolved.relative_to(base_resolved)
-                return resolved
+                cwd_resolved.relative_to(base_resolved)
+                return cwd_resolved
             except ValueError:
-                raise PermissionError(f"Path traversal detected: {path} is outside base directory {self.base_dir}")
+                pass
+            
+            # Otherwise, treat it as relative to base_dir
+            resolved = (self.base_dir / p).resolve()
         
-        # For relative paths, resolve them relative to base_dir
-        full_path = (self.base_dir / p).resolve()
+        # Ensure the resolved path is within base_dir
         base_resolved = self.base_dir.resolve()
         
-        # Ensure no path traversal via ../
         try:
-            full_path.relative_to(base_resolved)
-            return full_path
+            resolved.relative_to(base_resolved)
+            return resolved
         except ValueError:
-            raise PermissionError(f"Path traversal detected: {path} attempts to escape base directory")
+            raise PermissionError(f"Path traversal detected: {path} is outside base directory {self.base_dir}")
     
     def ensure_dir(self, path: str) -> None:
         """Ensure directory exists."""
         # Convert to string if Path object is passed
         path_str = str(path)
         
-        # Handle both relative and absolute paths
-        p = Path(path_str)
-        
-        # If it's a Path object with multiple levels (nested dirs), handle it properly
-        if not p.is_absolute():
-            # For relative paths like "level1/level2/level3"
-            # We need to create them relative to base_dir
-            target_path = self.base_dir / p
-        else:
-            # For absolute paths, validate they're within base_dir
-            try:
-                target_path = Path(self._resolve_path(path_str))
-            except PermissionError:
-                # If outside base_dir, raise error
-                raise
+        # Use _resolve_path to get the final absolute path
+        # This handles both relative and absolute paths correctly
+        target_path = self._resolve_path(path_str)
         
         # Create the directory structure
         try:
@@ -83,8 +77,12 @@ class SafeIO:
     
     def write_text(self, path: str, content: str, encoding: str = 'utf-8') -> None:
         """Write text file atomically (prevents corruption on crash)."""
-        file_path = self._resolve_path(path)
-        self.ensure_dir(path)
+        # Convert Path to string if needed
+        path_str = str(path)
+        file_path = self._resolve_path(path_str)
+        
+        # Ensure parent directory exists (not the file path itself)
+        self.ensure_dir(file_path.parent)
         
         # Write to temp file first, then rename (atomic operation)
         temp_fd, temp_path = tempfile.mkstemp(
