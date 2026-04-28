@@ -396,3 +396,196 @@ class WikiRetriever:
 
         # Filter out the original document
         return [(p, s) for p, _, s in results if p != path][:top_k]
+
+
+class HealthChecker:
+    """
+    Lightweight health checker for wiki integrity.
+    Designed for low-RAM environments with minimal overhead.
+    
+    Checks:
+    - Orphaned backlinks (links to non-existent documents)
+    - Missing summaries in indexed documents
+    - Broken internal links [[Document Name]]
+    """
+    
+    def __init__(self, wiki_dir: str):
+        self.wiki_dir = Path(wiki_dir)
+        self.io = SafeIO(str(self.wiki_dir.parent))
+    
+    async def run_integrity_check(self) -> List[Dict[str, Any]]:
+        """
+        Run complete integrity check.
+        Returns list of issues found with severity levels.
+        """
+        issues = []
+        
+        # Check 1: Find orphaned backlinks
+        orphan_issues = await self._check_orphaned_backlinks()
+        issues.extend(orphan_issues)
+        
+        # Check 2: Find missing summaries
+        missing_summary_issues = await self._check_missing_summaries()
+        issues.extend(missing_summary_issues)
+        
+        # Check 3: Find broken internal links
+        broken_link_issues = await self._check_broken_links()
+        issues.extend(broken_link_issues)
+        
+        return issues
+    
+    async def _check_orphaned_backlinks(self) -> List[Dict[str, Any]]:
+        """
+        Check for backlinks pointing to non-existent documents.
+        Lightweight: Only checks index metadata, not full content.
+        """
+        issues = []
+        
+        try:
+            # Load indexer to get all backlinks
+            indexer = WikiIndexer(str(self.wiki_dir.parent))
+            
+            # Get all documents from index
+            documents = indexer.index.get("documents", {})
+            
+            # Collect all backlink targets
+            all_doc_ids = set(documents.keys())
+            
+            for doc_id, doc_data in documents.items():
+                backlinks = doc_data.get("backlinks", [])
+                for backlink_target in backlinks:
+                    # Extract target doc_id from path
+                    target_path = Path(backlink_target)
+                    target_id = target_path.stem
+                    
+                    if target_id not in all_doc_ids:
+                        issues.append({
+                            "type": "orphaned_backlink",
+                            "source_doc": doc_id,
+                            "target_doc": target_id,
+                            "severity": "medium",
+                            "message": f"Document '{doc_id}' has backlink to non-existent '{target_id}'"
+                        })
+        except Exception as e:
+            issues.append({
+                "type": "check_error",
+                "severity": "high",
+                "message": f"Orphaned backlink check failed: {e}"
+            })
+        
+        return issues
+    
+    async def _check_missing_summaries(self) -> List[Dict[str, Any]]:
+        """
+        Check for documents missing summaries.
+        Lightweight: Only checks index metadata.
+        """
+        issues = []
+        
+        try:
+            indexer = WikiIndexer(str(self.wiki_dir.parent))
+            documents = indexer.index.get("documents", {})
+            
+            for doc_id, doc_data in documents.items():
+                summary = doc_data.get("summary", "")
+                
+                if not summary or summary.strip() == "":
+                    issues.append({
+                        "type": "missing_summary",
+                        "document": doc_id,
+                        "severity": "low",
+                        "message": f"Document '{doc_id}' is missing a summary"
+                    })
+        except Exception as e:
+            issues.append({
+                "type": "check_error",
+                "severity": "high",
+                "message": f"Missing summary check failed: {e}"
+            })
+        
+        return issues
+    
+    async def _check_broken_links(self) -> List[Dict[str, Any]]:
+        """
+        Check for broken internal links [[Document Name]] in wiki content.
+        Scans actual markdown files for [[...]] patterns.
+        """
+        issues = []
+        
+        try:
+            # Get all wiki markdown files
+            if not self.wiki_dir.exists():
+                return issues
+            
+            wiki_files = list(self.wiki_dir.glob("*.md"))
+            
+            # Build set of existing document titles
+            existing_docs = set()
+            for wiki_file in wiki_files:
+                doc_name = wiki_file.stem
+                existing_docs.add(doc_name)
+                # Also add with spaces instead of underscores
+                existing_docs.add(doc_name.replace("_", " "))
+            
+            # Scan each file for internal links
+            for wiki_file in wiki_files:
+                try:
+                    content = self.io.read_text(str(wiki_file))
+                    
+                    # Find all [[...]] patterns
+                    pattern = r'\[\[([^\]]+)\]\]'
+                    matches = re.findall(pattern, content)
+                    
+                    for link_target in matches:
+                        # Normalize link target
+                        normalized_target = link_target.replace(" ", "_")
+                        
+                        if normalized_target not in existing_docs and link_target not in existing_docs:
+                            issues.append({
+                                "type": "broken_internal_link",
+                                "source_file": str(wiki_file),
+                                "target": link_target,
+                                "severity": "medium",
+                                "message": f"File '{wiki_file.name}' contains broken link to '{link_target}'"
+                            })
+                except Exception:
+                    continue
+                    
+        except Exception as e:
+            issues.append({
+                "type": "check_error",
+                "severity": "high",
+                "message": f"Broken links check failed: {e}"
+            })
+        
+        return issues
+    
+    def find_orphans(self) -> List[str]:
+        """
+        Synchronous method to find orphaned documents (no backlinks).
+        Returns list of document IDs with no incoming backlinks.
+        """
+        try:
+            indexer = WikiIndexer(str(self.wiki_dir.parent))
+            documents = indexer.index.get("documents", {})
+            
+            # Collect all documents that are referenced as backlinks
+            referenced_docs = set()
+            for doc_data in documents.values():
+                backlinks = doc_data.get("backlinks", [])
+                for backlink in backlinks:
+                    target_path = Path(backlink)
+                    referenced_docs.add(target_path.stem)
+            
+            # Find documents with no backlinks pointing to them
+            orphans = []
+            for doc_id in documents.keys():
+                if doc_id not in referenced_docs:
+                    orphans.append(doc_id)
+            
+            return orphans
+            
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Find orphans failed: {e}")
+            return []

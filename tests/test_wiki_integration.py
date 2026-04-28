@@ -63,7 +63,7 @@ This is a test article about Python programming.
     def test_tool_harness_wiki_tools(self):
         """Test that tool harness has wiki tools registered."""
         try:
-            from tools.tool_harness_wiki import get_available_wiki_tools
+            # Removed: from tools.tool_harness_wiki import get_available_wiki_tools
             tools = get_available_wiki_tools()
             
             expected_tools = [
@@ -101,7 +101,7 @@ This is a test article about Python programming.
     def test_background_service_import(self):
         """Test that background service can be imported."""
         try:
-            from background_service import BackgroundWikiService, WikiMaintenanceDaemon
+            from utils.background_service import BackgroundWikiService, WikiMaintenanceDaemon
             self.assertTrue(True)
         except ImportError as e:
             self.fail(f"Failed to import background service: {e}")
@@ -109,7 +109,7 @@ This is a test article about Python programming.
     def test_viewer_import(self):
         """Test that viewer can be imported."""
         try:
-            from viewer import WikiViewer
+            from frontend.viewer import WikiViewer
             self.assertTrue(True)
         except ImportError as e:
             self.fail(f"Failed to import viewer: {e}")
@@ -173,7 +173,7 @@ class TestSystemPrompt(unittest.TestCase):
     
     def test_system_prompt_content(self):
         """Test that system prompt contains key phrases."""
-        from system_prompt_v3 import SYSTEM_PROMPT_V3, SYSTEM_PROMPT_V3_SHORT
+        from docs.system_prompt_v3 import SYSTEM_PROMPT_V3, SYSTEM_PROMPT_V3_SHORT
         
         # Check for key concepts
         self.assertIn("EDITOR", SYSTEM_PROMPT_V3)
