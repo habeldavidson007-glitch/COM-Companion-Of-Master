@@ -13,8 +13,6 @@ import sys
 from datetime import datetime
 from typing import Optional, List, Dict
 
-# Add current directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from core.com_core import COMCore, classify_mode, is_signal, parse_signal
 
 # Import tool modules for direct execution
