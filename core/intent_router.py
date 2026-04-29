@@ -11,7 +11,8 @@ from typing import Dict, List, Optional, Any, Tuple
 
 MODES = {
     "GODOT":  ["godot", "gdscript", "game", "scene", "node",
-               "physics", "animation", "player", "asset"],
+               "physics", "animation", "player", "asset", "2d", "3d",
+               "signal", "characterbody", "rigidbody", "area2d"],
     "OFFICE": ["excel", "pdf", "ppt", "spreadsheet", "report",
                "dokumen", "laporan", "buat file", "tabel", "save"],
     "CPP":    ["c++", "cpp", "cplusplus", "header", "cmake", 
@@ -22,12 +23,22 @@ MODES = {
     "JSON":   ["json", "schema", "parse json", "validate json", "api response"],
     "DESKTOP":["file", "folder", "browser", "clipboard", "screenshot",
                "open", "create", "delete", "copy", "move"],
-    "WIKI":   ["wiki", "knowledge", "document", "explain", "concept",
-               "what is", "how to", "tutorial", "guide"],
+    "WIKI":   ["wiki", "what is", "explain", "how does", "define",
+               "concept", "tutorial", "guide", "history of", "difference between"],
     "GENERAL": []
 }
 
 # Signal prefixes for routing to harnesses
+
+
+def _keyword_match(text: str, keywords: List[str]) -> bool:
+    """Word-boundary keyword matching to avoid substring collisions."""
+    for k in keywords:
+        pattern = r"\b" + re.escape(k) + r"\b"
+        if re.search(pattern, text):
+            return True
+    return False
+
 SIGNAL_PREFIXES = {
     "GODOT": "@GODOT:",
     "OFFICE": "@OFFICE:",
@@ -84,7 +95,7 @@ Reply with one word only."""
         for mode, keywords in MODES.items():
             if mode == "GENERAL":
                 continue
-            if any(k in text for k in keywords):
+            if _keyword_match(text, keywords):
                 matches.append(mode)
         
         # Clear cases

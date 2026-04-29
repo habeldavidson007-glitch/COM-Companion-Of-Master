@@ -16,8 +16,8 @@ class ModelConfig:
     temperature: float = 0.1
     max_tokens: int = 500
     top_p: float = 0.9
-    use_reflection: bool = True
-    routing_mode: str = "reflective"  # "standard", "reflective", "hybrid"
+    use_reflection: bool = False
+    routing_mode: str = "standard"  # "standard", "reflective", "hybrid"
 
 
 @dataclass

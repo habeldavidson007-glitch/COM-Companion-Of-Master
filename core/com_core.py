@@ -36,11 +36,21 @@ MODES = {
     "GENERAL": []  # fallback
 }
 
+def _keyword_match(text: str, keywords: List[str]) -> bool:
+    """Match keywords using word boundaries for phrase-safe routing."""
+    for k in keywords:
+        pattern = r"\b" + re.escape(k) + r"\b"
+        if re.search(pattern, text):
+            return True
+    return False
+
+
+
 def classify_mode(user_input: str) -> str:
     """Pure Python keyword check for mode detection"""
     text = user_input.lower()
     for mode, keywords in MODES.items():
-        if any(k in text for k in keywords):
+        if _keyword_match(text, keywords):
             return mode
     return "GENERAL"
 
@@ -93,9 +103,9 @@ MODE_OUTPUT_CONTRACTS = {
 }
 
 TOKEN_LIMITS = {
-    "GODOT":   128,
-    "OFFICE":  64,
-    "GENERAL": 256
+    "GODOT":   96,
+    "OFFICE":  48,
+    "GENERAL": 192
 }
 
 TEMPERATURES = {
@@ -105,9 +115,9 @@ TEMPERATURES = {
 }
 
 NUM_CTX_BY_MODE = {
-    "GODOT": 768,
-    "OFFICE": 512,
-    "GENERAL": 1024
+    "GODOT": 512,
+    "OFFICE": 256,
+    "GENERAL": 768
 }
 
 
@@ -143,7 +153,8 @@ VALID_PREFIXES = {"@GDT", "@XLS", "@PDF", "@PPT", "@ERR", "@WIKI", "@WEB", "@CHA
 
 def is_signal(text: str) -> bool:
     """Validate LLM output before passing to harness"""
-    return text.strip()[:4] in VALID_PREFIXES
+    t = text.strip()
+    return any(t.startswith(prefix) for prefix in VALID_PREFIXES)
 
 def parse_signal(text: str) -> Tuple[str, str]:
     """Parse signal into prefix and payload
@@ -196,7 +207,7 @@ class MemoryManager:
 class OllamaClient:
     """Optimized Ollama client for low-RAM systems"""
     
-    def __init__(self, model: str = "qwen2.5:0.5b-instruct-q4_K_M"):
+    def __init__(self, model: str = "smollm2:1.7b-instruct-q4_K_M"):
         self.model = model
         self.base_url = "http://localhost:11434"
         self.timeout = 30

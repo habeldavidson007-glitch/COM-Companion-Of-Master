@@ -74,32 +74,23 @@ class FilePathManager:
         return sanitized or "unnamed_file"
     
     def get_unique_path(self, filename: str, extension: str) -> str:
-        """Generate a unique file path, avoiding collisions with timestamps."""
+        """Generate and atomically claim a unique file path."""
         sanitized_name = self.sanitize_filename(filename)
-        if not sanitized_name.endswith(extension):
-            base_name = sanitized_name
-        else:
-            base_name = sanitized_name[:-len(extension)]
-        
-        # First attempt: original name
-        candidate_path = os.path.join(self.base_dir, f"{base_name}{extension}")
-        
+        base_name = sanitized_name if not sanitized_name.endswith(extension) else sanitized_name[:-len(extension)]
+
         with self._lock:
-            if not os.path.exists(candidate_path):
+            candidate_path = os.path.join(self.base_dir, f"{base_name}{extension}")
+            try:
+                fd = os.open(candidate_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
                 return candidate_path
-            
-            # Collision detected: add timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            candidate_path = os.path.join(self.base_dir, f"{base_name}_{timestamp}{extension}")
-            
-            # Ensure uniqueness even with same-second requests
-            counter = 0
-            while os.path.exists(candidate_path):
-                counter += 1
-                candidate_path = os.path.join(self.base_dir, f"{base_name}_{timestamp}_{counter}{extension}")
-            
-            return candidate_path
-    
+            except FileExistsError:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                candidate_path = os.path.join(self.base_dir, f"{base_name}_{timestamp}{extension}")
+                fd = os.open(candidate_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
+                return candidate_path
+
     def resolve_path(self, relative_path: str) -> str:
         """Convert relative path to absolute path."""
         if os.path.isabs(relative_path):
@@ -328,7 +319,7 @@ class PayloadValidator:
         Validate XLS payload format: filename:col1,col2,col3
         Returns (is_valid, error_message)
         """
-        parts = payload.split(':')
+        parts = payload.split(':', 1)
         if len(parts) != 2:
             return False, "XLS payload must be 'filename:col1,col2,col3'"
         
@@ -351,7 +342,7 @@ class PayloadValidator:
         Validate PPT payload format: filename:slide1|slide2|slide3
         Returns (is_valid, error_message)
         """
-        parts = payload.split(':')
+        parts = payload.split(':', 1)
         if len(parts) != 2:
             return False, "PPT payload must be 'filename:slide1|slide2|slide3'"
         
@@ -393,7 +384,7 @@ class PayloadValidator:
         Validate GODOT payload format: template_name:config_json_or_params
         Returns (is_valid, error_message)
         """
-        parts = payload.split(':')
+        parts = payload.split(':', 1)
         if len(parts) < 2:
             return False, "GODOT payload must be 'template_name:params'"
         
@@ -651,11 +642,24 @@ func _ready():
 # SIGNAL DETECTION & ROUTING
 # =============================================================================
 
+TOKEN_SIGNALS = {"XLS", "PPT", "GDT", "ERR"}
+TEXT_SIGNALS = {"PDF", "WIKI", "WEB", "CHAT", "CODE", "PY", "CPP", "JS", "JSON"}
+
 def extract_signals(text: str) -> List[Tuple[str, str]]:
-    """Extract all signals from text in format @TOOL:payload"""
-    pattern = r'@(\w+):([^\s@]+)'
-    matches = re.findall(pattern, text)
-    return [(tool.upper(), payload) for tool, payload in matches]
+    """Extract signals while preserving free-text payloads."""
+    results: List[Tuple[str, str]] = []
+
+    for m in re.finditer(r'@([A-Z]+):([^\s@]+)', text):
+        tool = m.group(1).upper()
+        if tool in TOKEN_SIGNALS:
+            results.append((tool, m.group(2)))
+
+    for m in re.finditer(r'@([A-Z]+):(.+?)(?=\s*@[A-Z]+:|\s*$)', text):
+        tool = m.group(1).upper()
+        if tool in TEXT_SIGNALS:
+            results.append((tool, m.group(2).strip()))
+
+    return results
 
 def has_signals(text: str) -> bool:
     """Check if text contains any tool signals."""
