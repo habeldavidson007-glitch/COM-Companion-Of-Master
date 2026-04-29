@@ -25,24 +25,51 @@ except ImportError:
     WikiRetriever = None
 
 # ================================================================
-# PHASE 1 — MODE CLASSIFIER
+# PHASE 1 — MODE CLASSIFIER (Signal-Trace Architecture v5)
 # ================================================================
+# Collapsed from 9 modes to 3 for SmolLM2-1.7B accuracy
+# CREATION: File/code generation (@GDT, @XLS, @PDF, @PPT, @CODE)
+# RETRIEVAL: Knowledge/wiki queries (@WIKI, @WEB)
+# CHAT: Everything else including greetings (@CHAT)
 
 MODES = {
-    "GODOT":  ["godot", "gdscript", "game", "scene", "node",
-               "physics", "animation", "script", "player"],
-    "OFFICE": ["excel", "pdf", "ppt", "spreadsheet", "report",
-               "dokumen", "laporan", "buat file", "tabel"],
-    "GENERAL": []  # fallback
+    "CREATION": ["create", "make", "generate", "build", "write", "code",
+                 "file", "excel", "pdf", "ppt", "spreadsheet", "report",
+                 "godot", "gdscript", "game", "scene", "node", "script",
+                 "python", "javascript", "cpp", "json", "program"],
+    "RETRIEVAL": ["what is", "who is", "explain", "define", "describe",
+                  "tell me about", "how does", "why is", "when did",
+                  "wiki", "knowledge", "concept", "tutorial", "guide",
+                  "research", "find information", "learn about"],
+    "CHAT": []  # fallback - everything else
+}
+
+# Signal prefix mapping to 3 modes
+SIGNAL_TO_MODE = {
+    "@GDT": "CREATION", "@XLS": "CREATION", "@PDF": "CREATION", 
+    "@PPT": "CREATION", "@CODE": "CREATION",
+    "@WIKI": "RETRIEVAL", "@WEB": "RETRIEVAL",
+    "@CHAT": "CHAT", "@ERR": "CHAT"
 }
 
 def classify_mode(user_input: str) -> str:
-    """Pure Python keyword check for mode detection"""
+    """Pure Python keyword check for mode detection with word boundaries."""
     text = user_input.lower()
     for mode, keywords in MODES.items():
-        if any(k in text for k in keywords):
+        if mode == "CHAT":
+            continue  # CHAT is fallback
+        if _keyword_match(text, keywords):
             return mode
-    return "GENERAL"
+    return "CHAT"
+
+
+def _keyword_match(text: str, keywords: list) -> bool:
+    """Match keywords with word boundaries to avoid false positives."""
+    for k in keywords:
+        pattern = r'\b' + re.escape(k) + r'\b'
+        if re.search(pattern, text):
+            return True
+    return False
 
 
 # ================================================================
@@ -50,64 +77,103 @@ def classify_mode(user_input: str) -> str:
 # ================================================================
 
 SYSTEM_PROMPTS = {
-    "GODOT": """You are COM v4 - a pure INTENT ROUTER.
-Output ONLY a @GDT signal byte. NEVER write code or explanations.
-Signal format: @GDT:CATEGORY:DETAIL
-Examples: @GDT:MOV:2D  |  @GDT:ANIM:IDLE  |  @GDT:SCENE:PLAYER
-One line. Signal only.""",
+    "CREATION": """You are COM v5 - a pure INTENT ROUTER using Signal-Trace Architecture.
+NEVER generate answers, code, or explanations.
+ONLY output signals in this EXACT format with [THOUGHT] trace:
 
-    "OFFICE": """You are COM v4 - a pure INTENT ROUTER.
-Output ONLY a signal byte. Nothing else.
-Signals:
-  @XLS:filename:col1,col2,col3
-  @PDF:filename:content text
-  @PPT:filename:slide1|slide2|slide3
-Example: @XLS:Inventory:Item,Qty,Price
-One line. No explanation. Signal only.""",
+[THOUGHT]: User wants to create/generate something
+[SIGNAL]: @TYPE:payload
 
-    "GENERAL": """You are COM v4 - a pure INTENT ROUTER.
-You NEVER generate answers, explanations, or content.
-You ONLY output signal bytes in format: @HARNESS:payload
-
-Available harnesses:
-  @WIKI:topic - For knowledge/research questions
-  @WEB:topic - For current events/live data
-  @CHAT:greeting - For greetings (hello, hi, hey)
-  @CHAT:thanks - For thanks (thank you, thanks)
-  @CODE:language:description - For code generation requests
-  @ERR:clarification - If query is ambiguous
+Signal types:
+  @GDT:category:detail - Godot game dev (e.g., @GDT:MOV:2D)
+  @XLS:filename:col1,col2 - Excel files
+  @PDF:filename:content - PDF documents  
+  @PPT:filename:slide1|slide2 - Presentations
+  @CODE:lang:task - Code generation (e.g., @CODE:python:scrape website)
 
 Examples:
-User: 'Hello' → @CHAT:greeting
-User: 'What is AI?' → @WIKI:artificial intelligence definition
-User: 'AI innovation trends' → @WIKI:AI innovation trends 2024
-User: 'Thanks' → @CHAT:thanks
+User: 'Create Excel inventory' → 
+  [THOUGHT]: User wants spreadsheet
+  [SIGNAL]: @XLS:inventory:Item,Qty,Price
 
-Output ONE signal line only. No explanation."""
+User: 'Make Godot player script' →
+  [THOUGHT]: User wants game code
+  [SIGNAL]: @GDT:SCRIPT:PLAYER
+
+Output BOTH lines. Nothing else.""",
+
+    "RETRIEVAL": """You are COM v5 - a pure INTENT ROUTER using Signal-Trace Architecture.
+NEVER generate answers or explanations.
+ONLY output signals in this EXACT format with [THOUGHT] trace:
+
+[THOUGHT]: User wants information/knowledge
+[SIGNAL]: @TYPE:query
+
+Signal types:
+  @WIKI:topic - Knowledge base lookup
+  @WEB:query - Live web search
+
+Examples:
+User: 'What is machine learning?' →
+  [THOUGHT]: User wants definition
+  [SIGNAL]: @WIKI:machine learning definition
+
+User: 'AI trends 2024' →
+  [THOUGHT]: User wants current info
+  [SIGNAL]: @WIKI:AI trends 2024
+
+Output BOTH lines. Nothing else.""",
+
+    "CHAT": """You are COM v5 - a pure INTENT ROUTER using Signal-Trace Architecture.
+NEVER generate answers or explanations directly.
+ONLY output signals in this EXACT format with [THOUGHT] trace:
+
+[THOUGHT]: User is greeting/thanking/chatting
+[SIGNAL]: @CHAT:type
+
+Signal types:
+  @CHAT:greeting - For hello, hi, hey, yo
+  @CHAT:thanks - For thank you, thanks, thx
+  @CHAT:general - For other casual chat
+
+Examples:
+User: 'Hello' →
+  [THOUGHT]: User greets
+  [SIGNAL]: @CHAT:greeting
+
+User: 'Thanks' →
+  [THOUGHT]: User thanks
+  [SIGNAL]: @CHAT:thanks
+
+User: 'How are you?' →
+  [THOUGHT]: User chats
+  [SIGNAL]: @CHAT:general
+
+Output BOTH lines. Nothing else."""
 }
 
 MODE_OUTPUT_CONTRACTS = {
-    "GODOT": "Contract: output only @GDT signal byte. No prose, no code.",
-    "OFFICE": "Contract: output exactly one signal line: @XLS/@PDF/@PPT with payload.",
-    "GENERAL": "Contract: output exactly one signal byte: @WIKI/@WEB/@CHAT/@CODE/@ERR with payload.",
+    "CREATION": "Contract: output [THOUGHT] + [SIGNAL] with @GDT/@XLS/@PDF/@PPT/@CODE only.",
+    "RETRIEVAL": "Contract: output [THOUGHT] + [SIGNAL] with @WIKI/@WEB only.",
+    "CHAT": "Contract: output [THOUGHT] + [SIGNAL] with @CHAT only.",
 }
 
 TOKEN_LIMITS = {
-    "GODOT":   128,
-    "OFFICE":  64,
-    "GENERAL": 256
+    "CREATION": 128,   # Thought + signal
+    "RETRIEVAL": 96,   # Thought + signal
+    "CHAT": 64         # Minimal for greetings
 }
 
 TEMPERATURES = {
-    "GODOT":   0.2,  # deterministic code
-    "OFFICE":  0.1,  # exact signal output
-    "GENERAL": 0.7   # natural answers
+    "CREATION":  0.2,  # Deterministic signal output
+    "RETRIEVAL": 0.3,  # Slight variation for query phrasing
+    "CHAT":      0.5   # Natural but controlled
 }
 
 NUM_CTX_BY_MODE = {
-    "GODOT": 768,
-    "OFFICE": 512,
-    "GENERAL": 1024
+    "CREATION": 512,
+    "RETRIEVAL": 384,
+    "CHAT": 256
 }
 
 
@@ -141,18 +207,53 @@ class ResponseCache:
 
 VALID_PREFIXES = {"@GDT", "@XLS", "@PDF", "@PPT", "@ERR", "@WIKI", "@WEB", "@CHAT", "@CODE"}
 
+# Signal-Trace Architecture patterns
+SIGNAL_TRACE_PATTERN = re.compile(r'\[SIGNAL\]:\s*(@[A-Z]+:[^\n]+)', re.IGNORECASE)
+THOUGHT_PATTERN = re.compile(r'\[THOUGHT\]:\s*([^\n]+)', re.IGNORECASE)
+
 def is_signal(text: str) -> bool:
-    """Validate LLM output before passing to harness"""
-    return text.strip()[:4] in VALID_PREFIXES
+    """Validate LLM output before passing to harness.
+    Supports both raw signals and Signal-Trace format."""
+    t = text.strip()
+    # Check for Signal-Trace format first
+    if "[SIGNAL]:" in t.upper():
+        match = SIGNAL_TRACE_PATTERN.search(t)
+        if match:
+            signal_text = match.group(1)
+            return any(signal_text.startswith(p) for p in VALID_PREFIXES)
+    # Check for raw signal format
+    return any(t.startswith(p) for p in VALID_PREFIXES)
 
 def parse_signal(text: str) -> Tuple[str, str]:
-    """Parse signal into prefix and payload
-    "@XLS:Inventory:Item,Qty" → ("@XLS", "Inventory:Item,Qty")
+    """Parse signal into prefix and payload.
+    Supports both formats:
+    - Raw: "@XLS:Inventory:Item,Qty" → ("@XLS", "Inventory:Item,Qty")
+    - Trace: "[THOUGHT]:...\n[SIGNAL]: @XLS:..." → ("@XLS", "...")
     """
-    parts = text.strip().split(":", 1)
+    t = text.strip()
+    
+    # Try Signal-Trace format first
+    if "[SIGNAL]:" in t.upper():
+        match = SIGNAL_TRACE_PATTERN.search(t)
+        if match:
+            signal_text = match.group(1).strip()
+            parts = signal_text.split(":", 1)
+            prefix = parts[0]
+            payload = parts[1] if len(parts) > 1 else ""
+            return prefix, payload
+    
+    # Fallback to raw format
+    parts = t.split(":", 1)
     prefix = parts[0]
     payload = parts[1] if len(parts) > 1 else ""
     return prefix, payload
+
+def extract_thought(text: str) -> str:
+    """Extract [THOUGHT] content from Signal-Trace format."""
+    match = THOUGHT_PATTERN.search(text)
+    if match:
+        return match.group(1).strip()
+    return ""
 
 
 # ================================================================
@@ -196,7 +297,7 @@ class MemoryManager:
 class OllamaClient:
     """Optimized Ollama client for low-RAM systems"""
     
-    def __init__(self, model: str = "qwen2.5:0.5b-instruct-q4_K_M"):
+    def __init__(self, model: str = "smollm2:1.7b-instruct-q4_K_M"):
         self.model = model
         self.base_url = "http://localhost:11434"
         self.timeout = 30
@@ -259,7 +360,8 @@ class OllamaClient:
                 "top_p": 0.9,
                 "num_predict": max_tokens,
                 "num_ctx": num_ctx or self.num_ctx,
-                "num_batch": 16
+                "num_batch": 16,
+                "repeat_penalty": 1.1
             }
         }
         
