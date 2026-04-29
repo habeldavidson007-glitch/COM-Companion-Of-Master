@@ -654,6 +654,21 @@ func _ready():
 # SIGNAL DETECTION & ROUTING
 # =============================================================================
 
+# Module-level SignalParser class for backward compatibility and benchmark detection
+class SignalParser:
+    """SignalParser class wrapper around extract_signals function for API compatibility."""
+    
+    @staticmethod
+    def parse(text: str) -> List[Tuple[str, str]]:
+        """Parse signals from text - delegates to extract_signals."""
+        return extract_signals(text)
+    
+    @staticmethod
+    def has_signal(text: str) -> bool:
+        """Check if text contains any signal - delegates to has_signal."""
+        return has_signal(text)
+
+
 def extract_signals(text: str) -> List[Tuple[str, str]]:
     """Extract all signals from text in format @TOOL:payload"""
     pattern = r'@(\w+):([^\s@]+)'

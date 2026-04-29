@@ -1,16 +1,27 @@
 ```
-# Logs and temp files
-*.log
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.ENV
+.ENV.*
+.venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Benchmark and test directories
-benchmark_test_dir/
-benchmark_test_dir2/
-test_wiki_retriever/
+# Logs
+*.log
 
 # Coverage reports
 coverage/
 htmlcov/
 .coverage
+.coverage.*
 
 # Benchmark results
 benchmark_results.json

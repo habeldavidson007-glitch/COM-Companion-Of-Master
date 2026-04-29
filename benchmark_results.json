@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-04-29T05:32:33.855821",
-  "overall_score": 89.79591836734694,
+  "timestamp": "2026-04-29T06:09:01.758650",
+  "overall_score": 90.81632653061224,
   "target_score": 90.0,
-  "meets_target": false,
+  "meets_target": true,
   "total_assertions": 98,
-  "passed": 88,
-  "failed": 10,
-  "elapsed_seconds": 2.583984375,
+  "passed": 89,
+  "failed": 9,
+  "elapsed_seconds": 2.385072946548462,
   "suites": [
     {
       "name": "T01 \u00b7 Intent Router (3-mode)",
@@ -66,16 +66,16 @@
     },
     {
       "name": "T09 \u00b7 Edge Cases + Stress",
-      "score": 100.0,
-      "passed": 13,
-      "failed": 0,
+      "score": 92.3076923076923,
+      "passed": 12,
+      "failed": 1,
       "weight": 13
     },
     {
       "name": "T10 \u00b7 Architecture Integration",
-      "score": 44.44444444444444,
-      "passed": 4,
-      "failed": 5,
+      "score": 66.66666666666666,
+      "passed": 6,
+      "failed": 3,
       "weight": 9
     }
   ]

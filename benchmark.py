@@ -696,7 +696,8 @@ class BenchmarkRunner:
                 shutil.rmtree(test_wiki_dir)
             test_wiki_dir.mkdir(parents=True, exist_ok=True)
             
-            # Create test documents
+            # Create test documents - put them in wiki/ subdirectory
+            (test_wiki_dir / "wiki").mkdir(parents=True, exist_ok=True)
             test_docs = [
                 ("doc1.md", "# Godot Basics\nGodot is a game engine. CharacterBody2D is used for physics."),
                 ("doc2.md", "# Python Guide\nPython is great for scripting and automation."),
@@ -704,7 +705,7 @@ class BenchmarkRunner:
             ]
             
             for doc_name, content in test_docs:
-                (test_wiki_dir / "wiki" / doc_name if (test_wiki_dir / "wiki").exists() else test_wiki_dir / doc_name).write_text(content, encoding='utf-8')
+                (test_wiki_dir / "wiki" / doc_name).write_text(content, encoding='utf-8')
             
             # Use correct parameter: data_dir not wiki_dir
             retriever = WikiRetriever(data_dir=str(test_wiki_dir))

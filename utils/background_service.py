@@ -349,5 +349,9 @@ def main():
         daemon.stop_daemon()
 
 
+# Alias for backward compatibility with tests
+BackgroundService = BackgroundWikiService
+
+
 if __name__ == "__main__":
     main()

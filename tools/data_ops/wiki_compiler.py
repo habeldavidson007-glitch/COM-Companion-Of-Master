@@ -311,18 +311,21 @@ class WikiRetriever:
             # Try both root directory and wiki/ subdirectory
             md_files = []
             
-            # First try wiki/ subdirectory
+            # First try wiki/ subdirectory (if it exists)
             try:
-                md_files.extend(self.io.list_files("wiki", "*.md"))
+                wiki_files = self.io.list_files("wiki", "*.md")
+                if wiki_files:
+                    md_files.extend(wiki_files)
             except Exception:
-                pass
+                pass  # wiki/ directory doesn't exist, that's ok
             
             # Also check root directory for .md files
             try:
                 root_files = self.io.list_files(".", "*.md")
                 # Filter out any that might be in subdirectories already counted
                 for f in root_files:
-                    if f not in md_files and '/' not in f:
+                    # Only add root-level files (no path separators)
+                    if '/' not in f and '\\' not in f and f not in md_files:
                         md_files.append(f)
             except Exception:
                 pass
