@@ -677,9 +677,11 @@ class HealthChecker:
         """
         Export health check results to JSON file.
         Returns True if successful, False otherwise.
+        Uses standard Python file I/O for external paths (like temp files).
         """
         try:
             from datetime import datetime
+            import json as json_module
             
             export_data = {
                 'timestamp': datetime.now().isoformat(),
@@ -693,7 +695,10 @@ class HealthChecker:
                 'suggestions': self.generate_suggestions(issues)
             }
             
-            self.io.write_text(output_path, json.dumps(export_data, indent=2))
+            # Use standard Python file I/O for external paths (e.g., temp files)
+            # SafeIO is only for paths within base_dir
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(json_module.dumps(export_data, indent=2))
             return True
             
         except Exception as e:

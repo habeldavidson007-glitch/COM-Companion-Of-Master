@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-04-29T06:09:01.758650",
+  "timestamp": "2026-04-29T06:17:41.752607",
   "overall_score": 90.81632653061224,
   "target_score": 90.0,
   "meets_target": true,
   "total_assertions": 98,
   "passed": 89,
   "failed": 9,
-  "elapsed_seconds": 2.385072946548462,
+  "elapsed_seconds": 2.27217698097229,
   "suites": [
     {
       "name": "T01 \u00b7 Intent Router (3-mode)",
