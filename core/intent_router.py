@@ -40,6 +40,15 @@ SIGNAL_PREFIXES = {
 }
 
 
+def _keyword_match(text: str, keywords: list) -> bool:
+    """Match keywords with word boundaries to avoid false positives."""
+    for k in keywords:
+        pattern = r'\b' + re.escape(k) + r'\b'
+        if re.search(pattern, text):
+            return True
+    return False
+
+
 class IntentRouter:
     """
     Two-stage classification with Wiki integration and Reflective Signal Protocol support:
@@ -80,11 +89,11 @@ Reply with one word only."""
         matches = []
         text = query.lower()
         
-        # Stage 1: Keyword Matching
+        # Stage 1: Keyword Matching with word boundaries
         for mode, keywords in MODES.items():
             if mode == "GENERAL":
                 continue
-            if any(k in text for k in keywords):
+            if _keyword_match(text, keywords):
                 matches.append(mode)
         
         # Clear cases

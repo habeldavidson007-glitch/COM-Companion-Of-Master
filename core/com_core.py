@@ -37,12 +37,22 @@ MODES = {
 }
 
 def classify_mode(user_input: str) -> str:
-    """Pure Python keyword check for mode detection"""
+    """Pure Python keyword check for mode detection with word boundaries"""
     text = user_input.lower()
     for mode, keywords in MODES.items():
-        if any(k in text for k in keywords):
+        if _keyword_match(text, keywords):
             return mode
     return "GENERAL"
+
+
+def _keyword_match(text: str, keywords: list) -> bool:
+    """Match keywords with word boundaries to avoid false positives."""
+    import re
+    for k in keywords:
+        pattern = r'\b' + re.escape(k) + r'\b'
+        if re.search(pattern, text):
+            return True
+    return False
 
 
 # ================================================================
@@ -65,25 +75,36 @@ Signals:
 Example: @XLS:Inventory:Item,Qty,Price
 One line. No explanation. Signal only.""",
 
-    "GENERAL": """You are COM v4 - a pure INTENT ROUTER.
-You NEVER generate answers, explanations, or content.
-You ONLY output signal bytes in format: @HARNESS:payload
+    "GENERAL": """You are COM v4 - a pure INTENT ROUTER (BRAIN ONLY).
+You NEVER generate answers, explanations, opinions, or content.
+You ONLY detect intent and output signal bytes: @HARNESS:payload
 
-Available harnesses:
-  @WIKI:topic - For knowledge/research questions
-  @WEB:topic - For current events/live data
-  @CHAT:greeting - For greetings (hello, hi, hey)
-  @CHAT:thanks - For thanks (thank you, thanks)
-  @CODE:language:description - For code generation requests
-  @ERR:clarification - If query is ambiguous
+AVAILABLE HARNESSES (choose exactly one):
+  @WIKI:topic - Knowledge/research/explanations ("what is", "explain", "tell me about")
+  @WEB:query - Current events/news/live data
+  @CHAT:greeting - Greetings (hello, hi, hey, good morning)
+  @CHAT:thanks - Gratitude (thank you, thanks, appreciate it)
+  @CODE:lang:task - Code generation (python/javascript/cpp: describe task)
+  @ERR:reason - Only if query is truly ambiguous/unclear
 
-Examples:
+CRITICAL RULES:
+1. NEVER write prose, explanations, or answers yourself
+2. NEVER say "I think", "In my opinion", "Here's..."
+3. ALWAYS route to a harness - even for opinions/questions
+4. For "What do you think about X?" → @WIKI:X analysis perspectives
+5. For "Should I do X?" → @WIKI:X pros cons decision factors
+6. Output EXACTLY ONE signal line. Nothing else.
+
+EXAMPLES:
 User: 'Hello' → @CHAT:greeting
-User: 'What is AI?' → @WIKI:artificial intelligence definition
-User: 'AI innovation trends' → @WIKI:AI innovation trends 2024
+User: 'What is AI?' → @WIKI:artificial intelligence definition overview
+User: 'AI innovation trends 2024' → @WIKI:AI innovation trends 2024
+User: 'What do you think about AI for passive income?' → @WIKI:AI passive income opportunities analysis
+User: 'Should I learn Python or JavaScript?' → @WIKI:Python vs JavaScript comparison career guide
 User: 'Thanks' → @CHAT:thanks
+User: 'Create a web scraper' → @CODE:python:web scraper with requests beautifulsoup
 
-Output ONE signal line only. No explanation."""
+Output ONE signal line only. No explanation. No prose. Signal only."""
 }
 
 MODE_OUTPUT_CONTRACTS = {
@@ -92,22 +113,16 @@ MODE_OUTPUT_CONTRACTS = {
     "GENERAL": "Contract: output exactly one signal byte: @WIKI/@WEB/@CHAT/@CODE/@ERR with payload.",
 }
 
-TOKEN_LIMITS = {
-    "GODOT":   128,
-    "OFFICE":  64,
-    "GENERAL": 256
-}
-
-TEMPERATURES = {
-    "GODOT":   0.2,  # deterministic code
-    "OFFICE":  0.1,  # exact signal output
-    "GENERAL": 0.7   # natural answers
-}
-
 NUM_CTX_BY_MODE = {
-    "GODOT": 768,
-    "OFFICE": 512,
-    "GENERAL": 1024
+    "GODOT": 512,
+    "OFFICE": 256,
+    "GENERAL": 768
+}
+
+TOKEN_LIMITS = {
+    "GODOT": 96,
+    "OFFICE": 48,
+    "GENERAL": 192
 }
 
 
@@ -143,7 +158,8 @@ VALID_PREFIXES = {"@GDT", "@XLS", "@PDF", "@PPT", "@ERR", "@WIKI", "@WEB", "@CHA
 
 def is_signal(text: str) -> bool:
     """Validate LLM output before passing to harness"""
-    return text.strip()[:4] in VALID_PREFIXES
+    t = text.strip()
+    return any(t.startswith(p) for p in VALID_PREFIXES)
 
 def parse_signal(text: str) -> Tuple[str, str]:
     """Parse signal into prefix and payload
@@ -196,7 +212,7 @@ class MemoryManager:
 class OllamaClient:
     """Optimized Ollama client for low-RAM systems"""
     
-    def __init__(self, model: str = "qwen2.5:0.5b-instruct-q4_K_M"):
+    def __init__(self, model: str = "smollm2:1.7b-instruct-q4_K_M"):
         self.model = model
         self.base_url = "http://localhost:11434"
         self.timeout = 30
@@ -259,7 +275,8 @@ class OllamaClient:
                 "top_p": 0.9,
                 "num_predict": max_tokens,
                 "num_ctx": num_ctx or self.num_ctx,
-                "num_batch": 16
+                "num_batch": 16,
+                "repeat_penalty": 1.1
             }
         }
         
@@ -653,7 +670,7 @@ class COMCore:
                 self.logger.log(mode, query, cached, cache_hit, elapsed_ms)
                 return cached
             
-            # PHASE 2: Build SoT prompt
+            # PHASE 2: Build SoT prompt with prompt repetition for better intent detection
             system = SYSTEM_PROMPTS[mode]
             max_tok = TOKEN_LIMITS[mode]
             temp = TEMPERATURES[mode]
@@ -662,6 +679,18 @@ class COMCore:
             context = self.memory.get_context()
             messages = [{"role": "system", "content": system}]
             messages.append({"role": "system", "content": MODE_OUTPUT_CONTRACTS[mode]})
+            
+            # PROMPT REPETITION TECHNIQUE (Research-backed for non-reasoning LLMs):
+            # Repeat the user query in signal-parse format to anchor attention on routing
+            # This helps SmolLM2-1.7B focus on intent detection, not content generation
+            if mode == "GENERAL":
+                # Add a pre-prompt that restates the task in signal terms
+                pre_prompt = (
+                    f"USER QUERY: \"{query}\"\n"
+                    f"TASK: Detect intent and output ONE signal byte.\n"
+                    f"REMEMBER: You are the BRAIN only. Harnesses execute everything.\n"
+                )
+                messages.append({"role": "user", "content": pre_prompt})
             
             # Add wiki context if available (FIX: Integration Gap)
             if wiki_context and mode == "GENERAL":

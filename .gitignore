@@ -1,14 +1,12 @@
-```
+```gitignore
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# Build and distribution artifacts
-dist/
-build/
-*.egg-info/
+# Excel output files
+com_output/*.xlsx
 
 # Logs
 *.log
@@ -19,22 +17,18 @@ build/
 *.env.*
 
 # Coverage reports
-.coverage
 coverage/
 htmlcov/
+.coverage
 
-# IDE specific
+# IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
 *.tmp
 
-# OS generated files
+# OS files
 .DS_Store
 Thumbs.db
-
-# Testing
-.pytest_cache/
-.mypy_cache/
 ```
