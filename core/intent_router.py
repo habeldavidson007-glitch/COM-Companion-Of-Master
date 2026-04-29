@@ -27,6 +27,15 @@ MODES = {
     "GENERAL": []
 }
 
+
+def _keyword_match(text: str, keywords: list) -> bool:
+    """Match keywords with word boundaries to avoid false positives."""
+    for k in keywords:
+        pattern = r'\b' + re.escape(k) + r'\b'
+        if re.search(pattern, text):
+            return True
+    return False
+
 # Signal prefixes for routing to harnesses
 SIGNAL_PREFIXES = {
     "GODOT": "@GODOT:",
@@ -84,7 +93,7 @@ Reply with one word only."""
         for mode, keywords in MODES.items():
             if mode == "GENERAL":
                 continue
-            if any(k in text for k in keywords):
+            if _keyword_match(text, keywords):
                 matches.append(mode)
         
         # Clear cases

@@ -74,29 +74,36 @@ class FilePathManager:
         return sanitized or "unnamed_file"
     
     def get_unique_path(self, filename: str, extension: str) -> str:
-        """Generate a unique file path, avoiding collisions with timestamps."""
+        """Generate a unique file path, avoiding collisions with timestamps.
+        
+        Uses atomic file creation (O_CREAT | O_EXCL) to prevent TOCTOU race
+        conditions when multiple threads request the same path concurrently.
+        """
         sanitized_name = self.sanitize_filename(filename)
         if not sanitized_name.endswith(extension):
             base_name = sanitized_name
         else:
             base_name = sanitized_name[:-len(extension)]
         
-        # First attempt: original name
+        # First attempt: original name - atomically claim it
         candidate_path = os.path.join(self.base_dir, f"{base_name}{extension}")
         
         with self._lock:
-            if not os.path.exists(candidate_path):
+            try:
+                # Exclusive create — atomically claims the path
+                fd = os.open(candidate_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
                 return candidate_path
+            except FileExistsError:
+                pass
             
             # Collision detected: add timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
             candidate_path = os.path.join(self.base_dir, f"{base_name}_{timestamp}{extension}")
             
-            # Ensure uniqueness even with same-second requests
-            counter = 0
-            while os.path.exists(candidate_path):
-                counter += 1
-                candidate_path = os.path.join(self.base_dir, f"{base_name}_{timestamp}_{counter}{extension}")
+            # Atomically create the timestamped path
+            fd = os.open(candidate_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
             
             return candidate_path
     
@@ -651,11 +658,27 @@ func _ready():
 # SIGNAL DETECTION & ROUTING
 # =============================================================================
 
+# Signals where payload is a strict token (no spaces expected)
+TOKEN_SIGNALS = {"XLS", "PPT", "GDT", "ERR"}
+
+# Signals where payload is free text (spaces expected)
+TEXT_SIGNALS = {"PDF", "WIKI", "WEB", "CHAT", "CODE", "PY", "CPP", "JS", "JSON"}
+
 def extract_signals(text: str) -> List[Tuple[str, str]]:
     """Extract all signals from text in format @TOOL:payload"""
-    pattern = r'@(\w+):([^\s@]+)'
-    matches = re.findall(pattern, text)
-    return [(tool.upper(), payload) for tool, payload in matches]
+    results = []
+    
+    # Token-sensitive: stop at whitespace or @
+    for m in re.finditer(r'@([A-Z]+):([^\s@]+)', text, re.IGNORECASE):
+        if m.group(1).upper() in TOKEN_SIGNALS:
+            results.append((m.group(1).upper(), m.group(2)))
+    
+    # Text-sensitive: capture to end of line or next signal
+    for m in re.finditer(r'@([A-Z]+):(.+?)(?=\s*@[A-Z]+:|\s*$)', text, re.IGNORECASE):
+        if m.group(1).upper() in TEXT_SIGNALS:
+            results.append((m.group(1).upper(), m.group(2).strip()))
+    
+    return results
 
 def has_signals(text: str) -> bool:
     """Check if text contains any tool signals."""

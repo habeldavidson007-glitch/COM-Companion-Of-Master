@@ -21,9 +21,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from tools.data_ops.wiki_compiler import WikiCompiler, WikiRetriever, HealthChecker
 from tools.data_ops.wiki_indexer import WikiIndexer
 
