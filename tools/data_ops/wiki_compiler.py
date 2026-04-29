@@ -8,6 +8,7 @@ Division of Labor:
 - LLM: Only refines summaries and resolves ambiguities
 """
 import logging
+import json
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 from datetime import datetime
@@ -32,7 +33,11 @@ class HealthIssue:
 class WikiCompiler:
     """Compiles raw documents into wiki structure."""
 
-    def __init__(self, data_dir: str = "data", llm_host: str = "http://localhost:11434"):
+    def __init__(self, data_dir: str = "data", llm_host: str = "http://localhost:11434", wiki_dir: str = None):
+        # Support both data_dir and wiki_dir parameter names for backward compatibility
+        if wiki_dir is not None and data_dir == "data":
+            data_dir = str(Path(wiki_dir).parent)
+        
         self.io = SafeIO(data_dir)
         self.indexer = WikiIndexer(data_dir)
         # Lazy load LLM client only when needed
@@ -298,15 +303,32 @@ class WikiRetriever:
         return [t for t in tokens if t not in stopwords and len(t) > 2]
 
     def load_wiki(self) -> None:
-        """Load all wiki markdown files."""
+        """Load all wiki markdown files from root and wiki/ subdirectory."""
         self.documents = {}
         self.snippets = {}  # Store short snippets for display
 
         try:
-            md_files = self.io.list_files("wiki", "*.md")
+            # Try both root directory and wiki/ subdirectory
+            md_files = []
+            
+            # First try wiki/ subdirectory
+            try:
+                md_files.extend(self.io.list_files("wiki", "*.md"))
+            except Exception:
+                pass
+            
+            # Also check root directory for .md files
+            try:
+                root_files = self.io.list_files(".", "*.md")
+                # Filter out any that might be in subdirectories already counted
+                for f in root_files:
+                    if f not in md_files and '/' not in f:
+                        md_files.append(f)
+            except Exception:
+                pass
 
             for path in md_files:
-                if path == "wiki/_index.md":  # Skip index if exists
+                if path.endswith("_index.md"):  # Skip index if exists
                     continue
 
                 try:
@@ -419,6 +441,17 @@ class WikiRetriever:
 
         # Filter out the original document
         return [(p, s) for p, _, s in results if p != path][:top_k]
+
+    def format_context(self, results: List[tuple]) -> str:
+        """Format search results as context string for LLM."""
+        if not results:
+            return ""
+        
+        formatted_parts = []
+        for path, snippet, score in results:
+            formatted_parts.append(f"[{path}]: {snippet} (relevance: {score:.2f})")
+        
+        return "\n\n".join(formatted_parts)
 
 
 class HealthChecker:

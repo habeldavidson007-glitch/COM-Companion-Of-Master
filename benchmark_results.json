@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-04-28T16:20:21.587314",
-  "overall_score": 70.40816326530613,
+  "timestamp": "2026-04-29T05:32:33.855821",
+  "overall_score": 89.79591836734694,
   "target_score": 90.0,
   "meets_target": false,
   "total_assertions": 98,
-  "passed": 69,
-  "failed": 29,
-  "elapsed_seconds": 2.2603676319122314,
+  "passed": 88,
+  "failed": 10,
+  "elapsed_seconds": 2.583984375,
   "suites": [
     {
       "name": "T01 \u00b7 Intent Router (3-mode)",
@@ -24,30 +24,30 @@
     },
     {
       "name": "T03 \u00b7 SafeIO (new)",
-      "score": 12.5,
-      "passed": 1,
-      "failed": 7,
+      "score": 87.5,
+      "passed": 7,
+      "failed": 1,
       "weight": 8
     },
     {
       "name": "T04 \u00b7 WikiIndexer",
-      "score": 0.0,
-      "passed": 0,
+      "score": 100.0,
+      "passed": 7,
       "failed": 0,
       "weight": 7
     },
     {
       "name": "T05 \u00b7 WikiRetriever",
-      "score": 62.5,
-      "passed": 5,
-      "failed": 3,
+      "score": 100.0,
+      "passed": 8,
+      "failed": 0,
       "weight": 8
     },
     {
       "name": "T06 \u00b7 WikiHealthChecker (new)",
-      "score": 80.0,
-      "passed": 8,
-      "failed": 2,
+      "score": 90.0,
+      "passed": 9,
+      "failed": 1,
       "weight": 10
     },
     {
@@ -73,9 +73,9 @@
     },
     {
       "name": "T10 \u00b7 Architecture Integration",
-      "score": 22.22222222222222,
-      "passed": 2,
-      "failed": 7,
+      "score": 44.44444444444444,
+      "passed": 4,
+      "failed": 5,
       "weight": 9
     }
   ]

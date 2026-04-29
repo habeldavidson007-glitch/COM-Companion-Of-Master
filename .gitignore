@@ -1,33 +1,17 @@
 ```
-# Compiled and build artifacts
-*.pyc
-__pycache__/
-
-# Dependencies
-.venv/
-venv/
-node_modules/
-
 # Logs and temp files
 *.log
-*.tmp
-*.swp
 
-# Environment
-.env
-.env.local
-.env.*
+# Benchmark and test directories
+benchmark_test_dir/
+benchmark_test_dir2/
+test_wiki_retriever/
 
-# Editors
-.vscode/
-.idea/
-
-# Coverage
-.coverage
+# Coverage reports
 coverage/
 htmlcov/
+.coverage
 
-# Test and cache directories
-.mypy_cache/
-.pytest_cache/
+# Benchmark results
+benchmark_results.json
 ```

@@ -39,6 +39,10 @@ class WikiIndexer:
         self.index["last_updated"] = datetime.now().isoformat()
         self.io.write_json(self.index_path, self.index)
 
+    def save_index(self) -> None:
+        """Public method to persist index to disk."""
+        self._save_index()
+
     def _to_doc_id(self, path: str) -> str:
         """Convert a file path to a consistent document ID."""
         return path.replace("/", "_").replace(".md", "")
