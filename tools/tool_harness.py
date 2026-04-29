@@ -213,11 +213,13 @@ class ToolHealthChecker:
     
     def _check_all_tools(self):
         """Check health of all available tools."""
+        godot_status = self._check_godot_tool()
         self.tool_status = {
             'XLS': self._check_excel_tool(),
             'PPT': self._check_powerpoint_tool(),
             'PDF': self._check_pdf_tool(),
-            'GODOT': self._check_godot_tool()
+            'GODOT': godot_status,
+            'GDT': godot_status  # Alias for @GDT signals
         }
     
     def _check_excel_tool(self) -> Dict[str, Any]:

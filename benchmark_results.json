@@ -1,82 +1,109 @@
 {
-  "timestamp": "2026-04-28T15:32:59.895403",
-  "overall_score": 97.95918367346938,
-  "target_score": 90.0,
-  "meets_target": true,
-  "total_assertions": 98,
-  "passed": 96,
-  "failed": 2,
-  "elapsed_seconds": 2.1813559532165527,
+  "total_pass": 117,
+  "total_tests": 128,
+  "overall_pct": 91.41,
   "suites": [
     {
-      "name": "T01 \u00b7 Intent Router (3-mode)",
-      "score": 86.66666666666667,
+      "name": "01 Intent Router",
+      "passed": 14,
+      "total": 15,
+      "pct": 93.33,
+      "failures": [
+        "route(\"physics based character controller\") \u2192 CREATION \u2014 got=CHAT"
+      ],
+      "notes": [
+        "v5 Architecture: 3 modes (CREATION, RETRIEVAL, CHAT) - collapsed from 9"
+      ]
+    },
+    {
+      "name": "02 Signal Parser",
       "passed": 13,
-      "failed": 0,
-      "weight": 15
+      "total": 14,
+      "pct": 92.86,
+      "failures": [
+        "parse (godot long-form signal) \u2014 found=0 expected=1"
+      ],
+      "notes": [
+        "double-@@ finds embedded XLS: True (by-design, regex not anchored)",
+        "GAP: @XLS::empty accepted as valid \u2014 regex allows ':empty' as payload"
+      ]
     },
     {
-      "name": "T02 \u00b7 SignalParser (extract_signals)",
-      "score": 100.0,
-      "passed": 13,
-      "failed": 0,
-      "weight": 13
-    },
-    {
-      "name": "T03 \u00b7 SafeIO (new)",
-      "score": 100.0,
-      "passed": 8,
-      "failed": 0,
-      "weight": 8
-    },
-    {
-      "name": "T04 \u00b7 WikiIndexer",
-      "score": 100.0,
-      "passed": 7,
-      "failed": 0,
-      "weight": 7
-    },
-    {
-      "name": "T05 \u00b7 WikiRetriever",
-      "score": 100.0,
-      "passed": 8,
-      "failed": 0,
-      "weight": 8
-    },
-    {
-      "name": "T06 \u00b7 WikiHealthChecker (new)",
-      "score": 100.0,
+      "name": "03 Safe Io",
       "passed": 10,
-      "failed": 0,
-      "weight": 10
+      "total": 10,
+      "pct": 100.0,
+      "failures": [],
+      "notes": []
     },
     {
-      "name": "T07 \u00b7 Tool Harness",
-      "score": 100.0,
+      "name": "04 Wiki Indexer",
       "passed": 8,
-      "failed": 0,
-      "weight": 8
+      "total": 8,
+      "pct": 100.0,
+      "failures": [],
+      "notes": []
     },
     {
-      "name": "T08 \u00b7 COMCore + Memory + Logger",
-      "score": 100.0,
-      "passed": 7,
-      "failed": 0,
-      "weight": 7
+      "name": "05 Wiki Retriever",
+      "passed": 5,
+      "total": 9,
+      "pct": 55.56,
+      "failures": [
+        "5 docs loaded \u2014 loaded=0",
+        "IDF computed",
+        "godot query returns godot docs first \u2014 top=[]",
+        "python query returns python doc"
+      ],
+      "notes": [
+        "GAP: 2000-char truncation still present \u2014 long_doc stored 0 chars (full=6811)"
+      ]
     },
     {
-      "name": "T09 \u00b7 Edge Cases + Stress",
-      "score": 100.0,
-      "passed": 13,
-      "failed": 0,
-      "weight": 13
+      "name": "06 Health Checker",
+      "passed": 10,
+      "total": 10,
+      "pct": 100.0,
+      "failures": [],
+      "notes": []
     },
     {
-      "name": "T10 \u00b7 Architecture Integration",
-      "score": 100.0,
+      "name": "07 Tool Harness",
       "passed": 9,
-      "failed": 0,
-      "weight": 9
+      "total": 9,
+      "pct": 100.0,
+      "failures": [],
+      "notes": []
+    },
+    {
+      "name": "08 Com Core Pipeline",
+      "passed": 25,
+      "total": 30,
+      "pct": 83.33,
+      "failures": [
+        "_repair_output extracts signal from verbose OFFICE",
+        "_is_valid_mode_output: invalid OFFICE prose",
+        "confidence routing OFFICE \u2014 mode=OFFICE conf=0.85",
+        "cache set/get round-trip",
+        "cache mode isolation (same query, different modes)"
+      ],
+      "notes": []
+    },
+    {
+      "name": "09 Edge Cases",
+      "passed": 12,
+      "total": 12,
+      "pct": 100.0,
+      "failures": [],
+      "notes": []
+    },
+    {
+      "name": "10 Architecture Integration",
+      "passed": 11,
+      "total": 11,
+      "pct": 100.0,
+      "failures": [],
+      "notes": []
     }
   ]
 }

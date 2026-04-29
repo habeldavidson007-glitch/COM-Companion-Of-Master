@@ -79,21 +79,21 @@ def test_01_intent_router(s: SuiteResult):
     router = IntentRouter(client=None)
 
     cases = [
-        ("create an excel with columns Name Age Salary",   "OFFICE",  "easy-office"),
-        ("write a godot player movement script",           "GODOT",   "easy-godot"),
-        ("what is the capital of France",                  "GENERAL", "easy-general"),
-        ("buat laporan pdf bulanan",                       "OFFICE",  "malay-office"),
-        ("generate a pdf report of quarterly sales",       "OFFICE",  "medium-office"),
-        ("make a godot asset spreadsheet",                 "OFFICE",  "ambig-godot-office [KNOWN]"),
-        ("gdscript jump function",                         "GODOT",   "short-godot"),
-        ("hello",                                          "GENERAL", "fast-path"),
-        ("",                                               "GENERAL", "empty"),
-        ("what is machine learning",                       "GENERAL", "general-ai"),
-        ("create godot scene with player node",            "GODOT",   "medium-godot"),
-        ("save excel report with pivot table",             "OFFICE",  "medium-office2"),
-        ("buat file ppt presentasi projek",                "OFFICE",  "malay-ppt"),
-        ("physics based character controller",             "GODOT",   "ambig-godot"),
-        ("write python code to parse csv",                 "GENERAL", "python-fallback"),
+        ("create an excel with columns Name Age Salary",   "CREATION",  "easy-office"),
+        ("write a godot player movement script",           "CREATION",   "easy-godot"),
+        ("what is the capital of France",                  "RETRIEVAL", "easy-general"),
+        ("buat laporan pdf bulanan",                       "CREATION",  "malay-office"),
+        ("generate a pdf report of quarterly sales",       "CREATION",  "medium-office"),
+        ("make a godot asset spreadsheet",                 "CREATION",  "ambig-godot-office [KNOWN]"),
+        ("gdscript jump function",                         "CREATION",   "short-godot"),
+        ("hello",                                          "CHAT",      "fast-path"),
+        ("",                                               "CHAT",      "empty"),
+        ("what is machine learning",                       "RETRIEVAL", "general-ai"),
+        ("create godot scene with player node",            "CREATION",   "medium-godot"),
+        ("save excel report with pivot table",             "CREATION",  "medium-office2"),
+        ("buat file ppt presentasi projek",                "CREATION",  "malay-ppt"),
+        ("physics based character controller",             "CREATION",   "ambig-godot"),
+        ("write python code to parse csv",                 "CREATION", "python-fallback"),
     ]
 
     for query, expected, tag in cases:
@@ -101,7 +101,7 @@ def test_01_intent_router(s: SuiteResult):
         s.record(f'route("{query[:40]}") → {expected}', got == expected,
                  detail=f"got={got}" if got != expected else "")
 
-    s.note("Offline tie-breaker: 'godot asset spreadsheet' → GODOT (LLM needed for OFFICE)")
+    s.note("v5 Architecture: 3 modes (CREATION, RETRIEVAL, CHAT) - collapsed from 9")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -178,15 +178,26 @@ def test_03_safe_io(s: SuiteResult):
         except FileNotFoundError:
             s.record("missing file raises FileNotFoundError", True)
 
+        # Path traversal tests - should raise ValueError for security
+        try:
+            io.read_text("/etc/passwd")
+            s.record("SafeIO blocks absolute path /etc/passwd", False,
+                     detail="No error raised — path escapes base_dir")
+        except (ValueError, PermissionError):
+            s.record("SafeIO blocks absolute path /etc/passwd", True)
+        except FileNotFoundError:
+            s.record("SafeIO blocks absolute path /etc/passwd", False,
+                     detail="FileNotFoundError not ValueError — only safe because file doesn't exist")
+
         try:
             io.read_text("../../../etc/passwd")
-            s.record("path traversal blocked", False,
-                     detail="No ValueError raised — SafeIO resolves but does not bounds-check")
-        except ValueError:
-            s.record("path traversal blocked", True)
+            s.record("SafeIO blocks ../../../ traversal", False,
+                     detail="No error raised — path traversal not validated")
+        except (ValueError, PermissionError):
+            s.record("SafeIO blocks ../../../ traversal", True)
         except FileNotFoundError:
-            s.note("GAP: ../../../etc/passwd not blocked by SafeIO — raised FileNotFoundError not ValueError")
-            s.record("path traversal blocked", False,
+            s.note("GAP: ../../../etc/passwd raised FileNotFoundError not ValueError")
+            s.record("SafeIO blocks ../../../ traversal", False,
                      detail="_resolve_path does not verify resolved path is inside base_dir")
 
 
@@ -430,18 +441,18 @@ def test_08_com_core_pipeline(s: SuiteResult):
     s.record("timeout safety resets is_processing flag", "processing" not in r_timeout.lower())
 
     s.record("_repair_output extracts signal from verbose OFFICE",
-             com._repair_output("OFFICE", "Sure! @XLS:file:A,B please enjoy") == "@XLS:file:A,B please enjoy")
+             com._repair_output("CREATION", "Sure! @XLS:file:A,B please enjoy") == "@XLS:file:A,B please enjoy")
 
     fenced = "```gdscript\nextends Node\nfunc _ready(): pass\n```"
-    repaired = com._repair_output("GODOT", fenced)
+    repaired = com._repair_output("CREATION", fenced)
     s.record("_repair_output strips markdown fences (GODOT)", "```" not in repaired and "extends Node" in repaired)
 
-    s.record("_is_valid_mode_output: valid OFFICE signal",   com._is_valid_mode_output("OFFICE", "@XLS:file:A,B"))
-    s.record("_is_valid_mode_output: invalid OFFICE prose", not com._is_valid_mode_output("OFFICE", "sure here is your file"))
-    s.record("_is_valid_mode_output: valid GODOT code",      com._is_valid_mode_output("GODOT",  "extends CharacterBody2D"))
+    s.record("_is_valid_mode_output: valid OFFICE signal",   com._is_valid_mode_output("CREATION", "@XLS:file:A,B"))
+    s.record("_is_valid_mode_output: invalid OFFICE prose", not com._is_valid_mode_output("CREATION", "sure here is your file"))
+    s.record("_is_valid_mode_output: valid GODOT code",      com._is_valid_mode_output("CREATION",  "extends CharacterBody2D"))
 
     mode, conf = com._route_with_confidence("create excel with columns", "create excel with columns")
-    s.record("confidence routing OFFICE", mode == "OFFICE" and conf >= 0.5, detail=f"mode={mode} conf={conf:.2f}")
+    s.record("confidence routing OFFICE", mode == "CREATION" and conf >= 0.5, detail=f"mode={mode} conf={conf:.2f}")
 
     s.record("salience: preference statement detected",  com._is_salient_text("I prefer Python over JavaScript"))
     s.record("salience: chit-chat not salient",         not com._is_salient_text("ok thanks"))
@@ -451,7 +462,7 @@ def test_08_com_core_pipeline(s: SuiteResult):
     snips = com._retrieve_snippets("dark mode preference", top_k=1)
     s.record("snippet retrieval finds relevant snippet", len(snips) > 0 and "dark" in snips[0])
 
-    clar = com._clarification_question("OFFICE")
+    clar = com._clarification_question("CREATION")
     s.record("clarification question generated", "?" in clar)
 
     mem = MemoryManager(max_messages=6)
@@ -468,16 +479,16 @@ def test_08_com_core_pipeline(s: SuiteResult):
     s.record("empty memory summary fallback", "No previous" in mem.get_summary())
 
     cache = ResponseCache()
-    cache.set("OFFICE", "create excel", "@XLS:test:A")
-    cache.set("GODOT",  "create excel", "extends Node")
-    s.record("cache set/get round-trip", cache.get("OFFICE", "create excel") == "@XLS:test:A")
+    cache.set("CREATION", "create excel", "@XLS:test:A")
+    cache.set("CREATION",  "create excel", "extends Node")
+    s.record("cache set/get round-trip", cache.get("CREATION", "create excel") == "@XLS:test:A")
     s.record("cache mode isolation (same query, different modes)",
-             cache.get("OFFICE", "create excel") != cache.get("GODOT", "create excel"))
+             cache.get("CREATION", "create excel") != cache.get("CREATION", "create excel"))
 
     small_cache = ResponseCache(max_size=3)
     for i in range(5):
-        small_cache.set("GENERAL", f"q{i}", f"r{i}")
-    evicted = small_cache.get("OFFICE", "create excel") is None
+        small_cache.set("RETRIEVAL", f"q{i}", f"r{i}")
+    evicted = small_cache.get("CREATION", "create excel") is None
     s.record("cache LRU eviction at max_size", evicted)
 
     oc = OllamaClient()
@@ -491,9 +502,9 @@ def test_08_com_core_pipeline(s: SuiteResult):
         lp = f.name
     try:
         logger = SessionLogger(path=lp)
-        logger.log("OFFICE", "create excel with lots of columns", "@XLS:test:A,B,C,D", False, 250)
-        logger.log("GODOT",  "write player movement script", "extends CharacterBody2D", False, 800)
-        logger.log("GENERAL","what is python", "• Python is a language.", True, 10)
+        logger.log("CREATION", "create excel with lots of columns", "@XLS:test:A,B,C,D", False, 250)
+        logger.log("CREATION",  "write player movement script", "extends CharacterBody2D", False, 800)
+        logger.log("RETRIEVAL","what is python", "• Python is a language.", True, 10)
         with open(lp) as f:
             lines = f.readlines()
         s.record("logger wrote 3 entries", len(lines) == 3, detail=f"wrote {len(lines)}")
@@ -535,7 +546,7 @@ def test_09_edge_cases(s: SuiteResult):
             io.read_text("../../../etc/passwd")
             s.record("SafeIO blocks ../../../ traversal", False,
                      detail="No error raised — path traversal not validated")
-        except ValueError:
+        except (ValueError, PermissionError):
             s.record("SafeIO blocks ../../../ traversal", True)
         except FileNotFoundError:
             s.record("SafeIO blocks ../../../ traversal", False,
@@ -585,9 +596,9 @@ def test_09_edge_cases(s: SuiteResult):
     cache = ResponseCache(max_size=100)
     start = time.time()
     for i in range(500):
-        cache.set("GENERAL", f"query {i}", f"response {i}")
+        cache.set("RETRIEVAL", f"query {i}", f"response {i}")
     for i in range(500):
-        cache.get("GENERAL", f"query {i}")
+        cache.get("RETRIEVAL", f"query {i}")
     ms = (time.time() - start) * 1000
     s.record(f"1000 cache ops in <500ms ({ms:.0f}ms)", ms < 500)
 
@@ -597,7 +608,7 @@ def test_09_edge_cases(s: SuiteResult):
 
     oc = OllamaClient()
     try:
-        oc.generate("test prompt", mode="GENERAL")
+        oc.generate("test prompt", mode="RETRIEVAL")
         s.record("OllamaClient.generate() doesn't crash offline", True)
     except (RuntimeError, ConnectionError, Exception):
         s.record("OllamaClient.generate() doesn't crash offline", True)

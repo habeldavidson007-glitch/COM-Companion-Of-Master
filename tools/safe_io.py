@@ -124,19 +124,23 @@ class SafeIO:
         return file_path.stat().st_mtime
     
     def list_files(self, directory: str, pattern: str = "*") -> List[str]:
-        """List files matching pattern in directory."""
+        """List files matching pattern in directory. Returns relative filenames."""
         dir_path = self._resolve_path(directory)
         if not dir_path.exists():
             return []
-        
+
         files = []
         for f in dir_path.glob(pattern):
             if f.is_file():
-                # Return the full path as string for compatibility
-                files.append(str(f))
-        
+                # Return relative path from base_dir for compatibility with tests
+                try:
+                    rel_path = f.relative_to(dir_path)
+                    files.append(str(rel_path))
+                except ValueError:
+                    files.append(f.name)
+
         return sorted(files)
-    
+
     def delete(self, path: str) -> bool:
         """Delete file safely."""
         file_path = self._resolve_path(path)

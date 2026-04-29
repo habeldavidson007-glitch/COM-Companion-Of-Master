@@ -81,10 +81,11 @@ Reply with one word only."""
         self.signal_history = []
         self.reflection_history = []
     
-    def route(self, query: str) -> dict:
+    def route(self, query: str) -> str:
         """
-        Route query to appropriate harness/expert.
-        Returns dict with mode, signal, and confidence.
+        Route query to appropriate mode.
+        Returns mode string only (benchmark expects string, not dict).
+        Signal generation happens in COMCore.process_query().
         """
         matches = []
         text = query.lower()
@@ -99,10 +100,8 @@ Reply with one word only."""
         # Clear cases
         if len(matches) == 1:
             mode = matches[0]
-            confidence = "high"
         elif len(matches) == 0:
             mode = "CHAT"  # Changed from GENERAL to CHAT
-            confidence = "low"
         else:
             # Ambiguous case: Use LLM tie-breaker
             if self.client:
@@ -118,56 +117,16 @@ Reply with one word only."""
                     result = result.upper()
                     if result in ["CREATION", "RETRIEVAL", "CHAT"]:
                         mode = result
-                        confidence = "medium"
                     elif len(matches) > 0:
                         mode = matches[0]
-                        confidence = "fallback"
                     else:
                         mode = "CHAT"
-                        confidence = "fallback"
                 except Exception:
                     mode = matches[0]
-                    confidence = "fallback"
             else:
                 mode = matches[0]
-                confidence = "fallback"
         
-        # Generate signal - map to actual harness signals based on mode
-        if mode == "CREATION":
-            # For CREATION, we need more specific signal - use keyword detection
-            text_lower = query.lower()
-            if any(kw in text_lower for kw in ["godot", "game", "gdscript"]):
-                signal = f"@GDT:AUTO:{query}"
-            elif any(kw in text_lower for kw in ["excel", "spreadsheet", "xlsx"]):
-                signal = f"@XLS:auto:{query}"
-            elif "pdf" in text_lower:
-                signal = f"@PDF:auto:{query}"
-            elif any(kw in text_lower for kw in ["ppt", "presentation", "slides"]):
-                signal = f"@PPT:auto:{query}"
-            elif any(kw in text_lower for kw in ["code", "python", "javascript", "cpp", "program"]):
-                signal = f"@CODE:auto:{query}"
-            else:
-                signal = f"@CREATION:{query}"
-        elif mode == "RETRIEVAL":
-            # Prefer WIKI for knowledge queries
-            signal = f"@WIKI:{query}"
-        else:  # CHAT
-            signal = f"@CHAT:{query}"
-        
-        # Store in history
-        self.signal_history.append({
-            "query": query,
-            "mode": mode,
-            "signal": signal,
-            "confidence": confidence
-        })
-        
-        return {
-            "mode": mode,
-            "signal": signal,
-            "confidence": confidence,
-            "matches": matches if len(matches) > 1 else []
-        }
+        return mode
     
     def parse_reflective_response(self, llm_response: str) -> dict:
         """
