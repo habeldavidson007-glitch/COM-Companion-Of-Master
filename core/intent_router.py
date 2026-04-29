@@ -9,22 +9,27 @@ import re
 import json
 from typing import Dict, List, Optional, Any, Tuple
 
+# Signal-Trace Architecture v5: Collapsed from 9 modes to 3
 MODES = {
-    "GODOT":  ["godot", "gdscript", "game", "scene", "node",
-               "physics", "animation", "player", "asset"],
-    "OFFICE": ["excel", "pdf", "ppt", "spreadsheet", "report",
-               "dokumen", "laporan", "buat file", "tabel", "save"],
-    "CPP":    ["c++", "cpp", "cplusplus", "header", "cmake", 
-               "smart pointer", "template", "std::"],
-    "PYTHON": ["python", "py", "pip", "package", "module"],
-    "JAVASCRIPT": ["javascript", "js", "typescript", "ts", "react", 
-                   "node", "npm", "browser", "dom", "async", "web"],
-    "JSON":   ["json", "schema", "parse json", "validate json", "api response"],
-    "DESKTOP":["file", "folder", "browser", "clipboard", "screenshot",
-               "open", "create", "delete", "copy", "move"],
-    "WIKI":   ["wiki", "knowledge", "document", "explain", "concept",
-               "what is", "how to", "tutorial", "guide"],
-    "GENERAL": []
+    "CREATION": ["create", "make", "generate", "build", "write", "code",
+                 "file", "excel", "pdf", "ppt", "spreadsheet", "report",
+                 "godot", "gdscript", "game", "scene", "node", "script",
+                 "python", "javascript", "cpp", "json", "program",
+                 "c++", "typescript", "react", "save", "export"],
+    "RETRIEVAL": ["what is", "who is", "explain", "define", "describe",
+                  "tell me about", "how does", "why is", "when did",
+                  "wiki", "knowledge", "concept", "tutorial", "guide",
+                  "research", "find information", "learn about",
+                  "meaning", "summarize"],
+    "CHAT": []  # fallback - everything else
+}
+
+# Signal prefix mapping to 3 modes
+SIGNAL_TO_MODE = {
+    "@GDT": "CREATION", "@XLS": "CREATION", "@PDF": "CREATION", 
+    "@PPT": "CREATION", "@CODE": "CREATION",
+    "@WIKI": "RETRIEVAL", "@WEB": "RETRIEVAL",
+    "@CHAT": "CHAT", "@ERR": "CHAT"
 }
 
 
@@ -36,30 +41,25 @@ def _keyword_match(text: str, keywords: list) -> bool:
             return True
     return False
 
-# Signal prefixes for routing to harnesses
+# Signal prefixes for 3-mode architecture
 SIGNAL_PREFIXES = {
-    "GODOT": "@GODOT:",
-    "OFFICE": "@OFFICE:",
-    "CPP": "@CPP:",
-    "PYTHON": "@PYTHON:",
-    "JAVASCRIPT": "@JS:",
-    "JSON": "@JSON:",
-    "DESKTOP": "@DESK:",
-    "WIKI": "@WIKI:"
+    "CREATION": "@CREATION:",
+    "RETRIEVAL": "@RETRIEVAL:",
+    "CHAT": "@CHAT:"
 }
 
 
 class IntentRouter:
     """
-    Two-stage classification with Wiki integration and Reflective Signal Protocol support:
-    Stage 1: Keyword fast-path
+    Signal-Trace Architecture v5: Two-stage classification with Wiki integration.
+    Stage 1: Keyword fast-path for 3 modes (CREATION, RETRIEVAL, CHAT)
     Stage 2: If ambiguous (2+ modes match), ask LLM for 1-token classification
-    Stage 3: Route to appropriate harness/expert with signal format
-    Stage 4 (NEW): Parse and validate <reflection> blocks from LLM responses
+    Stage 3: Route to appropriate harness with signal format
+    Supports both raw signals and [THOUGHT]/[SIGNAL] trace format.
     """
     
     AMBIGUOUS_THRESHOLD = 2
-    ROUTER_PROMPT = """Classify this input into exactly one word: GODOT, OFFICE, CPP, PYTHON, JAVASCRIPT, JSON, DESKTOP, WIKI, or GENERAL.
+    ROUTER_PROMPT = """Classify this input into exactly one word: CREATION, RETRIEVAL, or CHAT.
 Input: {query}
 Reply with one word only."""
     
@@ -91,8 +91,8 @@ Reply with one word only."""
         
         # Stage 1: Keyword Matching
         for mode, keywords in MODES.items():
-            if mode == "GENERAL":
-                continue
+            if mode == "CHAT":
+                continue  # CHAT is fallback
             if _keyword_match(text, keywords):
                 matches.append(mode)
         
@@ -101,7 +101,7 @@ Reply with one word only."""
             mode = matches[0]
             confidence = "high"
         elif len(matches) == 0:
-            mode = "GENERAL"
+            mode = "CHAT"  # Changed from GENERAL to CHAT
             confidence = "low"
         else:
             # Ambiguous case: Use LLM tie-breaker
@@ -114,11 +114,16 @@ Reply with one word only."""
                         temperature=0.0
                     ).strip().upper()
                     
-                    if result in MODES.keys():
+                    # Normalize result to valid modes
+                    result = result.upper()
+                    if result in ["CREATION", "RETRIEVAL", "CHAT"]:
                         mode = result
                         confidence = "medium"
-                    else:
+                    elif len(matches) > 0:
                         mode = matches[0]
+                        confidence = "fallback"
+                    else:
+                        mode = "CHAT"
                         confidence = "fallback"
                 except Exception:
                     mode = matches[0]
@@ -127,9 +132,27 @@ Reply with one word only."""
                 mode = matches[0]
                 confidence = "fallback"
         
-        # Generate signal
-        signal_prefix = SIGNAL_PREFIXES.get(mode, "@GENERAL:")
-        signal = f"{signal_prefix}{query}"
+        # Generate signal - map to actual harness signals based on mode
+        if mode == "CREATION":
+            # For CREATION, we need more specific signal - use keyword detection
+            text_lower = query.lower()
+            if any(kw in text_lower for kw in ["godot", "game", "gdscript"]):
+                signal = f"@GDT:AUTO:{query}"
+            elif any(kw in text_lower for kw in ["excel", "spreadsheet", "xlsx"]):
+                signal = f"@XLS:auto:{query}"
+            elif "pdf" in text_lower:
+                signal = f"@PDF:auto:{query}"
+            elif any(kw in text_lower for kw in ["ppt", "presentation", "slides"]):
+                signal = f"@PPT:auto:{query}"
+            elif any(kw in text_lower for kw in ["code", "python", "javascript", "cpp", "program"]):
+                signal = f"@CODE:auto:{query}"
+            else:
+                signal = f"@CREATION:{query}"
+        elif mode == "RETRIEVAL":
+            # Prefer WIKI for knowledge queries
+            signal = f"@WIKI:{query}"
+        else:  # CHAT
+            signal = f"@CHAT:{query}"
         
         # Store in history
         self.signal_history.append({
@@ -252,78 +275,73 @@ Reply with one word only."""
     
     def route_with_reflection(self, query: str, use_llm: bool = True) -> dict:
         """
-        Enhanced routing using Reflective Signal Protocol.
+        Enhanced routing using Signal-Trace Architecture v5.
         
         This method either:
-        1. Uses LLM to generate a reflective response (if use_llm=True and client available)
-        2. Falls back to standard routing with auto-generated reflection
+        1. Uses LLM to generate [THOUGHT]/[SIGNAL] format (if use_llm=True)
+        2. Falls back to standard routing with auto-generated thought trace
         
         Args:
             query: User query
-            use_llm: Whether to use LLM for reflection generation
+            use_llm: Whether to use LLM for thought generation
         
         Returns:
-            Dict with reflection, routes, and routing metadata
+            Dict with thought, signal, and routing metadata
         """
         if use_llm and self.client:
-            # Prompt LLM to generate reflective response
-            reflection_prompt = f"""Analyze this user query and respond with EXACTLY this format:
+            # Prompt LLM to generate Signal-Trace format
+            signal_trace_prompt = f"""Analyze this user query and respond with EXACTLY this format:
 
-<reflection>
-- Intent: [one sentence intent detection]
-- Domain: [GODOT/OFFICE/CPP/PYTHON/JS/JSON/DESKTOP/WIKI/GENERAL]
-- Action: [specific action]
-- Payload: {{"query": "{query[:100]}..."}}
-- Confidence: [high/medium/low]
-</reflection>
-@ROUTE:[DOMAIN]:[action]:{{"query": "{query[:100]}"}}
+[THOUGHT]: [one sentence intent analysis]
+[SIGNAL]: @TYPE:payload
+
+Where @TYPE is one of:
+- @GDT/@XLS/@PDF/@PPT/@CODE for creation tasks
+- @WIKI/@WEB for knowledge queries  
+- @CHAT for greetings/chat
 
 User Query: {query}
 
-Remember: ONLY output the reflection block and route signal. No explanations."""
+Remember: ONLY output [THOUGHT] and [SIGNAL] lines. No explanations."""
             
             try:
                 llm_response = self.client.generate(
-                    [{"role": "user", "content": reflection_prompt}],
-                    max_tokens=500,
-                    temperature=0.1
+                    [{"role": "user", "content": signal_trace_prompt}],
+                    max_tokens=128,
+                    temperature=0.2
                 )
                 
-                # Parse the reflective response
-                parsed = self.parse_reflective_response(llm_response)
-                parsed["query"] = query
-                parsed["method"] = "llm_reflective"
+                # Parse the Signal-Trace response
+                from core.com_core import parse_signal, extract_thought, is_signal
                 
-                return parsed
+                thought = extract_thought(llm_response)
+                if is_signal(llm_response):
+                    prefix, payload = parse_signal(llm_response)
+                    signal = f"{prefix}:{payload}" if payload else prefix
+                    
+                    return {
+                        "thought": thought,
+                        "signal": signal,
+                        "raw_response": llm_response,
+                        "query": query,
+                        "method": "llm_signal_trace"
+                    }
             except Exception as e:
                 # Fallback to standard routing
                 pass
         
-        # Fallback: Generate reflection automatically from standard routing
+        # Fallback: Generate thought automatically from standard routing
         standard_result = self.route(query)
         
-        auto_reflection = {
-            "intent": f"User wants to {standard_result['mode']} operation based on query",
-            "domain": standard_result["mode"],
-            "action": "auto_detected",
-            "payload": {"query": query},
-            "confidence": standard_result["confidence"],
-            "raw_text": f"Auto-generated reflection for: {query}"
-        }
-        
-        auto_route = {
-            "domain": standard_result["mode"],
-            "action": "auto_detected",
-            "payload": {"query": query},
-            "signal": standard_result["signal"]
-        }
+        auto_thought = f"User wants {standard_result['mode']} operation based on keywords"
         
         return {
-            "reflection": auto_reflection,
-            "routes": [auto_route],
-            "errors": [],
+            "thought": auto_thought,
+            "signal": standard_result["signal"],
+            "mode": standard_result["mode"],
+            "confidence": standard_result["confidence"],
             "query": query,
-            "method": "auto_reflective"
+            "method": "auto_signal_trace"
         }
     
     def route_with_wiki(self, query: str) -> dict:
