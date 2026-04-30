@@ -1,1 +1,58 @@
-Nothing should be ignored since the changes only include Python source files (.py) which are legitimate code files.
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Logs
+*.log
+benchmark_output.log
+benchmark_output_v2.log
+benchmark_output_v3.log
+
+# Generated documents
+com_output/
+
+# Environment
+.env
+.env.local
+.env.*
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# Testing
+.pytest_cache/
+.mypy_cache/

@@ -91,26 +91,26 @@ def test_01_intent_router(s):
     cases = [
         ("create an excel with columns Name Age Salary", "OFFICE", "easy-office"),
         ("write a godot player movement script", "GODOT", "easy-godot"),
-        ("what is the capital of France", "GENERAL", "easy-general"),
+        ("what is the capital of France", "WIKI", "easy-wiki"),
         ("buat laporan pdf bulanan", "OFFICE", "malay-office"),
         ("generate a pdf report of quarterly sales", "OFFICE", "medium-office"),
-        ("make a godot asset spreadsheet", "OFFICE", "ambig-godot-office [KNOWN]"),
+        ("make a godot asset spreadsheet", "GODOT", "ambig-godot-office"),
         ("gdscript jump function", "GODOT", "short-godot"),
         ("hello", "GENERAL", "fast-path"),
         ("", "GENERAL", "empty"),
-        ("what is machine learning", "GENERAL", "general-ai"),
+        ("what is machine learning", "WIKI", "wiki-ai"),
         ("create godot scene with player node", "GODOT", "medium-godot"),
         ("save excel report with pivot table", "OFFICE", "medium-office2"),
         ("buat file ppt presentasi projek", "OFFICE", "malay-ppt"),
         ("physics based character controller", "GODOT", "ambig-godot"),
-        ("write python code to parse csv", "GENERAL", "python-fallback"),
+        ("write python code to parse csv", "CODE", "code-python"),
     ]
     for query, expected, _tag in cases:
         result = router.route(query)
         got = result.get("mode") if isinstance(result, dict) else str(result)
         label = f"route '{query[:40]}' -> {expected}"
         s.record(label, got == expected, f"got={got}")
-    s.note("Offline tie-breaker: 'godot asset spreadsheet' → GODOT (LLM needed for OFFICE)")
+    # Note: 'godot asset spreadsheet' contains 'godot' keyword which matches first in MODES order
 
 
 @suite

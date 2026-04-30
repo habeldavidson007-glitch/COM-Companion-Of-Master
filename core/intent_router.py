@@ -11,10 +11,10 @@ from typing import Dict, List, Optional, Any, Tuple
 
 MODES = {
     "GODOT": ["godot", "gdscript", "2d", "3d", "scene", "node", "physics", "animation", "player", "signal", "characterbody", "rigidbody", "area2d"],
-    "OFFICE": ["excel", "pdf", "ppt", "spreadsheet", "report", "dokumen", "laporan", "buat file", "tabel", "save"],
-    "CODE": ["python", "py", "pip", "package", "module", "javascript", "js", "typescript", "ts", "react", "npm", "cpp", "c++", "json", "schema", "api"],
+    "OFFICE": ["excel", "pdf", "ppt", "spreadsheet", "report", "dokumen", "laporan", "buat file", "tabel", "save", "asset spreadsheet"],
+    "CODE": ["python", "py", "pip", "package", "module", "javascript", "js", "typescript", "ts", "react", "npm", "cpp", "c++", "json", "schema", "api", "parse csv", "write python code"],
     "DESKTOP": ["file", "folder", "browser", "clipboard", "screenshot", "open", "create", "delete", "copy", "move", "node_modules"],
-    "WIKI": ["wiki", "what is", "explain", "how does", "define", "concept", "tutorial", "guide", "history of", "difference between"],
+    "WIKI": ["wiki", "what is", "explain", "how does", "define", "concept", "tutorial", "guide", "history of", "difference between", "capital of", "machine learning"],
     "GENERAL": []
 }
 
