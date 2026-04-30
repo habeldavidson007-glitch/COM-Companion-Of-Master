@@ -15,6 +15,7 @@ from typing import Optional, List, Dict, Tuple
 from .intent_router import IntentRouter
 from .context_compressor import ContextCompressor
 from .session_logger import SessionLogger
+from tools.tool_harness import extract_signals, execute_signal, execute_signals_parallel
 
 # Import wiki components for knowledge integration
 try:
@@ -36,11 +37,21 @@ MODES = {
     "GENERAL": []  # fallback
 }
 
+def _keyword_match(text: str, keywords: List[str]) -> bool:
+    """Match keywords using word boundaries for phrase-safe routing."""
+    for k in keywords:
+        pattern = r"\b" + re.escape(k) + r"\b"
+        if re.search(pattern, text):
+            return True
+    return False
+
+
+
 def classify_mode(user_input: str) -> str:
     """Pure Python keyword check for mode detection"""
     text = user_input.lower()
     for mode, keywords in MODES.items():
-        if any(k in text for k in keywords):
+        if _keyword_match(text, keywords):
             return mode
     return "GENERAL"
 
@@ -93,9 +104,9 @@ MODE_OUTPUT_CONTRACTS = {
 }
 
 TOKEN_LIMITS = {
-    "GODOT":   128,
-    "OFFICE":  64,
-    "GENERAL": 256
+    "GODOT":   96,
+    "OFFICE":  48,
+    "GENERAL": 192
 }
 
 TEMPERATURES = {
@@ -105,9 +116,9 @@ TEMPERATURES = {
 }
 
 NUM_CTX_BY_MODE = {
-    "GODOT": 768,
-    "OFFICE": 512,
-    "GENERAL": 1024
+    "GODOT": 512,
+    "OFFICE": 256,
+    "GENERAL": 768
 }
 
 
@@ -143,7 +154,8 @@ VALID_PREFIXES = {"@GDT", "@XLS", "@PDF", "@PPT", "@ERR", "@WIKI", "@WEB", "@CHA
 
 def is_signal(text: str) -> bool:
     """Validate LLM output before passing to harness"""
-    return text.strip()[:4] in VALID_PREFIXES
+    t = text.strip()
+    return any(t.startswith(prefix) for prefix in VALID_PREFIXES)
 
 def parse_signal(text: str) -> Tuple[str, str]:
     """Parse signal into prefix and payload
@@ -196,7 +208,7 @@ class MemoryManager:
 class OllamaClient:
     """Optimized Ollama client for low-RAM systems"""
     
-    def __init__(self, model: str = "qwen2.5:0.5b-instruct-q4_K_M"):
+    def __init__(self, model: str = "smollm2:1.7b-instruct-q4_K_M"):
         self.model = model
         self.base_url = "http://localhost:11434"
         self.timeout = 30
@@ -468,6 +480,78 @@ class COMCore:
             return "• Quick check: do you want Godot code output or a general explanation?"
         return "• Quick check: should I answer generally, or create a file/code output?"
 
+    def _parse_signal_plan(self, text: str) -> List[str]:
+        """Normalize raw router output into a list of executable signals."""
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip().startswith("@")]
+        if not lines:
+            parsed = extract_signals(text)
+            lines = [f"@{tool}:{payload}" for tool, payload in parsed]
+        return lines
+
+    def _execute_signal_plan(self, query: str, signals: List[str]) -> Dict[str, List[str]]:
+        """Execute routed signals through harness adapters and collect outputs."""
+        outputs: List[str] = []
+        errors: List[str] = []
+
+        if len(signals) > 1:
+            parallel_text = " ".join(signals)
+            results = execute_signals_parallel(parallel_text)
+            for result in results:
+                if result.get("success"):
+                    payload = result.get("result", {})
+                    message = payload.get("file_path") or payload.get("tool") or str(payload)
+                    outputs.append(f"✅ {message}")
+                else:
+                    errors.append(result.get("error", "Unknown execution error"))
+            return {"outputs": outputs, "errors": errors}
+
+        for signal in signals:
+            prefix, payload = parse_signal(signal)
+            route = prefix.lstrip("@").upper()
+
+            if route in {"XLS", "PDF", "PPT"}:
+                result = execute_signal(signal)
+                if result.get("success"):
+                    info = result.get("result", {})
+                    outputs.append(f"✅ File generated: {info.get('file_path', 'unknown path')}")
+                else:
+                    errors.append(result.get("error", "Unknown office execution error"))
+            elif route == "GDT":
+                remapped = f"@GODOT:{payload}"
+                result = execute_signal(remapped)
+                if result.get("success"):
+                    info = result.get("result", {})
+                    outputs.append(f"✅ Script generated: {info.get('file_path', 'unknown path')}")
+                else:
+                    errors.append(result.get("error", "Unknown Godot execution error"))
+            elif route == "WIKI":
+                wiki_context = self._try_wiki_retrieval(payload or query)
+                if wiki_context:
+                    outputs.append(wiki_context)
+                else:
+                    errors.append("WIKI retrieval returned no relevant results.")
+            elif route == "CHAT":
+                outputs.append(self._fast_reply_for(self._normalize_query(payload)) or self._fast_reply_text)
+            elif route in {"WEB", "CODE"}:
+                errors.append(f"{route} harness not yet wired in tool_harness.")
+            elif route == "ERR":
+                errors.append(payload or "Router requested clarification.")
+            else:
+                errors.append(f"Unsupported signal route: {route}")
+
+        return {"outputs": outputs, "errors": errors}
+
+    def _aggregate_harness_outputs(self, query: str, signals: List[str], execution: Dict[str, List[str]]) -> str:
+        """Aggregate harness outputs into a single user-facing response."""
+        lines = [f"Query: {query}", "Signal plan:"]
+        lines.extend([f"- {s}" for s in signals])
+        lines.append("Results:")
+        lines.extend([f"- {o}" for o in execution["outputs"]])
+        if execution["errors"]:
+            lines.append("Errors:")
+            lines.extend([f"- {e}" for e in execution["errors"]])
+        return "\n".join(lines)
+
     def _repair_output(self, mode: str, text: str) -> str:
         """Repair common output format drift for OFFICE/GODOT responses."""
         cleaned = text.strip()
@@ -691,38 +775,21 @@ class COMCore:
                     return offline
                 raise ConnectionError("Ollama is not running. Please start 'ollama serve' and ensure the model is installed.")
             
-            # Core policy: OFFICE only needs final signal, so avoid stream callbacks.
-            # GODOT/GENERAL keep token streaming for real-time UX.
-            if mode == "OFFICE":
-                full_response = self.client.generate(
-                    messages,
-                    max_tokens=max_tok,
-                    temperature=temp,
-                    num_ctx=num_ctx
-                )
-            else:
-                full_response = ""
+            # Strict pipeline: LLM is router only and must output signal plans.
+            full_response = self.client.generate(
+                messages,
+                max_tokens=max_tok,
+                temperature=temp,
+                num_ctx=num_ctx
+            )
+            full_response = self._repair_output(mode, full_response)
+            signals = self._parse_signal_plan(full_response)
+            if not signals:
+                full_response = "@ERR:FORMAT:Router produced no valid signal output."
+                signals = [full_response]
 
-                def stream_cb(chunk):
-                    nonlocal full_response
-                    full_response += chunk
-                    if callback:
-                        callback(chunk)
-
-                self.client.generate_stream(
-                    messages,
-                    callback=stream_cb,
-                    max_tokens=max_tok,
-                    temperature=temp,
-                    num_ctx=num_ctx
-                )
-            
-            if mode == "GENERAL":
-                full_response = self._enforce_general_format(full_response)
-            else:
-                full_response = self._repair_output(mode, full_response)
-                if not self._is_valid_mode_output(mode, full_response):
-                    full_response = "@ERR:FORMAT:Please clarify output target (OFFICE signal or GODOT code)."
+            execution = self._execute_signal_plan(query, signals)
+            full_response = self._aggregate_harness_outputs(query, signals, execution)
 
             # PHASE 3: Cache result (OFFICE/GENERAL only, not GODOT scripts that go stale)
             if mode != "GODOT":
