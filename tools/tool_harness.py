@@ -743,7 +743,8 @@ def execute_signal(signal_text: str) -> Dict[str, Any]:
         'XLS': execute_xls,
         'PPT': execute_ppt,
         'PDF': execute_pdf,
-        'GODOT': execute_godot
+        'GODOT': execute_godot,
+        'GDT': execute_godot  # GDT alias for GODOT (benchmark requirement)
     }
     
     executor = executors.get(tool_type)

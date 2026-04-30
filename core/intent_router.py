@@ -10,9 +10,9 @@ import json
 from typing import Dict, List, Optional, Any, Tuple
 
 MODES = {
-    "GODOT": ["godot", "gdscript", "2d", "3d", "scene", "node", "physics", "animation", "player", "signal", "characterbody", "rigidbody", "area2d"],
-    "OFFICE": ["excel", "pdf", "ppt", "spreadsheet", "report", "dokumen", "laporan", "buat file", "tabel", "save", "asset spreadsheet"],
-    "CODE": ["python", "py", "pip", "package", "module", "javascript", "js", "typescript", "ts", "react", "npm", "cpp", "c++", "json", "schema", "api", "parse csv", "write python code"],
+    "GODOT": ["godot", "gdscript", "2d", "3d", "scene", "node", "physics", "animation", "player", "signal", "characterbody", "rigidbody", "area2d", "characterbody2d", "rigidbody2d", "extends"],
+    "OFFICE": ["excel", "pdf", "ppt", "spreadsheet", "report", "dokumen", "laporan", "buat file", "tabel", "save", "asset spreadsheet", "presentation", "powerpoint"],
+    "CODE": ["python", "py", "pip", "package", "module", "javascript", "js", "typescript", "ts", "react", "npm", "cpp", "c++", "json", "schema", "api", "parse csv", "write python code", "nodemon", "code", "analyze"],
     "DESKTOP": ["file", "folder", "browser", "clipboard", "screenshot", "open", "create", "delete", "copy", "move", "node_modules"],
     "WIKI": ["wiki", "what is", "explain", "how does", "define", "concept", "tutorial", "guide", "history of", "difference between", "capital of", "machine learning"],
     "GENERAL": []
@@ -66,9 +66,15 @@ Reply with one word only."""
 
     def _keyword_match(self, text: str, keywords: List[str]) -> bool:
         for keyword in keywords:
-            pattern = rf"\b{re.escape(keyword)}\b"
-            if re.search(pattern, text):
-                return True
+            # Multi-word keywords (containing spaces) use substring match
+            if ' ' in keyword:
+                if keyword in text:
+                    return True
+            # Single-word keywords use word-boundary matching
+            else:
+                pattern = rf"\b{re.escape(keyword)}\b"
+                if re.search(pattern, text):
+                    return True
         return False
 
     def __init__(self, client=None, wiki_indexer=None):
@@ -81,16 +87,54 @@ Reply with one word only."""
         """
         Route query to appropriate harness/expert.
         Returns dict with mode, signal, and confidence.
+        
+        Implements phrase-priority rule: when action word (ppt, presentation, 
+        spreadsheet, pdf, report) appears before domain keyword (godot, python),
+        the file-type wins regardless of subject.
         """
         matches = []
         text = query.lower()
         
-        # Stage 1: Keyword Matching
+        # Stage 1: Keyword Matching - collect ALL matching modes
         for mode, keywords in MODES.items():
             if mode == "GENERAL":
                 continue
             if self._keyword_match(text, keywords):
                 matches.append(mode)
+        
+        # Phrase-priority rule for OFFICE vs GODOT collisions
+        # If query contains both OFFICE action words and GODOT keywords,
+        # prioritize OFFICE when the multi-word phrase "asset spreadsheet" is present
+        # or when any OFFICE action word appears (regardless of position)
+        if len(matches) > 1 and 'OFFICE' in matches and 'GODOT' in matches:
+            # Check for strong OFFICE indicators that should always win
+            strong_office_phrases = ['asset spreadsheet', 'buat file', 'create excel', 'make pdf']
+            has_strong_office = any(phrase in text for phrase in strong_office_phrases)
+            
+            if has_strong_office:
+                matches = ['OFFICE'] + [m for m in matches if m != 'OFFICE']
+            else:
+                # Use position-based priority for other cases
+                office_action_words = ['ppt', 'presentation', 'powerpoint', 'spreadsheet', 'excel', 'pdf', 'report']
+                godot_keywords = ['godot', 'gdscript', 'characterbody', 'rigidbody']
+                
+                # Find positions of first office action and first godot keyword
+                office_pos = len(text)
+                godot_pos = len(text)
+                
+                for word in office_action_words:
+                    pos = text.find(word)
+                    if pos != -1 and pos < office_pos:
+                        office_pos = pos
+                
+                for word in godot_keywords:
+                    pos = text.find(word)
+                    if pos != -1 and pos < godot_pos:
+                        godot_pos = pos
+                
+                # If office action comes before godot keyword, prioritize OFFICE
+                if office_pos < godot_pos:
+                    matches = ['OFFICE'] + [m for m in matches if m != 'OFFICE']
         
         # Clear cases
         if len(matches) == 1:

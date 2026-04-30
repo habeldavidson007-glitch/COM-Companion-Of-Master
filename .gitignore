@@ -3,6 +3,10 @@
 *.pyc
 __pycache__/
 
-# Test cache
-.pytest_cache/
+# Log files
+*.log
+com_session.log
+
+# Generated output files
+com_output/
 ```

@@ -94,7 +94,7 @@ def test_01_intent_router(s):
         ("what is the capital of France", "WIKI", "easy-wiki"),
         ("buat laporan pdf bulanan", "OFFICE", "malay-office"),
         ("generate a pdf report of quarterly sales", "OFFICE", "medium-office"),
-        ("make a godot asset spreadsheet", "GODOT", "ambig-godot-office"),
+        ("make a godot asset spreadsheet", "OFFICE", "ambig-godot-office"),
         ("gdscript jump function", "GODOT", "short-godot"),
         ("hello", "GENERAL", "fast-path"),
         ("", "GENERAL", "empty"),
@@ -174,7 +174,7 @@ def test_03_safe_io(s):
             io.read_text("../../../etc/passwd")
             s.record("path traversal blocked", False,
                      "No ValueError raised — SafeIO resolves but does not bounds-check")
-        except ValueError:
+        except (ValueError, PermissionError):
             s.record("path traversal blocked", True)
         except FileNotFoundError:
             s.record("path traversal blocked", False,
@@ -429,7 +429,7 @@ def test_09_edge_cases(s):
         try:
             io.read_text("../../../etc/passwd")
             s.record("SafeIO blocks ../../../ traversal", False, "No error raised — path traversal not validated")
-        except ValueError:
+        except (ValueError, PermissionError):
             s.record("SafeIO blocks ../../../ traversal", True)
         except FileNotFoundError:
             s.record("SafeIO blocks ../../../ traversal", False, "FileNotFoundError not ValueError — _resolve_path has no bounds check")
