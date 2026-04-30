@@ -2,20 +2,60 @@
 COM SGMA LIGHT - PDF Tool
 =========================
 Phase 2b: Actual fpdf-based PDF generation with Unicode support.
+Includes professional templates with design tokens for consistent branding.
 """
 
 from fpdf import FPDF
 import os
 
 
-def run(payload: str) -> str:
+# Design tokens - COM SGMA LIGHT brand palette
+DESIGN_TOKENS = {
+    "colors": {
+        "primary": "#1a5f3c",      # Emerald green - primary actions, headers
+        "secondary": "#0d3d26",    # Dark emerald - accents, borders
+        "accent": "#ffb1ee",       # Soft pink - highlights, CTAs
+        "background": "#ffffff",   # White - page background
+        "surface": "#f8f9fa",      # Light gray - content blocks
+        "text_primary": "#1a1a1a", # Near black - main text
+        "text_secondary": "#666666", # Gray - secondary text
+        "border": "#e0e0e0",       # Light border
+    },
+    "typography": {
+        "heading_font": "Helvetica",  # Clean sans-serif for headings
+        "body_font": "FreeSerif",     # Unicode serif for body (better readability)
+        "mono_font": "DejaVuSansMono", # Code/technical text
+    },
+    "spacing": {
+        "xs": 4,
+        "sm": 8,
+        "md": 16,
+        "lg": 24,
+        "xl": 32,
+    },
+    "borders": {
+        "radius_sm": 2,
+        "radius_md": 4,
+        "radius_lg": 8,
+    }
+}
+
+
+def run(payload: str, template: str = "default") -> str:
     """
     Payload format: filename:content text
     Example: Report:This is the Q3 summary content
-
+    
+    Templates available:
+    - default: Clean professional document
+    - report: Business report with header/footer
+    - memo: Internal memo format
+    - minimal: Sparse, focused content
+    
     Args:
         payload: String containing filename and content
-
+        template: Template style to apply
+    
     Returns:
         Status string
     """
@@ -23,17 +63,18 @@ def run(payload: str) -> str:
         parts = payload.split(":", 1)
         filename = parts[0].strip() if parts[0] else "output"
         content = parts[1].strip() if len(parts) > 1 else ""
-
+        
         pdf = FPDF()
+        pdf.set_margin(15)
         pdf.add_page()
-        # Use font with best Unicode coverage for the content
-        # FreeSerif has excellent coverage for Latin, Arabic, Thai, Cyrillic, Greek
-        # For CJK, we use a fallback approach since no single font covers everything
+        
+        # Select font based on template and Unicode support needs
         font_paths = [
-            '/usr/share/fonts/truetype/freefont/FreeSerif.ttf',  # Best overall Unicode coverage
-            '/usr/share/fonts/opentype/unifont/unifont_jp.otf',  # Good CJK coverage
-            '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',      # CJK font
-            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',   # Good Latin/Cyrillic/Greek
+            '/usr/share/fonts/truetype/freefont/FreeSerif.ttf',
+            '/usr/share/fonts/opentype/unifont/unifont_jp.otf',
+            '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf',
         ]
         font_path = None
         for fp in font_paths:
@@ -45,15 +86,142 @@ def run(payload: str) -> str:
             pdf.add_font('UnicodeFont', '', font_path, uni=True)
             pdf.set_font('UnicodeFont', size=12)
         else:
-            # Last resort fallback
             pdf.add_font('DejaVu', '', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', uni=True)
             pdf.set_font('DejaVu', size=12)
         
-        pdf.multi_cell(0, 10, content)
-
+        # Apply template styling
+        if template == "report":
+            _render_report_template(pdf, content, DESIGN_TOKENS)
+        elif template == "memo":
+            _render_memo_template(pdf, content, DESIGN_TOKENS)
+        elif template == "minimal":
+            _render_minimal_template(pdf, content, DESIGN_TOKENS)
+        else:  # default
+            _render_default_template(pdf, content, DESIGN_TOKENS)
+        
         path = f"{filename}.pdf"
         pdf.output(path)
-        return f"✅ PDF created: {path}"
-
+        return f"✅ PDF created: {path} ({template} template)"
+    
     except Exception as e:
         return f"❌ PDF failed: {str(e)}"
+
+
+def _render_default_template(pdf: FPDF, content: str, tokens: dict) -> None:
+    """Clean professional document with subtle branding."""
+    colors = tokens["colors"]
+    
+    # Header bar
+    pdf.set_fill_color(*_hex_to_rgb(colors["primary"]))
+    pdf.rect(0, 0, 210, 12, style="F")
+    
+    # Title
+    pdf.set_text_color(*_hex_to_rgb(colors["background"]))
+    pdf.set_font_size(10)
+    pdf.cell(0, 8, "COM SGMA LIGHT Document", align="R")
+    
+    # Content area
+    pdf.ln(20)
+    pdf.set_text_color(*_hex_to_rgb(colors["text_primary"]))
+    pdf.set_font_size(12)
+    pdf.multi_cell(0, 8, content)
+    
+    # Footer
+    pdf.set_y(-15)
+    pdf.set_font_size(8)
+    pdf.set_text_color(*_hex_to_rgb(colors["text_secondary"]))
+    pdf.cell(0, 8, f"Generated by COM SGMA LIGHT", align="C")
+
+
+def _render_report_template(pdf: FPDF, content: str, tokens: dict) -> None:
+    """Business report with header, sections, and footer."""
+    colors = tokens["colors"]
+    
+    # Header with logo area
+    pdf.set_fill_color(*_hex_to_rgb(colors["primary"]))
+    pdf.rect(0, 0, 210, 25, style="F")
+    
+    # Accent line
+    pdf.set_fill_color(*_hex_to_rgb(colors["accent"]))
+    pdf.rect(0, 25, 210, 3, style="F")
+    
+    # Report title
+    pdf.set_y(8)
+    pdf.set_text_color(*_hex_to_rgb(colors["background"]))
+    pdf.set_font_size(16)
+    pdf.cell(0, 10, "BUSINESS REPORT", align="C")
+    
+    # Content
+    pdf.ln(25)
+    pdf.set_text_color(*_hex_to_rgb(colors["text_primary"]))
+    pdf.set_font_size(11)
+    
+    # Split content into paragraphs
+    paragraphs = content.split("\n\n")
+    for para in paragraphs:
+        if para.strip():
+            pdf.multi_cell(0, 7, para.strip())
+            pdf.ln(3)
+    
+    # Footer with page info
+    pdf.set_y(-20)
+    pdf.set_fill_color(*_hex_to_rgb(colors["surface"]))
+    pdf.rect(0, pdf.get_y(), 210, 20, style="F")
+    pdf.set_font_size(9)
+    pdf.set_text_color(*_hex_to_rgb(colors["text_secondary"]))
+    pdf.cell(0, 10, "CONFIDENTIAL - Generated by COM SGMA LIGHT", align="C")
+
+
+def _render_memo_template(pdf: FPDF, content: str, tokens: dict) -> None:
+    """Internal memo format with TO/FROM/SUBJECT fields."""
+    colors = tokens["colors"]
+    from datetime import date
+    
+    # Memo header
+    pdf.set_text_color(*_hex_to_rgb(colors["text_primary"]))
+    pdf.set_font_size(14)
+    pdf.cell(0, 10, "INTERNAL MEMORANDUM", align="C")
+    pdf.ln(12)
+    
+    # Memo meta lines
+    pdf.set_font_size(11)
+    pdf.set_text_color(*_hex_to_rgb(colors["text_secondary"]))
+    pdf.cell(30, 8, "TO:", border=0)
+    pdf.cell(0, 8, "[Recipient]")
+    pdf.ln()
+    pdf.cell(30, 8, "FROM:", border=0)
+    pdf.cell(0, 8, "[Sender]")
+    pdf.ln()
+    pdf.cell(30, 8, "DATE:", border=0)
+    pdf.cell(0, 8, date.today().strftime("%Y-%m-%d"))
+    pdf.ln()
+    pdf.cell(30, 8, "SUBJECT:", border=0)
+    pdf.cell(0, 8, "[Subject Line]")
+    pdf.ln(10)
+    
+    # Divider
+    pdf.set_draw_color(*_hex_to_rgb(colors["border"]))
+    pdf.line(15, pdf.get_y(), 195, pdf.get_y())
+    pdf.ln(8)
+    
+    # Body
+    pdf.set_text_color(*_hex_to_rgb(colors["text_primary"]))
+    pdf.set_font_size(11)
+    pdf.multi_cell(0, 7, content)
+
+
+def _render_minimal_template(pdf: FPDF, content: str, tokens: dict) -> None:
+    """Sparse, focused content with maximum whitespace."""
+    colors = tokens["colors"]
+    
+    # Just content, centered vertically
+    pdf.ln(40)
+    pdf.set_text_color(*_hex_to_rgb(colors["text_primary"]))
+    pdf.set_font_size(12)
+    pdf.multi_cell(0, 9, content)
+
+
+def _hex_to_rgb(hex_color: str) -> tuple:
+    """Convert hex color to RGB tuple for FPDF."""
+    hex_color = hex_color.lstrip('#')
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
