@@ -641,7 +641,10 @@ class COMCore:
             # FIX: Integration Gap - Check wiki for knowledge queries BEFORE routing
             wiki_context = self._try_wiki_retrieval(query)
             
-            top_mode, mode, route_conf = self._route_with_confidence(normalized_query, query)
+            router_result = self.router.route_mode(query)
+            top_mode = router_result.get("top_mode", "GENERAL")
+            mode = router_result.get("mode", "GENERAL")
+            route_conf = 0.45 if len(normalized_query.split()) >= 5 else 0.3
             if route_conf < 0.35:
                 clarification = self._clarification_question(mode)
                 if callback:
@@ -660,8 +663,8 @@ class COMCore:
                 self.logger.log(mode, query, cached, cache_hit, elapsed_ms)
                 return cached
             
-            # PHASE 2: Build SoT prompt
-            mode_runtime = "GENERAL" if top_mode == "GENERAL" else ("OFFICE" if mode == "OFFICE" else "GODOT")
+            # PHASE 2: Build SoT prompt (top-level mode compatibility mapping)
+            mode_runtime = "GENERAL" if top_mode in {"GENERAL", "KNOWLEDGE"} else ("OFFICE" if mode == "OFFICE" else "GODOT")
             system = SYSTEM_PROMPTS[mode_runtime]
             max_tok = min(TOKEN_LIMITS[mode_runtime], MAX_TOKENS_2GB)
             temp = TEMPERATURES[mode_runtime]
@@ -732,6 +735,11 @@ class COMCore:
                 if not self._is_valid_mode_output(mode_runtime, full_response):
                     full_response = "@ERR:FORMAT:Please clarify output target (OFFICE signal or GODOT code)."
 
+            # Strict signal pipeline for EXECUTE top-mode:
+            # parse signal plan -> execute via harness -> aggregate outputs
+            if top_mode == "EXECUTE":
+                full_response = self._execute_signal_plan(full_response)
+
             # PHASE 3: Cache result (OFFICE/GENERAL only, not GODOT scripts that go stale)
             if mode != "GODOT":
                 self.cache.set(mode, query, full_response)
@@ -771,6 +779,38 @@ class COMCore:
         
         finally:
             self.is_processing = False
+
+    def _execute_signal_plan(self, llm_output: str) -> str:
+        """Execute planned signals and aggregate harness outputs."""
+        if llm_output.strip().startswith("@ERR:"):
+            return llm_output.strip()
+        try:
+            from tools.tool_harness import extract_signals, execute_signal
+        except Exception:
+            return "@ERR:HARNESS_IMPORT:tool_harness unavailable"
+
+        signals = extract_signals(llm_output)
+        if not signals:
+            if is_signal(llm_output):
+                prefix, payload = parse_signal(llm_output)
+                if prefix == "@ERR":
+                    return llm_output.strip()
+                signal = f"{prefix}:{payload}" if payload else prefix
+                result = execute_signal(signal)
+                if result.get("success"):
+                    return str(result.get("result", result))
+                return f"@ERR:HARNESS:{result.get('error', 'execution failed')}"
+            return "@ERR:FORMAT:No valid signal found in planner output."
+
+        outputs = []
+        for tool, payload in signals:
+            signal = f"@{tool}:{payload}"
+            result = execute_signal(signal)
+            if result.get("success"):
+                outputs.append(str(result.get("result", result)))
+            else:
+                outputs.append(f"@ERR:HARNESS:{tool}:{result.get('error', 'execution failed')}")
+        return "\n".join(outputs)
     
     def clear_memory(self):
         """Clear conversation history"""
