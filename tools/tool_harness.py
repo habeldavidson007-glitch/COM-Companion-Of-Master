@@ -86,10 +86,12 @@ class FilePathManager:
         
         with self._lock:
             if not os.path.exists(candidate_path):
+                fd = os.open(candidate_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
                 return candidate_path
             
             # Collision detected: add timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
             candidate_path = os.path.join(self.base_dir, f"{base_name}_{timestamp}{extension}")
             
             # Ensure uniqueness even with same-second requests
@@ -98,8 +100,14 @@ class FilePathManager:
                 counter += 1
                 candidate_path = os.path.join(self.base_dir, f"{base_name}_{timestamp}_{counter}{extension}")
             
+            fd = os.open(candidate_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
             return candidate_path
     
+    def mark_written(self, path: str):
+        """Backward-compatible no-op; file already atomically reserved."""
+        return None
+
     def resolve_path(self, relative_path: str) -> str:
         """Convert relative path to absolute path."""
         if os.path.isabs(relative_path):
@@ -328,7 +336,7 @@ class PayloadValidator:
         Validate XLS payload format: filename:col1,col2,col3
         Returns (is_valid, error_message)
         """
-        parts = payload.split(':')
+        parts = payload.split(':', 1)
         if len(parts) != 2:
             return False, "XLS payload must be 'filename:col1,col2,col3'"
         
@@ -351,7 +359,7 @@ class PayloadValidator:
         Validate PPT payload format: filename:slide1|slide2|slide3
         Returns (is_valid, error_message)
         """
-        parts = payload.split(':')
+        parts = payload.split(':', 1)
         if len(parts) != 2:
             return False, "PPT payload must be 'filename:slide1|slide2|slide3'"
         
@@ -393,7 +401,7 @@ class PayloadValidator:
         Validate GODOT payload format: template_name:config_json_or_params
         Returns (is_valid, error_message)
         """
-        parts = payload.split(':')
+        parts = payload.split(':', 1)
         if len(parts) < 2:
             return False, "GODOT payload must be 'template_name:params'"
         
@@ -572,6 +580,7 @@ def execute_ppt(payload: str) -> Dict[str, Any]:
         
         # Save presentation
         prs.save(file_path)
+        file_manager.mark_written(file_path)
         
         return {
             'tool': 'PPT',
@@ -604,6 +613,7 @@ def execute_pdf(payload: str) -> Dict[str, Any]:
         
         # Save PDF
         pdf.output(file_path)
+        file_manager.mark_written(file_path)
         
         return {
             'tool': 'PDF',
@@ -638,6 +648,7 @@ func _ready():
         # Write script
         with open(file_path, 'w') as f:
             f.write(script_content)
+        file_manager.mark_written(file_path)
         
         return {
             'tool': 'GODOT',
@@ -651,11 +662,28 @@ func _ready():
 # SIGNAL DETECTION & ROUTING
 # =============================================================================
 
+TOKEN_SIGNALS = {"XLS", "PPT", "GDT", "ERR", "GODOT"}
+TEXT_SIGNALS = {"PDF", "WIKI", "WEB", "CHAT", "CODE", "PY", "CPP", "JS", "JSON"}
+
 def extract_signals(text: str) -> List[Tuple[str, str]]:
-    """Extract all signals from text in format @TOOL:payload"""
-    pattern = r'@(\w+):([^\s@]+)'
-    matches = re.findall(pattern, text)
-    return [(tool.upper(), payload) for tool, payload in matches]
+    """Extract all signals from text in format @TOOL:payload."""
+    results: List[Tuple[str, str]] = []
+
+    for m in re.finditer(r'@([A-Z]+):([^\s@]+)', text):
+        tool = m.group(1).upper()
+        if tool in TOKEN_SIGNALS:
+            payload = m.group(2).strip()
+            if payload:
+                results.append((tool, payload))
+
+    for m in re.finditer(r'@([A-Z]+):(.+?)(?=\s*@[A-Z]+:|\s*$)', text, re.DOTALL):
+        tool = m.group(1).upper()
+        if tool in TEXT_SIGNALS:
+            payload = m.group(2).strip()
+            if payload:
+                results.append((tool, payload))
+
+    return results
 
 def has_signals(text: str) -> bool:
     """Check if text contains any tool signals."""

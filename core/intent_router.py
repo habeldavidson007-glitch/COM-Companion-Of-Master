@@ -10,20 +10,11 @@ import json
 from typing import Dict, List, Optional, Any, Tuple
 
 MODES = {
-    "GODOT":  ["godot", "gdscript", "game", "scene", "node",
-               "physics", "animation", "player", "asset"],
-    "OFFICE": ["excel", "pdf", "ppt", "spreadsheet", "report",
-               "dokumen", "laporan", "buat file", "tabel", "save"],
-    "CPP":    ["c++", "cpp", "cplusplus", "header", "cmake", 
-               "smart pointer", "template", "std::"],
-    "PYTHON": ["python", "py", "pip", "package", "module"],
-    "JAVASCRIPT": ["javascript", "js", "typescript", "ts", "react", 
-                   "node", "npm", "browser", "dom", "async", "web"],
-    "JSON":   ["json", "schema", "parse json", "validate json", "api response"],
-    "DESKTOP":["file", "folder", "browser", "clipboard", "screenshot",
-               "open", "create", "delete", "copy", "move"],
-    "WIKI":   ["wiki", "knowledge", "document", "explain", "concept",
-               "what is", "how to", "tutorial", "guide"],
+    "GODOT": ["godot", "gdscript", "2d", "3d", "scene", "node", "physics", "animation", "player", "signal", "characterbody", "rigidbody", "area2d"],
+    "OFFICE": ["excel", "pdf", "ppt", "spreadsheet", "report", "dokumen", "laporan", "buat file", "tabel", "save"],
+    "CODE": ["python", "py", "pip", "package", "module", "javascript", "js", "typescript", "ts", "react", "npm", "cpp", "c++", "json", "schema", "api"],
+    "DESKTOP": ["file", "folder", "browser", "clipboard", "screenshot", "open", "create", "delete", "copy", "move", "node_modules"],
+    "WIKI": ["wiki", "what is", "explain", "how does", "define", "concept", "tutorial", "guide", "history of", "difference between"],
     "GENERAL": []
 }
 
@@ -31,12 +22,19 @@ MODES = {
 SIGNAL_PREFIXES = {
     "GODOT": "@GODOT:",
     "OFFICE": "@OFFICE:",
-    "CPP": "@CPP:",
-    "PYTHON": "@PYTHON:",
-    "JAVASCRIPT": "@JS:",
-    "JSON": "@JSON:",
+    "CODE": "@CODE:",
     "DESKTOP": "@DESK:",
     "WIKI": "@WIKI:"
+}
+
+
+TOP_LEVEL_MODE_MAP = {
+    "GODOT": "EXECUTE",
+    "OFFICE": "EXECUTE",
+    "CODE": "EXECUTE",
+    "DESKTOP": "EXECUTE",
+    "WIKI": "KNOWLEDGE",
+    "GENERAL": "GENERAL",
 }
 
 
@@ -50,7 +48,7 @@ class IntentRouter:
     """
     
     AMBIGUOUS_THRESHOLD = 2
-    ROUTER_PROMPT = """Classify this input into exactly one word: GODOT, OFFICE, CPP, PYTHON, JAVASCRIPT, JSON, DESKTOP, WIKI, or GENERAL.
+    ROUTER_PROMPT = """Classify this input into exactly one word: GODOT, OFFICE, CODE, DESKTOP, WIKI, or GENERAL.
 Input: {query}
 Reply with one word only."""
     
@@ -65,6 +63,13 @@ Reply with one word only."""
         r'@ROUTE:([A-Z]+):([a-zA-Z_]+):(.+?)(?=\n@ROUTE:|\n*$)',
         re.DOTALL
     )
+
+    def _keyword_match(self, text: str, keywords: List[str]) -> bool:
+        for keyword in keywords:
+            pattern = rf"\b{re.escape(keyword)}\b"
+            if re.search(pattern, text):
+                return True
+        return False
 
     def __init__(self, client=None, wiki_indexer=None):
         self.client = client
@@ -84,7 +89,7 @@ Reply with one word only."""
         for mode, keywords in MODES.items():
             if mode == "GENERAL":
                 continue
-            if any(k in text for k in keywords):
+            if self._keyword_match(text, keywords):
                 matches.append(mode)
         
         # Clear cases
@@ -137,6 +142,20 @@ Reply with one word only."""
             "matches": matches if len(matches) > 1 else []
         }
     
+    def route_mode(self, query: str) -> dict:
+        """Route query with top-level contract mode (EXECUTE/KNOWLEDGE/GENERAL)."""
+        route_result = self.route(query)
+        mode = route_result.get("mode", "GENERAL")
+        top_mode = TOP_LEVEL_MODE_MAP.get(mode, "GENERAL")
+        return {
+            "top_mode": top_mode,
+            "mode": mode,
+            "signal": route_result.get("signal", ""),
+            "confidence": route_result.get("confidence", "low"),
+            "matches": route_result.get("matches", []),
+            "route": route_result,
+        }
+
     def parse_reflective_response(self, llm_response: str) -> dict:
         """
         Parse LLM response containing <reflection> block and @ROUTE signals.
