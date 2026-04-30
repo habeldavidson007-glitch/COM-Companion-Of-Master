@@ -102,19 +102,24 @@ Concepts:"""
         matches = re.findall(pattern, content)
         return matches
 
-    def compile_file(self, raw_path: str) -> Optional[Dict[str, Any]]:
-        """Compile a single raw file into wiki format."""
+    def compile_file(self, raw_path: str, force: bool = False) -> Optional[Dict[str, Any]]:
+        """Compile a single raw file into wiki format.
+        
+        Args:
+            raw_path: Path to the raw file
+            force: If True, force recompilation even if up-to-date
+        """
         if not self.io.exists(raw_path):
             return None
 
-        # Check if already compiled and newer
+        # Check if already compiled and newer (skip if not forcing)
         filename = Path(raw_path).name
         wiki_path = f"{self.wiki_dir}/{Path(raw_path).stem}.md"
 
         raw_mtime = self.io.get_mtime(raw_path)
         wiki_mtime = self.io.get_mtime(wiki_path) if self.io.exists(wiki_path) else 0
 
-        if wiki_mtime > raw_mtime:
+        if not force and wiki_mtime > raw_mtime:
             print(f"Skipping {filename} (already up-to-date)")
             return None
 
@@ -197,7 +202,8 @@ Concepts:"""
         print(f"Found {len(raw_files)} raw files to process")
 
         for raw_path in raw_files:
-            result = self.compile_file(raw_path) if incremental else self.compile_file(raw_path)
+            # Force recompile when incremental=False (benchmark fix)
+            result = self.compile_file(raw_path, force=not incremental)
             if result:
                 results.append(result)
 

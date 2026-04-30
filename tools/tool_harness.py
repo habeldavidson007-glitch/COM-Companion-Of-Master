@@ -220,6 +220,8 @@ class ToolHealthChecker:
             'PDF': self._check_pdf_tool(),
             'GODOT': self._check_godot_tool()
         }
+        # Add GDT as an alias for GODOT (benchmark requirement)
+        self.tool_status['GDT'] = self.tool_status['GODOT'].copy()
     
     def _check_excel_tool(self) -> Dict[str, Any]:
         """Check if Excel tool dependencies are available."""
@@ -741,7 +743,8 @@ def execute_signal(signal_text: str) -> Dict[str, Any]:
         'XLS': execute_xls,
         'PPT': execute_ppt,
         'PDF': execute_pdf,
-        'GODOT': execute_godot
+        'GODOT': execute_godot,
+        'GDT': execute_godot  # GDT alias for GODOT (benchmark requirement)
     }
     
     executor = executors.get(tool_type)

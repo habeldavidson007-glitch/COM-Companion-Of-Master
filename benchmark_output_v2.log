@@ -1,0 +1,235 @@
+OpenBLAS WARNING - could not determine the L2 cache size on this system, assuming 256k
+Traceback (most recent call last):
+  File "/workspace/tools/safe_io.py", line 48, in _resolve_path
+    resolved.relative_to(base_resolved)
+  File "/usr/local/lib/python3.12/pathlib.py", line 682, in relative_to
+    raise ValueError(f"{str(self)!r} is not in the subpath of {str(other)!r}")
+ValueError: '/etc/passwd' is not in the subpath of '/tmp/tmpy_xp2p52'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/benchmark.py", line 589, in <module>
+    fn()
+  File "/workspace/benchmark.py", line 79, in wrapped
+    fn(sr)
+  File "/workspace/benchmark.py", line 174, in test_03_safe_io
+    io.read_text("../../../etc/passwd")
+  File "/workspace/tools/safe_io.py", line 71, in read_text
+    file_path = self._resolve_path(path)
+                ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/tools/safe_io.py", line 51, in _resolve_path
+    raise PermissionError(f"Path traversal detected: {path} is outside base directory {self.base_dir}")
+PermissionError: Path traversal detected: ../../../etc/passwd is outside base directory /tmp/tmpy_xp2p52
+Traceback (most recent call last):
+  File "/workspace/tools/safe_io.py", line 48, in _resolve_path
+    resolved.relative_to(base_resolved)
+  File "/usr/local/lib/python3.12/pathlib.py", line 682, in relative_to
+    raise ValueError(f"{str(self)!r} is not in the subpath of {str(other)!r}")
+ValueError: '/etc/passwd' is not in the subpath of '/tmp/tmpkls3imvq'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/benchmark.py", line 589, in <module>
+    fn()
+  File "/workspace/benchmark.py", line 79, in wrapped
+    fn(sr)
+  File "/workspace/benchmark.py", line 430, in test_09_edge_cases
+    io.read_text("../../../etc/passwd")
+  File "/workspace/tools/safe_io.py", line 71, in read_text
+    file_path = self._resolve_path(path)
+                ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/tools/safe_io.py", line 51, in _resolve_path
+    raise PermissionError(f"Path traversal detected: {path} is outside base directory {self.base_dir}")
+PermissionError: Path traversal detected: ../../../etc/passwd is outside base directory /tmp/tmpkls3imvq
+[1m[36mCOM v3 — Benchmark Suite[0m
+[2m10 suites · ~127 assertions · mirrors Claude's benchmark methodology[0m
+[1m[36m------------------------------------------------------------[0m
+[1m01 Intent Router[0m
+[1m[36m------------------------------------------------------------[0m
+[32mPASS[0m  route 'create an excel with columns Name Age Sa' -> OFFICE
+[32mPASS[0m  route 'write a godot player movement script' -> GODOT
+[31mFAIL[0m  route 'what is the capital of France' -> GENERAL [2mgot=WIKI[0m
+[32mPASS[0m  route 'buat laporan pdf bulanan' -> OFFICE
+[32mPASS[0m  route 'generate a pdf report of quarterly sales' -> OFFICE
+[31mFAIL[0m  route 'make a godot asset spreadsheet' -> OFFICE [2mgot=GODOT[0m
+[32mPASS[0m  route 'gdscript jump function' -> GODOT
+[32mPASS[0m  route 'hello' -> GENERAL
+[32mPASS[0m  route '' -> GENERAL
+[31mFAIL[0m  route 'what is machine learning' -> GENERAL [2mgot=WIKI[0m
+[32mPASS[0m  route 'create godot scene with player node' -> GODOT
+[32mPASS[0m  route 'save excel report with pivot table' -> OFFICE
+[32mPASS[0m  route 'buat file ppt presentasi projek' -> OFFICE
+[32mPASS[0m  route 'physics based character controller' -> GODOT
+[31mFAIL[0m  route 'write python code to parse csv' -> GENERAL [2mgot=CODE[0m
+[36mINFO[0m  Offline tie-breaker: 'godot asset spreadsheet' → GODOT (LLM needed for OFFICE)
+[33mScore: 11/15 (73.3%)[0m
+[1m[36m------------------------------------------------------------[0m
+[1m02 Signal Parser[0m
+[1m[36m------------------------------------------------------------[0m
+[32mPASS[0m  parse (valid xls)
+[32mPASS[0m  parse (valid pdf)
+[32mPASS[0m  parse (valid ppt)
+[32mPASS[0m  parse (multi-signal)
+[32mPASS[0m  parse (no signals)
+[32mPASS[0m  parse (empty string)
+[32mPASS[0m  parse (godot long-form signal)
+[32mPASS[0m  parse (embedded signal)
+[32mPASS[0m  parse (gdt signal token)
+[32mPASS[0m  parse (three signals)
+[32mPASS[0m  parse (err signal)
+[32mPASS[0m  parse (many-@ prefix rejected)
+[32mPASS[0m  has_signals('@XLS:f:A')
+[32mPASS[0m  has_signals no signal
+[36mINFO[0m  double-@@ finds embedded XLS: True (by-design, regex not anchored)
+[36mINFO[0m  GAP: @XLS::empty accepted as valid — regex allows ':empty' as payload
+[32mScore: 14/14 (100.0%)[0m
+[1m[36m------------------------------------------------------------[0m
+[1m03 Safe Io[0m
+[1m[36m------------------------------------------------------------[0m
+[32mPASS[0m  write_text / read_text
+[32mPASS[0m  write_json / read_json
+[32mPASS[0m  exists() — present
+[32mPASS[0m  exists() — absent
+[32mPASS[0m  ensure_dir + nested write
+[32mPASS[0m  list_files returns written file
+[32mPASS[0m  get_mtime > 0
+[32mPASS[0m  missing file raises FileNotFoundError
+[31mSUITE CRASHED: Path traversal detected: ../../../etc/passwd is outside base directory /tmp/tmpy_xp2p52[0m
+[1m[36m------------------------------------------------------------[0m
+[1m04 Wiki Indexer[0m
+[1m[36m------------------------------------------------------------[0m
+[32mPASS[0m  3 docs indexed
+[32mPASS[0m  concepts tracked
+[32mPASS[0m  last_updated set
+[32mPASS[0m  concept lookup: 2+ godot docs
+[32mPASS[0m  backlink fix: get_backlinks returns results
+[32mPASS[0m  backlink fix: correct source in result
+[32mPASS[0m  persistence: reload sees 3 docs
+[32mPASS[0m  find_orphans returns list
+[32mScore: 8/8 (100.0%)[0m
+[1m[36m------------------------------------------------------------[0m
+[1m05 Wiki Retriever[0m
+[1m[36m------------------------------------------------------------[0m
+[32mPASS[0m  5 docs loaded
+[32mPASS[0m  IDF computed
+[32mPASS[0m  godot query returns godot docs first
+[32mPASS[0m  python query returns python doc
+[32mPASS[0m  empty query returns []
+[32mPASS[0m  stopword-only query returns []
+[32mPASS[0m  scores in descending order
+[32mPASS[0m  get_related returns list
+[32mPASS[0m  empty wiki: search returns []
+[36mINFO[0m  GAP: 2000-char truncation still present — long_doc stored 0 chars (full=6811)
+[32mScore: 9/9 (100.0%)[0m
+[1m[36m------------------------------------------------------------[0m
+[1m06 Health Checker[0m
+[1m[36m------------------------------------------------------------[0m
+[32mPASS[0m  run_integrity_check returns list
+[32mPASS[0m  detects broken [[links]]
+[32mPASS[0m  [[Physics]] link detected as broken
+[32mPASS[0m  detects 2+ broken links (Physics + Animation)
+[32mPASS[0m  issues have 'severity' field
+[32mPASS[0m  issues have 'message' field
+[32mPASS[0m  find_orphans returns list
+[32mPASS[0m  _check_orphaned_backlinks returns list
+[32mPASS[0m  no dead export_report stub
+[32mPASS[0m  _check_missing_summaries runs without error
+[32mScore: 10/10 (100.0%)[0m
+[1m[36m------------------------------------------------------------[0m
+[1m07 Tool Harness[0m
+[1m[36m------------------------------------------------------------[0m
+[32mPASS[0m  no self._execute_* NameError bug
+[32mPASS[0m  PDF regex captures full payload (.+)
+[32mPASS[0m  @GDT alias in health_checker (v5 bug)
+[32mPASS[0m  @XLS file generated
+[32mPASS[0m  @PDF spaces in content work
+[32mPASS[0m  @PPT file generated
+[32mPASS[0m  @GODOT long-form works
+[32mPASS[0m  invalid signal rejected
+[32mPASS[0m  parallel 2 signals (115ms)
+[32mScore: 9/9 (100.0%)[0m
+[1m[36m------------------------------------------------------------[0m
+[1m08 Com Core Pipeline[0m
+[1m[36m------------------------------------------------------------[0m
+[32mPASS[0m  greeting fast-path (<5ms)
+[32mPASS[0m  thanks fast-path
+[32mPASS[0m  wiki_retriever field exists on COMCore
+[32mPASS[0m  _try_wiki_retrieval method exists
+[32mPASS[0m  wiki context injected in process_query
+[32mPASS[0m  double-processing guard active
+[32mPASS[0m  timeout safety resets is_processing flag
+[32mPASS[0m  _repair_output extracts signal from verbose OFFICE
+[32mPASS[0m  _repair_output strips markdown fences (GODOT)
+[32mPASS[0m  _is_valid_mode_output: valid OFFICE signal
+[32mPASS[0m  _is_valid_mode_output: invalid OFFICE prose
+[32mPASS[0m  _is_valid_mode_output: valid GODOT code
+[32mPASS[0m  _route_with_confidence OFFICE
+[32mPASS[0m  salience: preference statement detected
+[32mPASS[0m  salience: chit-chat not salient
+[32mPASS[0m  snippet retrieval finds relevant snippet
+[32mPASS[0m  clarification question generated
+[32mPASS[0m  memory sliding window = 6
+[32mPASS[0m  memory auto-eviction on overflow
+[32mPASS[0m  memory context format (role+content)
+[32mPASS[0m  memory.clear() empties history
+[32mPASS[0m  empty memory summary fallback
+[32mPASS[0m  cache set/get round-trip
+[32mPASS[0m  cache mode isolation (same query, different modes)
+[32mPASS[0m  cache LRU eviction at max_size
+[32mPASS[0m  OllamaClient.check_connection() returns bool
+[32mPASS[0m  OllamaClient no crash when server is down
+[32mPASS[0m  logger wrote 3 entries
+[32mPASS[0m  log entry has all required fields
+[32mPASS[0m  log query truncated to ≤80 chars
+[32mScore: 30/30 (100.0%)[0m
+[1m[36m------------------------------------------------------------[0m
+[1m09 Edge Cases[0m
+[1m[36m------------------------------------------------------------[0m
+[32mPASS[0m  SafeIO blocks absolute path /etc/passwd
+[31mSUITE CRASHED: Path traversal detected: ../../../etc/passwd is outside base directory /tmp/tmpkls3imvq[0m
+[1m[36m------------------------------------------------------------[0m
+[1m10 Architecture Integration[0m
+[1m[36m------------------------------------------------------------[0m
+[32mPASS[0m  wiki retrieval in process_query()
+[32mPASS[0m  _try_wiki_retrieval method defined
+[32mPASS[0m  wiki_context appears in COMCore source
+[32mPASS[0m  WikiRetriever importable from tools.data_ops.wiki_compiler
+[32mPASS[0m  @GDT alias in tool_harness health_checker
+[32mPASS[0m  compile_all force-flag is fixed
+[32mPASS[0m  WikiCompiler uses lazy LLM init (@property)
+[32mPASS[0m  HealthChecker.run_integrity_check is async
+[32mPASS[0m  BackgroundWikiService importable
+[32mPASS[0m  BackgroundWikiService has start/stop/get_status
+[32mPASS[0m  pyproject.toml exists (packaging ready)
+[32mScore: 11/11 (100.0%)[0m
+
+[1m[36m============================================================[0m
+[1m[36mCOM v3 — BENCHMARK REPORT[0m
+[1m[36m============================================================[0m
+Suite                                      Score      Bar                   
+[33m01 Intent Router                           11/15 (73.3%) ████████████████░░░░░░[0m
+[32m02 Signal Parser                           14/14 (100.0%) ██████████████████████[0m
+[32m04 Wiki Indexer                            8/8 (100.0%) ██████████████████████[0m
+[32m05 Wiki Retriever                          9/9 (100.0%) ██████████████████████[0m
+[32m06 Health Checker                          10/10 (100.0%) ██████████████████████[0m
+[32m07 Tool Harness                            9/9 (100.0%) ██████████████████████[0m
+[32m08 Com Core Pipeline                       30/30 (100.0%) ██████████████████████[0m
+[32m10 Architecture Integration                11/11 (100.0%) ██████████████████████[0m
+----------------------------------------------------------------------------
+[32mOVERALL: 102/106 (96.2%)[0m
+
+[1m[31mFAILURES[0m
+[31m✗[0m [01 Intent Router] route 'what is the capital of France' -> GENERAL :: got=WIKI
+[31m✗[0m [01 Intent Router] route 'make a godot asset spreadsheet' -> OFFICE :: got=GODOT
+[31m✗[0m [01 Intent Router] route 'what is machine learning' -> GENERAL :: got=WIKI
+[31m✗[0m [01 Intent Router] route 'write python code to parse csv' -> GENERAL :: got=CODE
+
+[1m[33mGAPS & NOTES[0m
+[33m→[0m [01 Intent Router] Offline tie-breaker: 'godot asset spreadsheet' → GODOT (LLM needed for OFFICE)
+[33m→[0m [02 Signal Parser] double-@@ finds embedded XLS: True (by-design, regex not anchored)
+[33m→[0m [02 Signal Parser] GAP: @XLS::empty accepted as valid — regex allows ':empty' as payload
+[33m→[0m [05 Wiki Retriever] GAP: 2000-char truncation still present — long_doc stored 0 chars (full=6811)
+[2mRun from COM repo root. All assertions mirror Claude's 96-assertion benchmark.[0m
+[2mResults saved → benchmark_results.json[0m
