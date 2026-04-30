@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.txt text eol=lf working-tree-encoding=UTF-8
+requirements.txt text eol=lf working-tree-encoding=UTF-8 diff
+*.md text eol=lf
+*.py text eol=lf

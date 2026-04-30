@@ -1,7 +1,7 @@
 """
 COM (Companion Of Master) - Signal-of-Thought (SoT) Core
 Features: Mode Detection, Signal Byte Output, Response Cache
-Model: qwen2.5:0.5b-instruct-q4_K_M (~500MB RAM)
+Model: SmolLM2 (default) with small-RAM-safe constraints
 """
 
 import json
@@ -40,7 +40,7 @@ def classify_mode(user_input: str) -> str:
     """Pure Python keyword check for mode detection"""
     text = user_input.lower()
     for mode, keywords in MODES.items():
-        if any(k in text for k in keywords):
+        if any(re.search(rf"\b{re.escape(k)}\b", text) for k in keywords):
             return mode
     return "GENERAL"
 
@@ -93,9 +93,9 @@ MODE_OUTPUT_CONTRACTS = {
 }
 
 TOKEN_LIMITS = {
-    "GODOT":   128,
-    "OFFICE":  64,
-    "GENERAL": 256
+    "GODOT":   96,
+    "OFFICE":  48,
+    "GENERAL": 192
 }
 
 TEMPERATURES = {
@@ -104,10 +104,13 @@ TEMPERATURES = {
     "GENERAL": 0.7   # natural answers
 }
 
+MAX_CTX_2GB = 1024
+MAX_TOKENS_2GB = 256
+
 NUM_CTX_BY_MODE = {
-    "GODOT": 768,
-    "OFFICE": 512,
-    "GENERAL": 1024
+    "GODOT": 512,
+    "OFFICE": 256,
+    "GENERAL": 768
 }
 
 
@@ -143,7 +146,8 @@ VALID_PREFIXES = {"@GDT", "@XLS", "@PDF", "@PPT", "@ERR", "@WIKI", "@WEB", "@CHA
 
 def is_signal(text: str) -> bool:
     """Validate LLM output before passing to harness"""
-    return text.strip()[:4] in VALID_PREFIXES
+    t = text.strip()
+    return any(t.startswith(prefix) for prefix in VALID_PREFIXES)
 
 def parse_signal(text: str) -> Tuple[str, str]:
     """Parse signal into prefix and payload
@@ -196,7 +200,7 @@ class MemoryManager:
 class OllamaClient:
     """Optimized Ollama client for low-RAM systems"""
     
-    def __init__(self, model: str = "qwen2.5:0.5b-instruct-q4_K_M"):
+    def __init__(self, model: str = "smollm2:1.7b-instruct-q4_K_M"):
         self.model = model
         self.base_url = "http://localhost:11434"
         self.timeout = 30
@@ -259,11 +263,12 @@ class OllamaClient:
                 "top_p": 0.9,
                 "num_predict": max_tokens,
                 "num_ctx": num_ctx or self.num_ctx,
-                "num_batch": 16
+                "num_batch": 16,
+                "repeat_penalty": 1.1
             }
         }
         
-        effective_num_ctx = num_ctx or self.num_ctx
+        effective_num_ctx = min(num_ctx or self.num_ctx, MAX_CTX_2GB)
         for attempt in range(2):
             payload["options"]["num_ctx"] = effective_num_ctx
             request_timeout = self.timeout if attempt == 0 else min(15, self.timeout)
@@ -442,23 +447,25 @@ class COMCore:
                 return "GODOT"
         return None
 
-    def _route_with_confidence(self, normalized_query: str, raw_query: str) -> Tuple[str, float]:
+    def _route_with_confidence(self, normalized_query: str, raw_query: str) -> Tuple[str, str, float]:
         """Route query and estimate confidence using cheap lexical signals."""
         office_hits = sum(1 for p in self._office_route_patterns if re.search(p, normalized_query))
         godot_hits = sum(1 for p in self._godot_route_patterns if re.search(p, normalized_query))
 
         if office_hits > 0 and godot_hits == 0:
-            return "OFFICE", min(1.0, 0.7 + 0.15 * office_hits)
+            return "EXECUTE", "OFFICE", min(1.0, 0.7 + 0.15 * office_hits)
         if godot_hits > 0 and office_hits == 0:
-            return "GODOT", min(1.0, 0.7 + 0.15 * godot_hits)
+            return "EXECUTE", "GODOT", min(1.0, 0.7 + 0.15 * godot_hits)
         if office_hits > 0 and godot_hits > 0:
-            return self.router.route(raw_query), 0.4
+            router_result = self.router.route_mode(raw_query)
+            return router_result["top_mode"], router_result["mode"], 0.4
 
         # Fallback to router when no regex signal.
-        mode = self.router.route(raw_query)
+        router_result = self.router.route_mode(raw_query)
+        mode = router_result["mode"]
         # Short/vague queries are lower confidence for small models.
         confidence = 0.45 if len(normalized_query.split()) >= 5 else 0.3
-        return mode, confidence
+        return router_result["top_mode"], mode, confidence
 
     def _clarification_question(self, mode: str) -> str:
         """One short clarification when route confidence is low."""
@@ -634,7 +641,10 @@ class COMCore:
             # FIX: Integration Gap - Check wiki for knowledge queries BEFORE routing
             wiki_context = self._try_wiki_retrieval(query)
             
-            mode, route_conf = self._route_with_confidence(normalized_query, query)
+            router_result = self.router.route_mode(query)
+            top_mode = router_result.get("top_mode", "GENERAL")
+            mode = router_result.get("mode", "GENERAL")
+            route_conf = 0.45 if len(normalized_query.split()) >= 5 else 0.3
             if route_conf < 0.35:
                 clarification = self._clarification_question(mode)
                 if callback:
@@ -653,23 +663,24 @@ class COMCore:
                 self.logger.log(mode, query, cached, cache_hit, elapsed_ms)
                 return cached
             
-            # PHASE 2: Build SoT prompt
-            system = SYSTEM_PROMPTS[mode]
-            max_tok = TOKEN_LIMITS[mode]
-            temp = TEMPERATURES[mode]
-            num_ctx = NUM_CTX_BY_MODE[mode]
+            # PHASE 2: Build SoT prompt (top-level mode compatibility mapping)
+            mode_runtime = "GENERAL" if top_mode in {"GENERAL", "KNOWLEDGE"} else ("OFFICE" if mode == "OFFICE" else "GODOT")
+            system = SYSTEM_PROMPTS[mode_runtime]
+            max_tok = min(TOKEN_LIMITS[mode_runtime], MAX_TOKENS_2GB)
+            temp = TEMPERATURES[mode_runtime]
+            num_ctx = min(NUM_CTX_BY_MODE[mode_runtime], MAX_CTX_2GB)
             
             context = self.memory.get_context()
             messages = [{"role": "system", "content": system}]
-            messages.append({"role": "system", "content": MODE_OUTPUT_CONTRACTS[mode]})
+            messages.append({"role": "system", "content": MODE_OUTPUT_CONTRACTS[mode_runtime]})
             
             # Add wiki context if available (FIX: Integration Gap)
-            if wiki_context and mode == "GENERAL":
+            if wiki_context and top_mode == "KNOWLEDGE":
                 messages.append({
                     "role": "system",
                     "content": f"[Wiki Knowledge Base]:\n{wiki_context}\n\nUse this information when answering."
                 })
-            elif mode == "GENERAL":
+            elif top_mode == "GENERAL":
                 snippets = self._retrieve_snippets(query, top_k=2)
                 if snippets:
                     memory_hint = " | ".join(snippets)
@@ -682,7 +693,7 @@ class COMCore:
             
             # Check Ollama connection before calling
             if not self.client.check_connection():
-                if mode == "GENERAL":
+                if top_mode == "GENERAL":
                     offline = self._offline_general_reply(normalized_query)
                     if callback:
                         callback(offline)
@@ -693,7 +704,7 @@ class COMCore:
             
             # Core policy: OFFICE only needs final signal, so avoid stream callbacks.
             # GODOT/GENERAL keep token streaming for real-time UX.
-            if mode == "OFFICE":
+            if mode_runtime == "OFFICE":
                 full_response = self.client.generate(
                     messages,
                     max_tokens=max_tok,
@@ -717,12 +728,17 @@ class COMCore:
                     num_ctx=num_ctx
                 )
             
-            if mode == "GENERAL":
+            if top_mode == "GENERAL" or top_mode == "KNOWLEDGE":
                 full_response = self._enforce_general_format(full_response)
             else:
-                full_response = self._repair_output(mode, full_response)
-                if not self._is_valid_mode_output(mode, full_response):
+                full_response = self._repair_output(mode_runtime, full_response)
+                if not self._is_valid_mode_output(mode_runtime, full_response):
                     full_response = "@ERR:FORMAT:Please clarify output target (OFFICE signal or GODOT code)."
+
+            # Strict signal pipeline for EXECUTE top-mode:
+            # parse signal plan -> execute via harness -> aggregate outputs
+            if top_mode == "EXECUTE":
+                full_response = self._execute_signal_plan(full_response)
 
             # PHASE 3: Cache result (OFFICE/GENERAL only, not GODOT scripts that go stale)
             if mode != "GODOT":
@@ -763,6 +779,38 @@ class COMCore:
         
         finally:
             self.is_processing = False
+
+    def _execute_signal_plan(self, llm_output: str) -> str:
+        """Execute planned signals and aggregate harness outputs."""
+        if llm_output.strip().startswith("@ERR:"):
+            return llm_output.strip()
+        try:
+            from tools.tool_harness import extract_signals, execute_signal
+        except Exception:
+            return "@ERR:HARNESS_IMPORT:tool_harness unavailable"
+
+        signals = extract_signals(llm_output)
+        if not signals:
+            if is_signal(llm_output):
+                prefix, payload = parse_signal(llm_output)
+                if prefix == "@ERR":
+                    return llm_output.strip()
+                signal = f"{prefix}:{payload}" if payload else prefix
+                result = execute_signal(signal)
+                if result.get("success"):
+                    return str(result.get("result", result))
+                return f"@ERR:HARNESS:{result.get('error', 'execution failed')}"
+            return "@ERR:FORMAT:No valid signal found in planner output."
+
+        outputs = []
+        for tool, payload in signals:
+            signal = f"@{tool}:{payload}"
+            result = execute_signal(signal)
+            if result.get("success"):
+                outputs.append(str(result.get("result", result)))
+            else:
+                outputs.append(f"@ERR:HARNESS:{tool}:{result.get('error', 'execution failed')}")
+        return "\n".join(outputs)
     
     def clear_memory(self):
         """Clear conversation history"""
