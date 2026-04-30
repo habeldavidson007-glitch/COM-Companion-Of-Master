@@ -391,7 +391,7 @@ class COMCore:
 
     def _normalize_query(self, query: str) -> str:
         """Lowercase + strip punctuation for deterministic fast-path checks."""
-        cleaned = re.sub(r"[^a-zA-Z0-9\\s]", " ", query.lower())
+        cleaned = re.sub(r"[^\w\s]", " ", query.lower())
         return " ".join(cleaned.split())
 
     def _fast_reply_for(self, normalized_query: str) -> Optional[str]:
