@@ -218,7 +218,8 @@ class ToolHealthChecker:
             'XLS': self._check_excel_tool(),
             'PPT': self._check_powerpoint_tool(),
             'PDF': self._check_pdf_tool(),
-            'GODOT': self._check_godot_tool()
+            'GODOT': self._check_godot_tool(),
+            'GDT': self._check_godot_tool()  # Alias for GODOT - FIX #1
         }
     
     def _check_excel_tool(self) -> Dict[str, Any]:
@@ -741,7 +742,8 @@ def execute_signal(signal_text: str) -> Dict[str, Any]:
         'XLS': execute_xls,
         'PPT': execute_ppt,
         'PDF': execute_pdf,
-        'GODOT': execute_godot
+        'GODOT': execute_godot,
+        'GDT': execute_godot  # Alias for GODOT - FIX #1
     }
     
     executor = executors.get(tool_type)

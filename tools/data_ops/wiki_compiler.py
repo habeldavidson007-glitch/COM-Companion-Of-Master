@@ -271,7 +271,8 @@ class WikiRetriever:
 
     def __init__(self, data_dir: str):
         self.io = SafeIO(data_dir)
-        self.documents: Dict[str, str] = {}  # path -> content
+        self.documents: Dict[str, str] = {}  # path -> full content
+        self.snippets: Dict[str, str] = {}   # path -> preview snippet (first 200 chars)
         self.idf: Dict[str, float] = {}
         self._loaded = False
 
@@ -293,6 +294,7 @@ class WikiRetriever:
     def load_wiki(self) -> None:
         """Load all wiki markdown files."""
         self.documents = {}
+        self.snippets = {}
 
         try:
             md_files = self.io.list_files("wiki", "*.md")
@@ -303,8 +305,10 @@ class WikiRetriever:
 
                 try:
                     content = self.io.read_text(path)
-                    # Store first 2000 chars for speed (adjust as needed)
-                    self.documents[path] = content[:2000]
+                    # Store FULL content for indexing (FIX #2 - no truncation)
+                    self.documents[path] = content
+                    # Store only preview snippet for display
+                    self.snippets[path] = content[:200]
                 except Exception:
                     continue
 
@@ -379,9 +383,8 @@ class WikiRetriever:
         # Return with snippets
         results = []
         for path, score in sorted_results:
-            content = self.documents[path]
-            # Extract relevant snippet (first 200 chars for preview)
-            snippet = content[:200].replace("\n", " ").strip() + "..."
+            # Use snippets dict for preview (FIX #2)
+            snippet = self.snippets.get(path, self.documents[path][:200]).replace("\n", " ").strip() + "..."
             results.append((path, snippet, score))
 
         return results
