@@ -45,7 +45,7 @@ COM IDE does not "chat." It **compiles intent into action**.
   - **Input:** Raw log line + Project Map (from `diskcache`).
   - **Output:** ≤3 sentences explaining *why* in context of user's code.
   - **Constraint:** Must reference specific file/line/node from user project.
-  - **Model:** smollm2:1.7b only (proves efficiency via `liteLLM` routing).
+  - **Model:** Adaptive via `liteLLM` (Smol-1.7B default, Llama-3B/Qwen-7B if RAM allows).
 - **Expert Eval:** "Does this explanation reference specific project elements correctly?" (Pass/Fail).
 
 ### Pillar 3: The 2GB RAM Law
@@ -69,7 +69,7 @@ COM IDE does not "chat." It **compiles intent into action**.
 - **Test B (Godot Superpower):** Ask "Why does my player fall through the floor?"
   - **Expect:** Answer references *specific* CollisionShape2D in *specific* scene file.
   - **Fail:** Generic physics tutorial answer.
-- **Routing Check:** `liteLLM` must route Test A to smollm2, Test B to qwen (if complex).
+- **Routing Check:** `liteLLM` must select best model based on RAM availability (adaptive routing).
 
 ### Pillar 5: Deterministic Core (Zero Hallucination)
 **Goal:** Structural facts are never guessed.

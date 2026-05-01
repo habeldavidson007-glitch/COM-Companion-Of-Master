@@ -31,7 +31,9 @@ graph TD
 ```
 
 ### Key Constraints
-- **RAM Law**: Peak usage ≤ 2.0GB (smollm2:1.7b resident, qwen2.5-coder:7b on-demand).
+- **RAM Law**: Peak usage ≤ 2.0GB (Adaptive model selection via liteLLM).
+  - *Logic*: `Max_Model_RAM = Available_RAM - 1.5GB`
+  - *Chain*: `Qwen-7B` (if >5.5GB free) → `Llama-3B` (if >3.5GB free) → `Smol-1.7B` (fallback).
 - **Latency Modes**: 
   - *Real-time*: <100ms (Heuristic/Cache)
   - *Deep Scan*: <3s (Full Graph + LLM)
@@ -120,7 +122,7 @@ graph TD
 
 ### Sprint 4: Stress & Optimization
 - **Both**: "RAM Starvation" test. Run COM + Godot + Chrome on 2GB machine.
-- **Benchmark**: System degrades gracefully (drops to smollm2 only) rather than crashing.
+- **Benchmark**: System degrades gracefully (falls back to Smol-1.7B via liteLLM) rather than crashing.
 
 **Phase 2 Deliverable**: COM Chat (Terminal/Basic GUI) that answers "Why does my player fall?" using *your* collision shape data, not generic advice.
 
@@ -185,12 +187,12 @@ We do not ship unless we pass these tests. These define our superiority over Cop
 ### Pillar 2: Context-Aware Explanation  
 - **Test**: Feed 20 cryptic Godot engine errors.
 - **Pass**: Explanation references specific user file/line/node. No generic "Check your code" fluff.
-- **Model**: smollm2:1.7b (Must work on small model).
+- **Model**: Adaptive via liteLLM (Must work on smallest available model).
 
 ### Pillar 3: 2GB RAM Law
 - **Test**: Run COM + Godot + Chrome on 2GB VM for 1 hour.
 - **Pass**: RAM never exceeds 2.0GB. OOM killer never triggers.
-- **Mechanism**: Auto-unload qwen after 10m idle.
+- **Mechanism**: Adaptive routing unloads larger models when RAM < 90%.
 
 ### Pillar 4: T-Shaped Intelligence
 - **Test**: Ask Python question (Generic) vs Godot question (Specific).

@@ -41,18 +41,22 @@ python tests/harness_runner.py
 ```mermaid
 graph LR
     A[User Input] --> B[Signal Parser + tiktoken]
-    B --> C{Intent Router}
-    C -->|Rule 80%| D[Wiki + diskcache]
-    C -->|Complex 20%| E[liteLLM]
-    E --> F[LLM: smollm2/qwen]
-    D --> G[instructor: JSON Schema]
-    F --> G
-    G --> H[Harness Executor]
-    H --> I[Output + rich]
-    I --> J[logfire Trace]
+    B --> C{Adaptive Router<br/>liteLLM + RAM Monitor}
+    C -->|Check RAM| D{Select Model}
+    D -->|Fit? Yes| E[Load Best Model<br/>Qwen-7B/Llama-3B]
+    D -->|Fit? No| F[Fallback<br/>Smol-1.7B]
+    E & F --> G[LLM: JSON Plan]
+    G --> H[instructor: Schema]
+    H --> I[Wiki + diskcache]
+    I --> J[Harness Executor]
+    J --> K[Output + rich]
+    K --> L[logfire Trace]
+    
+    style C fill:#f9f,stroke:#333,stroke-width:2px
+    style D fill:#ff9,stroke:#333,stroke-width:2px
 ```
 
-**Key Innovation:** LLM appears **exactly ONCE** to generate an execution plan. All structural facts come from parsing, not probability.
+**Key Innovation:** LLM appears **exactly ONCE** to generate an execution plan. All structural facts come from parsing, not probability. `liteLLM` adaptively selects the smartest model that fits current RAM availability.
 
 ---
 
@@ -77,12 +81,13 @@ graph LR
 | Feature | Status | Description |
 |---------|--------|-------------|
 | **Node Path Validation** | ✅ Ready | Catches `$Player` → `$PlayerCharacter` renames pre-runtime |
-| **Error Explanation** | ✅ Ready | Translates Godot crashes to plain English (smollm2:1.7b) |
+| **Error Explanation** | ✅ Ready | Translates Godot crashes to plain English (Adaptive model via liteLLM) |
 | **Project Map** | ✅ Ready | Builds in-memory scene tree from .tscn/.gd files |
 | **Log Watcher** | ✅ Ready | Monitors Godot output.log in real-time (watchfiles) |
 | **RAM Monitor** | ✅ Ready | Auto-unloads models after 10min idle (diskcache) |
 | **Signal Schema v1.0** | ✅ Frozen | Strict JSON protocol (instructor enforced) |
 | **Token Manager** | ✅ Ready | Hard 512-token context limit (tiktoken) |
+| **Adaptive Router** | ✅ Ready | Selects best model based on available RAM (liteLLM) |
 | **VS Code Extension** | 🚧 Phase 3 | Coming soon |
 | **E+ Language** | 🚧 Phase 4 | English → GDScript compiler |
 
