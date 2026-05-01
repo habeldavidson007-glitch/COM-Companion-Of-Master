@@ -1,0 +1,40 @@
+{
+  "report_version": "1.0",
+  "generated_at": "2026-05-01T14:21:09.830624",
+  "total_duration_seconds": 0.0008401870727539062,
+  "certification": "FAIL",
+  "all_passed": false,
+  "suites": {
+    "pillar1_silent_killer_detection": {
+      "passed": false,
+      "accuracy_rate": 0,
+      "false_positive_rate": 0,
+      "avg_latency_ms": 0,
+      "cache_hit_rate": 0
+    },
+    "pillar3_ram_torture": {
+      "passed": false,
+      "peak_ram_gb": 0,
+      "success_rate": 0,
+      "crashes": 0,
+      "model_switches": 0
+    }
+  },
+  "summary_metrics": {
+    "accuracy_rate": 0,
+    "false_positive_rate": 0,
+    "peak_ram_gb": 0,
+    "avg_latency_ms": 0.0,
+    "cache_hit_rate": 0
+  },
+  "detailed_results": {
+    "pillar1": {
+      "error": "No module named 'tests.benchmark'",
+      "passed": false
+    },
+    "pillar3": {
+      "error": "No module named 'tests.benchmark'",
+      "passed": false
+    }
+  }
+}

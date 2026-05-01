@@ -195,6 +195,105 @@ class CompilerPipeline:
         
         return context + wiki_text
 
+    def _generate_with_schema(
+        self,
+        schema_class: type,
+        context: str,
+        user_input: str
+    ) -> dict[str, Any]:
+        """
+        Generate a plan using LLM with strict schema enforcement.
+        
+        CRITICAL: This method enforces fail-fast validation.
+        If the LLM output doesn't conform to the schema, it raises an exception.
+        
+        Args:
+            schema_class: The SignalSchema subclass to enforce
+            context: Enriched context for the LLM
+            user_input: Original user input
+            
+        Returns:
+            Dictionary with 'response' (plan) and 'model_used' keys,
+            or 'error' key if generation fails
+            
+        Raises:
+            PlanValidationError: If LLM output fails schema validation
+        """
+        from .plan_validator import validate_plan, PlanValidationError
+        
+        try:
+            # Build prompt with strict schema instructions
+            system_prompt = f"""You are a precise planning assistant.
+Output ONLY a valid JSON plan conforming to the {schema_class.__name__} schema.
+
+Required fields:
+- action: "{schema_class.__fields__['action'].default}"
+- params: {schema_class.__fields__['params'].default_factory()}
+- context: Brief relevant context
+- constraints: List of safety constraints
+
+Rules:
+1. NEVER invent node paths, file names, or structural facts
+2. If uncertain, set confidence to 0.0 or is_valid to null
+3. Output ONLY valid JSON, no explanations
+
+User request: {user_input}
+
+Context: {context[:500]}  # Truncate to avoid token overflow
+"""
+            
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_input}
+            ]
+            
+            # Call LLM via adaptive_router
+            from .adaptive_router import AdaptiveRouter
+            router = AdaptiveRouter()
+            
+            response_text = router.complete(
+                messages,
+                temperature=0.2,  # Low temperature for determinism
+                max_tokens=512
+            )
+            
+            # Parse response
+            if hasattr(response_text, "choices") and response_text.choices:
+                content = response_text.choices[0].message.content.strip()
+            else:
+                content = str(response_text).strip()
+            
+            # Try to parse as JSON
+            import json
+            try:
+                plan = json.loads(content)
+            except json.JSONDecodeError as e:
+                logfire.error("LLM output is not valid JSON", error=str(e), content=content[:200])
+                raise PlanValidationError(f"LLM output is not valid JSON: {str(e)}")
+            
+            # FAIL-FAST: Validate plan structure before proceeding
+            # This is the critical gate that rejects invalid plans
+            validated_schema = validate_plan(plan)
+            
+            if validated_schema is None:
+                logfire.error("Plan validation returned None", plan=plan)
+                raise PlanValidationError("Plan validation returned None")
+            
+            return {
+                "response": plan,
+                "model_used": "smollm2:1.7b-instruct-q4_K_M"
+            }
+            
+        except PlanValidationError:
+            # Re-raise validation errors - these are intentional rejections
+            raise
+        except Exception as e:
+            logfire.error("Plan generation failed", error=str(e))
+            return {
+                "error": str(e),
+                "model_used": "smollm2:1.7b-instruct-q4_K_M"
+            }
+
     def _execute_plan(self, plan: dict[str, Any]) -> dict[str, Any]:
         """
         Execute the generated plan.
