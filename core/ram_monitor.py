@@ -20,6 +20,24 @@ except ImportError:
     SAFETY_BUFFER_GB = 1.5
 
 
+def get_ram_usage_gb() -> float:
+    """
+    Get the current process RAM usage in gigabytes.
+    
+    Returns:
+        float: Current process RAM usage in GB.
+    """
+    try:
+        import os
+        process = psutil.Process(os.getpid())
+        usage_bytes = process.memory_info().rss
+        usage_gb = usage_bytes / (1024 ** 3)
+        return usage_gb
+    except Exception as e:
+        print(f"Warning: Could not determine RAM usage: {e}", file=sys.stderr)
+        return 0.0
+
+
 def get_available_ram_gb() -> float:
     """
     Get the currently available RAM in gigabytes.

@@ -1,0 +1,63 @@
+{
+  "report_version": "1.0",
+  "generated_at": "2026-05-01T14:21:27.507431",
+  "total_duration_seconds": 8.353820085525513,
+  "certification": "FAIL",
+  "all_passed": false,
+  "suites": {
+    "pillar1_silent_killer_detection": {
+      "passed": false,
+      "accuracy_rate": 0.0,
+      "false_positive_rate": 0.0,
+      "avg_latency_ms": 28.32343578338623,
+      "cache_hit_rate": 0.0
+    },
+    "pillar3_ram_torture": {
+      "passed": true,
+      "peak_ram_gb": 0.9500000000000001,
+      "success_rate": 0.0,
+      "crashes": 0,
+      "model_switches": 0
+    }
+  },
+  "summary_metrics": {
+    "accuracy_rate": 0.0,
+    "false_positive_rate": 0.0,
+    "peak_ram_gb": 0.9500000000000001,
+    "avg_latency_ms": 18.70617151260376,
+    "cache_hit_rate": 0.0
+  },
+  "detailed_results": {
+    "pillar1": {
+      "suite": "pillar1_silent_killer_detection",
+      "total_errors": 10,
+      "detected_errors": 0,
+      "missed_errors": 10,
+      "false_positives": 0,
+      "accuracy_rate": 0.0,
+      "false_positive_rate": 0.0,
+      "avg_latency_ms": 28.32343578338623,
+      "max_latency_ms": 47.26004600524902,
+      "min_latency_ms": 20.787477493286133,
+      "cache_hit_rate": 0.0,
+      "total_time_seconds": 0.3623387813568115,
+      "passed": false
+    },
+    "pillar3": {
+      "suite": "pillar3_ram_torture",
+      "total_queries": 50,
+      "successful_queries": 0,
+      "failed_queries": 50,
+      "crashes": 0,
+      "success_rate": 0.0,
+      "peak_ram_gb": 0.9500000000000001,
+      "max_allowed_ram_gb": 2.0,
+      "ram_violations": 0,
+      "model_switches": 0,
+      "avg_latency_ms": 9.088907241821289,
+      "cache_hit_rate": 0.0,
+      "total_time_seconds": 0.4559342861175537,
+      "passed": true
+    }
+  }
+}
