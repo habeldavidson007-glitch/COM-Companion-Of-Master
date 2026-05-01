@@ -87,9 +87,13 @@ class CompilerPipeline:
                 enriched_context = self._inject_wiki_context(compressed_context, wiki_snippets)
                 
                 # Step 4: Route - Classify intent to select schema
-                intent_result = self.intent_router.classify(user_input)
-                schema_class = intent_result["schema_class"]
-                intent_type = intent_result["intent"]
+                schema_class, confidence, source = self.intent_router.classify(user_input)
+                intent_type = source.split(":")[0] if ":" in source else source
+                
+                if schema_class is None:
+                    pipeline_result["error"] = "Could not classify intent"
+                    pipeline_result["fallback"] = "safe_mode"
+                    return pipeline_result
                 
                 # Step 5: Check Cache - Return cached plan if available
                 cache_params = {
@@ -108,7 +112,7 @@ class CompilerPipeline:
                     return pipeline_result
                 
                 # Step 6: Generate - Call LLM with schema enforcement
-                llm_result = self.adaptive_router.generate(
+                llm_result = self._generate_with_schema(
                     schema_class=schema_class,
                     context=enriched_context,
                     user_input=user_input

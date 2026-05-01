@@ -3,9 +3,13 @@ Pillar 1 Benchmark Suite: Silent Killer Detection Tests.
 Tests the pipeline's ability to detect all intentional errors in fixture_project.
 """
 import os
+import sys
 import time
 from typing import Any
 from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 # Expected errors in fixture_project (10 Silent Killers)
 EXPECTED_ERRORS = [

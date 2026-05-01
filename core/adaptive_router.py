@@ -159,6 +159,13 @@ class AdaptiveRouter:
                 **kwargs
             )
         except Exception as e:
+            # Check if error is due to missing provider configuration
+            error_msg = str(e).lower()
+            if "provider not provided" in error_msg or "llm provider" in error_msg:
+                # Fall back to mock mode when provider not configured
+                print(f"[AdaptiveRouter] Provider not configured, using mock mode", file=sys.stderr)
+                return self._mock_complete(messages, model_name, temperature, max_tokens)
+            
             # Handle OOM or other errors by trying next smaller model
             return self._handle_error_and_fallback(
                 messages, temperature, max_tokens, top_p, e, **kwargs
