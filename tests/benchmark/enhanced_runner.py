@@ -446,12 +446,12 @@ class EnhancedBenchmarkRunner:
         print("="*60)
         
         from core.pipeline import CompilerPipeline
-        from core.ram_hardener import ram_hardener
+        from core.ram_hardener import ram_hardener, THRESHOLD_GB
         from core.ram_monitor import get_ram_usage_gb
         
         # Set aggressive RAM limit for testing
-        original_threshold = ram_hardener.threshold_gb
-        ram_hardener.threshold_gb = 1.6  # Aggressive limit
+        original_threshold = THRESHOLD_GB
+        ram_hardener.enforce_ram_limit(threshold_gb=1.6)  # Aggressive limit
         
         pipeline = CompilerPipeline()
         

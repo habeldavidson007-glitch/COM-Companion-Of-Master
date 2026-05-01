@@ -66,6 +66,11 @@ class CacheManager:
         # For simplicity, we clear all. In prod, we might tag items.
         logfire.info("Clearing volatile cache items")
         self.cache.clear()
+    
+    def clear_all(self) -> None:
+        """Clear all cache items including parsed trees."""
+        logfire.info("Clearing all cache items")
+        self.cache.clear()
 
     def _get_cache_size_mb(self) -> float:
         """Calculate current cache directory size in MB."""
