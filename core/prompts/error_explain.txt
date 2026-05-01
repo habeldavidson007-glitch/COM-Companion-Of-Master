@@ -1,0 +1,31 @@
+Analyze this Godot error log and provide a structured explanation.
+
+INPUT CONTEXT:
+- Error Log: {error_log}
+- Wiki Snippets: {wiki_snippets}
+- User Context: {user_context}
+
+OUTPUT REQUIREMENTS:
+1. explanation: Clear, concise description of what went wrong (1-2 sentences)
+2. suggested_fix: Concrete steps to resolve the issue (numbered list if multiple steps)
+3. confidence: Your confidence level (0.0 to 1.0) based on available information
+4. wiki_references: List of wiki doc_ids that informed your analysis
+
+CRITICAL CONSTRAINTS:
+- Do not guess at node paths or file names - use null if uncertain
+- Base your explanation on the wiki snippets provided
+- If the error is ambiguous, state what additional information would help
+- Never suggest changes that could break existing functionality
+
+EXAMPLE OUTPUT JSON:
+{
+    "action": "explain_error",
+    "params": {
+        "error_log": "Attempt to call function 'get_node' on a null instance",
+        "explanation": "The node you're trying to access doesn't exist at the time of the call",
+        "suggested_fix": "1. Check if the node path is correct. 2. Ensure the node is loaded before accessing. 3. Use has_node() to verify existence first.",
+        "confidence": 0.9,
+        "wiki_references": ["get_node", "Error Null Instance"]
+    },
+    "constraints": ["Verify node exists with has_node() before calling get_node()"]
+}
