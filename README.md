@@ -1,6 +1,6 @@
 # 🚀 COM IDE: Godot AI Companion
 
-> **"The stronger the model for COM IDE to use, the Stronger it becomes. We created an evolving IDE with revolutionary pipeline that already thinks better even with small models. The limit is only your imagination."**
+> **The stronger the model for COM IDE to use, the Stronger it becomes. We created an evolving IDE with revolutionary pipeline that already thinks better even with small models. The limit is only your imagination.**
 
 **COM IDE** is a **Compiler-AI Hybrid** that combines deterministic static analysis with LLM-powered planning. It is not a chatbot—it is a development companion that knows your project better than you do, runs on 2GB RAM, and never lies about your code structure.
 
@@ -9,8 +9,9 @@
 ## 🎯 Quick Start
 
 ```bash
-# Install dependencies
+# Install dependencies (including new production stack)
 pip install -e .
+pip install instructor litellm diskcache watchfiles logfire rich tiktoken
 
 # Run COM IDE (terminal mode)
 python com_chat.py --project /path/to/godot/project
@@ -27,32 +28,47 @@ python tests/harness_runner.py
 |---------|-------------------|---------|
 | **Architecture** | `User → LLM → Text` | `Parse → Retrieve → Plan → Execute` |
 | **Hallucination** | Common (guesses facts) | **Zero** (parser verifies everything) |
-| **RAM Usage** | 4-8GB minimum | **<2GB** (model hot-swap) |
+| **RAM Usage** | 4-8GB minimum | **<2GB** (model hot-swap + diskcache) |
 | **Project Awareness** | None (generic answers) | **Deep** (knows your scene tree) |
-| **Latency** | 3-10s per query | **<100ms** real-time validation |
+| **Latency** | 3-10s per query | **<100ms** real-time validation (watchfiles) |
 | **Offline** | No (cloud API) | **Yes** (local Ollama inference) |
+| **Schema Safety** | Invalid JSON possible | **100% valid** (instructor enforced) |
 
 ---
 
 ## 🏗️ Architecture: Compiler-Lite Pipeline
 
-```
-User Input
-   ↓
-[1] Signal Parser (Rule-Based, NO LLM)
-   ↓
-[2] Intent Router (Rule-First, LLM Fallback)
-   ↓
-[3] Wiki Retriever (Context BEFORE LLM)
-   ↓
-[4] LLM (SINGLE PASS → JSON Plan)
-   ↓
-[5] Harness Executor (Deterministic)
-   ↓
-[6] Output Formatter (No summarization)
+```mermaid
+graph LR
+    A[User Input] --> B[Signal Parser + tiktoken]
+    B --> C{Intent Router}
+    C -->|Rule 80%| D[Wiki + diskcache]
+    C -->|Complex 20%| E[liteLLM]
+    E --> F[LLM: smollm2/qwen]
+    D --> G[instructor: JSON Schema]
+    F --> G
+    G --> H[Harness Executor]
+    H --> I[Output + rich]
+    I --> J[logfire Trace]
 ```
 
 **Key Innovation:** LLM appears **exactly ONCE** to generate an execution plan. All structural facts come from parsing, not probability.
+
+---
+
+## 🛠️ Production Tech Stack
+
+| Library | Purpose | RAM Overhead | Critical For |
+|---------|---------|--------------|--------------|
+| **instructor** | Enforce strict JSON schema on LLM output | ~40MB | Zero Hallucination Policy |
+| **tiktoken** | Precise token counting & truncation | ~30MB | 2GB RAM Law, Context Discipline |
+| **diskcache** | Disk-backed caching for context & plans | ~20MB | RAM Offloading, Model Hot-Swapping |
+| **watchfiles** | Async file system monitoring | ~15MB | Real-time Validation (<100ms) |
+| **liteLLM** | Unified model routing & fallback chains | ~50MB | Model Agnosticism, Future Cloud |
+| **logfire** | Structured observability & tracing | ~35MB | Debugging, Benchmark Verification |
+| **rich** | Terminal UI for errors & progress | ~25MB | Flow State Latency, DX |
+
+**Total Stack Overhead:** ~215MB (Negligible compared to model savings).
 
 ---
 
@@ -61,11 +77,12 @@ User Input
 | Feature | Status | Description |
 |---------|--------|-------------|
 | **Node Path Validation** | ✅ Ready | Catches `$Player` → `$PlayerCharacter` renames pre-runtime |
-| **Error Explanation** | ✅ Ready | Translates Godot crashes to plain English |
+| **Error Explanation** | ✅ Ready | Translates Godot crashes to plain English (smollm2:1.7b) |
 | **Project Map** | ✅ Ready | Builds in-memory scene tree from .tscn/.gd files |
-| **Log Watcher** | ✅ Ready | Monitors Godot output.log in real-time |
-| **RAM Monitor** | ✅ Ready | Auto-unloads models after 10min idle |
-| **Signal Schema v1.0** | ✅ Frozen | Strict JSON protocol for all internal comms |
+| **Log Watcher** | ✅ Ready | Monitors Godot output.log in real-time (watchfiles) |
+| **RAM Monitor** | ✅ Ready | Auto-unloads models after 10min idle (diskcache) |
+| **Signal Schema v1.0** | ✅ Frozen | Strict JSON protocol (instructor enforced) |
+| **Token Manager** | ✅ Ready | Hard 512-token context limit (tiktoken) |
 | **VS Code Extension** | 🚧 Phase 3 | Coming soon |
 | **E+ Language** | 🚧 Phase 4 | English → GDScript compiler |
 
@@ -78,138 +95,85 @@ COM IDE must pass the **7 Pillars of Excellence** to be certified:
 1. **Silent Killer Detection** – 100% pre-runtime error catch rate
 2. **Context-Aware Explanation** – References specific file/line/node
 3. **2GB RAM Law** – Peak memory ≤2.0GB with Godot + VS Code running
-4. **T-Shaped Intelligence** – Polyglot generalist, Godot god
-5. **Deterministic Core** – Zero hallucination on structural facts
-6. **Refactor Safety Net** – Atomic changes with ripple analysis
-7. **Flow State Latency** – <100ms validation, <2s deep scan
+4. **T-Shaped Intelligence** – Generic polyglot, Godot god
+5. **Deterministic Core** – 0% hallucination on structural facts
+6. **Refactor Safety Net** – Atomic changes with ripple detection
+7. **Flow State Latency** – <100ms validation, <2s explanation
 
-*See `GOLDEN_BENCHMARK.md` for full test suites and torture chambers.*
-
----
-
-## 👥 Team Structure
-
-### Developer H (Core Architect)
-- **Focus:** Signal schema, intent routing, RAM safety, LLM prompts
-- **Files:** `core/signal_schema.py`, `core/intent_router.py`, `core/ram_monitor.py`
-- **Goal:** Keep base RAM <1.2GB, schema validation 100%
-
-### Developer S (Domain Specialist)
-- **Focus:** Godot parsing, project mapping, error detection
-- **Files:** `tools/godot/scene_parser.py`, `tools/godot/script_parser.py`, `tools/godot/project_map.py`
-- **Goal:** Node validation 100% accurate, <100ms latency
+### Certification Levels
+- 🥉 **Bronze:** 90% tests pass, RAM ≤2.2GB
+- 🥈 **Silver (Phase 1 Target):** 100% tests pass, RAM ≤2.0GB
+- 🥇 **Gold (Phase 3 Target):** 100% + Torture tests, RAM ≤1.8GB
 
 ---
 
-## 📅 Roadmap
+## 👥 Division of Labor
 
-### Phase 1: Project Scanner + Error Explainer (Current)
-- **Timeline:** 4 weeks
-- **Deliverable:** Terminal tool that validates node paths and explains crashes
-- **RAM Target:** ≤2.0GB peak
+### Developer H (You) – Core Architect
+*Focus: The Brain, The Pipeline, The Constraints.*
 
-### Phase 2: Context-Aware Q&A + Memory
-- **Timeline:** 6-8 weeks
-- **Deliverable:** Persistent chat panel with project memory
-- **Feature:** "Why does my player fall through the floor?" → answers using YOUR CollisionShape2D
+| Component | Libraries | Responsibility |
+|-----------|-----------|----------------|
+| Signal Schema v1.0 | `instructor`, `pydantic` | Define strict JSON IR for all actions |
+| Intent Router | `liteLLM` | Rule-first routing, model fallback |
+| RAM Monitor | `psutil`, `diskcache` | Enforce 2GB limit, trigger unload |
+| Token Manager | `tiktoken` | Hard limits on context (512 tokens) |
+| Observability | `logfire` | Trace every pipeline step |
 
-### Phase 3: VS Code Extension
-- **Timeline:** 8-10 weeks
-- **Deliverable:** Marketplace extension with inline validation
-- **Revenue:** Free tier (basic) + Paid tier ($5/mo, unlimited Q&A)
+### Developer S (Friend) – Domain Specialist
+*Focus: The Hands, The Godot Knowledge, The Parsers.*
 
-### Phase 4: E+ Language Translator
-- **Timeline:** 10-14 weeks
-- **Deliverable:** English → GDScript compiler
-- **Example:** `@when player jumps -> velocity.y = jump_force` → working GDScript
-
----
-
-## 🛠️ Technology Stack
-
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| **Core** | Python 3.10+ | Main logic, parsers, orchestrator |
-| **LLM Backend** | Ollama | Local inference (smollm2, qwen2.5-coder) |
-| **Godot Parsing** | Custom regex + AST | Scene tree extraction |
-| **Knowledge Base** | TF-IDF + Concept Graph | Wiki retrieval |
-| **Memory** | Sliding window + Salience filter | Context compression |
-| **Testing** | Pytest + Fixtures | Benchmark automation |
+| Component | Libraries | Responsibility |
+|-----------|-----------|----------------|
+| Scene Parser | `watchfiles` | Parse `.tscn` into memory tree |
+| Script Parser | `tiktoken` | Extract `$NodePath`, `@onready` from `.gd` |
+| Project Map | `diskcache` | Build cross-reference graph, cache to disk |
+| Log Watcher | `watchfiles` | Monitor Godot logs, trigger explanations |
+| Validation Logic | N/A | Rule-based checks (no LLM) |
 
 ---
 
-## 📂 Repository Structure
+## 📅 Roadmap Overview
 
-```
-/workspace/
-├── core/                      # Brain (Dev H)
-│   ├── signal_schema.py       # Frozen v1.0
-│   ├── intent_router.py       # Routing logic
-│   ├── ram_monitor.py         # Memory safety
-│   └── prompts/               # Compiler prompts
-│
-├── tools/                     # Hands (Dev S)
-│   ├── godot/                 # Godot Specialist
-│   │   ├── scene_parser.py
-│   │   ├── script_parser.py
-│   │   ├── project_map.py
-│   │   └── log_watcher.py
-│   ├── data_ops/              # Wiki compiler
-│   └── tool_harness.py        # Executor
-│
-├── tests/                     # Benchmark fixtures
-│   ├── fixture_project/
-│   └── harness_runner.py
-│
-├── config.py                  # Model configs
-├── com_chat.py                # Entry point
-├── GOLDEN_STANDARD.md         # Execution plan
-├── GOLDEN_BENCHMARK.md        # Test suites
-└── README.md                  # This file
-```
+| Phase | Name | Timeline | Goal |
+|-------|------|----------|------|
+| **Phase 1** | Compiler Core | Weeks 1-4 | Terminal scanner + error explainer |
+| **Phase 2** | Knowledge Layer | Weeks 5-8 | Context-aware Q&A + session memory |
+| **Phase 3** | Distribution | Weeks 9-16 | VS Code extension + monetization |
+| **Phase 4** | Full Product | Weeks 17-28 | E+ language + standalone IDE |
+
+See [`COM_IDE_Roadmap.md`](./COM_IDE_Roadmap.md) for detailed sprint plans.
 
 ---
 
-## 🧪 Running the Benchmark
+## 🧪 Running Benchmarks
 
 ```bash
-# Full benchmark suite
-python tests/harness_runner.py
+# Run full benchmark suite
+python tests/benchmark_harness.py --all
 
-# Specific pillar test
-python tests/harness_runner.py --pillar 1  # Silent Killer Detection
+# Run specific pillar test
+python tests/benchmark_harness.py --pillar 1  # Silent Killer Detection
 
-# RAM stress test
-python tests/harness_runner.py --ram-limit 512MB
+# Run torture chamber
+python tests/benchmark_harness.py --torture
 ```
-
-**Target:** Silver Certification (All 7 pillars pass, RAM ≤1.8GB).
 
 ---
 
 ## 🤝 Contributing
 
-1. **Read `GOLDEN_STANDARD.md`** – Understand the architecture before coding.
-2. **Never break the schema** – `core/signal_schema.py` is frozen.
-3. **Test on 2GB RAM** – If it doesn't run on potato hardware, it doesn't ship.
-4. **Godot first** – General features are secondary to Godot super-intelligence.
+1. **Read the Golden Standard** – Understand the Compiler-AI philosophy
+2. **Pick a Pillar** – Choose a benchmark to improve
+3. **Write Tests First** – All contributions must include benchmark coverage
+4. **Respect the 2GB Law** – No PR that breaks RAM compliance
 
 ---
 
 ## 📄 License
 
-MIT License – Build freely, contribute back.
+MIT License – Build freely, share improvements.
 
 ---
 
-## 🚀 The Vision
-
-> **We don't just write code faster. We write code that cannot fail silently.**
-
-COM IDE is the first AI companion that:
-- Knows your project structure without you explaining it
-- Catches bugs before you run the game
-- Runs on your old laptop with 2GB RAM
-- Never hallucinates about your node paths
-
-**Join us. Let's build the compiler with a brain.** 🛠️
+**Ready to build the compiler?** Start with [`GOLDEN_STANDARD.md`](./GOLDEN_STANDARD.md).

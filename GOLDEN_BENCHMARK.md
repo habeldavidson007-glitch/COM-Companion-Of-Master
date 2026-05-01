@@ -1,6 +1,6 @@
-# 🏆 COM IDE: God-Tier Benchmark Standard v5.0
+# 🏆 COM IDE: God-Tier Benchmark Standard v6.0
 
-> **"The stronger the model for COM IDE to use, the Stronger it becomes. We created an evolving IDE with revolutionary pipeline that already thinks better even with small models. The limit is only your imagination."**
+> **The stronger the model for COM IDE to use, the Stronger it becomes. We created an evolving IDE with revolutionary pipeline that already thinks better even with small models. The limit is only your imagination.**
 
 ---
 
@@ -8,10 +8,21 @@
 
 COM IDE does not "chat." It **compiles intent into action**.
 - **Input:** Human language / Code context
-- **Process:** Parse → Retrieve → Plan (LLM) → Execute (Deterministic)
+- **Process:** `Parse (watchfiles+tiktoken)` → `Retrieve (diskcache)` → `Plan (LLM+instructor)` → `Execute (Deterministic)`
 - **Output:** Actionable result, validated fact, or fixed code
 
 **The Moat:** Most AI IDEs are `User → LLM → Text`. Ours is `User → Parse → Plan → Execute`. This gives us **zero hallucination on structural facts** and **2GB RAM compliance**.
+
+**Tech Stack Enforcers:**
+| Library | Benchmark Role |
+|---------|----------------|
+| `instructor` | Ensures 100% valid JSON plans (Pillar 5) |
+| `tiktoken` | Enforces 512-token context limit (Pillar 3) |
+| `diskcache` | Offloads RAM to disk for 2GB compliance (Pillar 3) |
+| `watchfiles` | Triggers sub-100ms validation (Pillar 7) |
+| `liteLLM` | Routes to correct model (Pillar 4) |
+| `logfire` | Traces latency for verification (Pillar 7) |
+| `rich` | Renders terminal output instantly (Pillar 7) |
 
 ---
 
@@ -21,7 +32,7 @@ COM IDE does not "chat." It **compiles intent into action**.
 **Goal:** Catch errors *before* runtime that crash Godot silently.
 - **Test Suite A (Node Paths):** 50 injected `$NodePath` errors (renamed nodes, typos, moved scenes).
   - **Target:** 100% detection, 0 false positives.
-  - **Latency:** <100ms (Real-time mode).
+  - **Latency:** <100ms (Real-time mode via `watchfiles`).
 - **Test Suite B (Signal Ghosts):** 20 disconnected signals referenced in code.
   - **Target:** Flag exact line + suggest fix.
 - **Test Suite C (Resource Phantoms):** 15 `preload()` paths to deleted resources.
@@ -31,10 +42,10 @@ COM IDE does not "chat." It **compiles intent into action**.
 ### Pillar 2: Context-Aware Explanation
 **Goal:** Translate engine crashes into plain English using *your* project context.
 - **Test Suite:** 20 real-world Godot crashes (RAM exhaustion, physics instability, binding errors).
-  - **Input:** Raw log line + Project Map.
+  - **Input:** Raw log line + Project Map (from `diskcache`).
   - **Output:** ≤3 sentences explaining *why* in context of user's code.
   - **Constraint:** Must reference specific file/line/node from user project.
-  - **Model:** smollm2:1.7b only (proves efficiency).
+  - **Model:** smollm2:1.7b only (proves efficiency via `liteLLM` routing).
 - **Expert Eval:** "Does this explanation reference specific project elements correctly?" (Pass/Fail).
 
 ### Pillar 3: The 2GB RAM Law
@@ -42,9 +53,9 @@ COM IDE does not "chat." It **compiles intent into action**.
 - **Torture Test A (Memory Ceiling):**
   - Load Godot project (50 scenes, 100 scripts).
   - Run COM Deep Scan.
-  - **Limit:** Peak RAM ≤ 2.0GB total system usage.
+  - **Limit:** Peak RAM ≤ 2.0GB total system usage (enforced by `diskcache` offloading).
 - **Torture Test B (Model Hot-Swap):**
-  - Trigger qwen2.5-coder:7b load.
+  - Trigger qwen2.5-coder:7b load via `liteLLM`.
   - Idle for 10 minutes.
   - **Verify:** Model unloaded, RAM returned to baseline (<1.2GB).
 - **Torture Test C (Starvation Mode):**
@@ -58,96 +69,106 @@ COM IDE does not "chat." It **compiles intent into action**.
 - **Test B (Godot Superpower):** Ask "Why does my player fall through the floor?"
   - **Expect:** Answer references *specific* CollisionShape2D in *specific* scene file.
   - **Fail:** Generic physics tutorial answer.
-- **Expert Eval:** "Does the answer demonstrate knowledge of *this specific project*?"
+- **Routing Check:** `liteLLM` must route Test A to smollm2, Test B to qwen (if complex).
 
 ### Pillar 5: Deterministic Core (Zero Hallucination)
 **Goal:** Structural facts are never guessed.
 - **Test Suite:** 100 queries about node existence, signal connections, resource paths.
-  - **Source of Truth:** Parsed scene tree (not LLM).
-  - **Target:** 100% accuracy.
-  - **Mechanism:** If parser says "No", LLM cannot say "Yes".
-- **Hallucination Trap:** Ask about non-existent node `$FakeNode`.
-  - **Pass:** "Node $FakeNode not found in MainScene.tscn."
-  - **Fail:** "Here is how you use $FakeNode..."
+  - **Constraint:** All answers must come from parsers, not LLM generation.
+  - **Enforcer:** `instructor` validates that LLM output matches schema exactly.
+- **Metric:** 100/100 accuracy required. Any hallucination = Fail.
 
 ### Pillar 6: Refactor Safety Net
-**Goal:** Safe, atomic refactoring with ripple effect analysis.
-- **Complex Test:** Rename node `Player` → `Hero`.
-  - **Step 1:** Identify all 15 scripts referencing `$Player`.
-  - **Step 2:** Generate atomic patch for each file.
-  - **Step 3:** Verify no broken paths remain.
-  - **Human Eval:** "Would I trust COM to apply this automatically without breaking my game?" (Pass if ≥9/10 devs say Yes).
+**Goal:** Safe atomic changes with ripple effect detection.
+- **Test:** Rename central node `$Player` → `$PlayerCharacter`.
+  - **Expect:** COM identifies all 15 scripts referencing `$Player`, proposes atomic update plan.
+  - **Enforcer:** Harness executes plan atomically (all or nothing).
+- **Human Eval:** "Would I trust COM to apply this automatically?" (Pass if >80% say yes).
 
 ### Pillar 7: Flow State Latency
-**Goal:** Invisible assistance.
-- **Real-Time Mode:** Validation <100ms (heuristic/cached).
-- **Deep Scan Mode:** Full analysis <2s (on save/command).
-- **Stress Test:** Type 50 lines of code rapidly.
-  - **Verify:** No lag, no blocking, errors flagged instantly.
+**Goal:** Instant feedback, no blocking.
+- **Test A (Real-time Validation):** Type a bad node path.
+  - **Target:** Red underline/warning in <100ms (`watchfiles` trigger).
+- **Test B (Error Explanation):** Godot crashes.
+  - **Target:** Plain English explanation in <2s (`rich` render).
+- **Tracing:** `logfire` must show full pipeline trace < target latency.
 
 ---
 
-## 🧪 Advanced Torture Chamber Tests
+## 🧪 Torture Chamber Tests
 
-### 1. The Spaghetti Scene Test
-- **Fixture:** A scene with 20 levels of nesting, 5 inherited scenes, 10 circular dependencies.
-- **Task:** Validate all node paths.
-- **Target:** Completes without stack overflow, identifies cycles, <3s latency.
+These tests push COM to its absolute limits.
 
-### 2. The Version Jump Test
-- **Fixture:** Project migrated from Godot 4.2 → 4.3 with deprecated APIs.
-- **Task:** Identify all breaking changes.
-- **Target:** List exact lines needing updates, suggest 4.3 equivalents.
+### 1. Spaghetti Scene
+- **Setup:** 20-level nested inherited scenes, 200+ nodes.
+- **Action:** Full validation scan.
+- **Targets:** <500ms latency, <50MB RAM spike, 0 missed errors.
 
-### 3. The RAM Starvation Test
-- **Condition:** Limit COM to 512MB RAM while Godot uses 1.5GB.
-- **Task:** Explain a complex shader error.
-- **Target:** Falls back to tinyllama:1.1b or rule-based explanation, completes successfully.
+### 2. RAM Starvation
+- **Setup:** Limit process to 512MB via cgroups.
+- **Action:** Run Deep Scan with qwen2.5-coder:7b requested.
+- **Targets:** Falls back to tinyllama:1.1b or rule-mode, completes without OOM crash.
 
-### 4. The Hallucination Trap
-- **Setup:** Ask "What does the `@export_range('Fake')` decorator do?" (It doesn't exist).
-- **Target:** "Decorator `@export_range('Fake')` is invalid. Did you mean `@export_range('min', 'max')`?"
-- **Fail:** Inventing functionality.
+### 3. Hallucination Trap
+- **Setup:** Ask "What does `$NonExistentNode` do?" (node doesn't exist).
+- **Action:** Query COM.
+- **Targets:** 100% "Not found" response. No invented functionality.
 
-### 5. The Multi-Language Maze
-- **Fixture:** Project with GDScript, C# (via GodotSharp), and Python editor tools.
-- **Task:** Switch contexts between languages seamlessly.
-- **Target:** Correct syntax highlighting, linting, and explanation for each language without confusion.
+### 4. Schema Strictness
+- **Setup:** Feed garbage/malformed input to LLM.
+- **Action:** `instructor` retries up to 3 times.
+- **Targets:** Valid JSON or fail-fast error. No partial/corrupted output.
+
+### 5. Token Overflow
+- **Setup:** Feed 10,000 tokens of context (entire project).
+- **Action:** `tiktoken` truncates to 512 tokens before LLM sees it.
+- **Targets:** No OOM, relevant context preserved, latency unaffected.
+
+### 6. Multi-Language Maze
+- **Setup:** Project with GDScript, Python tools, C++ modules, JS shaders.
+- **Action:** Ask questions in each language.
+- **Targets:** Correct routing, appropriate depth per language (Godot = deep, others = generic).
 
 ---
 
 ## 📊 Certification Levels
 
-| Level | Requirements | Badge |
-|-------|--------------|-------|
-| **🥇 Gold** | All 7 Pillars Pass + RAM ≤1.6GB + Latency <80ms | "Compiler-God" |
-| **🥈 Silver** | All 7 Pillars Pass + RAM ≤1.8GB + Latency <100ms | "Phase 1 Target" |
-| **🥉 Bronze** | 6/7 Pillars Pass + RAM ≤2.0GB | "Beta Ready" |
-| **Fail** | Any Pillar 1/5 Fail OR RAM >2.2GB | "Refactor Needed" |
+To claim COM IDE is production-ready, it must achieve:
+
+### 🥉 Bronze Certification
+- Pass 90% of Pillar tests.
+- Peak RAM ≤ 2.2GB.
+- Latency: <150ms validation, <3s explanation.
+
+### 🥈 Silver Certification (Phase 1 Target)
+- Pass 100% of Pillar tests.
+- Peak RAM ≤ 2.0GB.
+- Latency: <100ms validation, <2s explanation.
+- Zero hallucination on structural facts.
+
+### 🥇 Gold Certification (Phase 3 Target)
+- Pass 100% of Pillar + Torture tests.
+- Peak RAM ≤ 1.8GB.
+- Latency: <80ms validation, <1.5s explanation.
+- Graceful degradation proven in Starvation Mode.
 
 ---
 
-## 🛠️ Implementation & Scoring
+## 🛠️ Implementation & Testing Schedule
 
-### Scoring Protocol
-1. **Automated Harness:** Runs all tests, logs pass/fail, measures RAM/latency.
-2. **Human Eval Panel:** 3 Godot devs rate explanations/refactors (1-5 scale).
-3. **Expert Review:** Senior engineer verifies zero-hallucination claims.
-
-### Division of Labor
-- **Developer H (Core):** Build test harness, fixture generator, RAM monitor, schema validator.
-- **Developer S (Godot):** Create spaghetti scene fixture, inject errors, write human eval scripts.
-
-### Weekly Cadence
-- **Week 1:** Build harness + fixture project.
-- **Week 2:** Run baseline tests (expect failures), tune parsers.
-- **Week 3:** Optimize RAM/latency, re-run.
-- **Week 4:** Final certification run, record demo video.
+| Week | Focus | Tests to Implement | Owner |
+|------|-------|-------------------|-------|
+| **Week 1** | Schema + Parsers | Pillar 5 (Determinism), Pillar 1 (Node Paths) | Dev H (Schema), Dev S (Parsers) |
+| **Week 2** | Wiki + Validation | Pillar 1 (Signals/Resources), Pillar 7 (Latency) | Dev S (Validators), Dev H (tiktoken) |
+| **Week 3** | RAM + Execution | Pillar 3 (2GB Law), Pillar 6 (Refactor) | Dev H (diskcache), Dev S (Harness) |
+| **Week 4** | Polish + Demo | All Pillars + Torture Chamber | Both (Full Suite) |
 
 ---
 
-## 🚀 The Ultimate Claim
+## 🚀 Immediate Next Steps
 
-> **COM IDE is the first AI companion that knows your project better than you do, runs on your potato laptop, and never lies about your code structure.**
+1. **Dev H:** Create `tests/benchmark_harness.py` with `logfire` tracing.
+2. **Dev S:** Build fixture project with 50 injected bugs (for Pillar 1).
+3. **Both:** Run baseline test (current state) → document gaps → sprint to close.
 
-If it passes this benchmark, it is not just "another AI tool." It is a **compiler with a brain**.
+**Remember:** If it's not benchmarked, it doesn't exist.

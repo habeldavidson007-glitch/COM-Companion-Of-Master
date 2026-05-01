@@ -1,4 +1,4 @@
-# 🏆 COM IDE: Golden Standard & Execution Plan v5.0
+# 🏆 COM IDE: Golden Standard & Execution Plan v6.0
 
 > **"The stronger the model for COM IDE to use, the Stronger it becomes. We created an evolving IDE with revolutionary pipeline that already thinks better even with small models. The limit is only your imagination."**
 
@@ -15,38 +15,185 @@
 **Target Hardware:** 2GB RAM machines (potato laptops).
 **Target Domain:** Polyglot expert (Python, JS, C++, etc.) with **Godot Super-Intelligence**.
 
+**Production-Grade Tech Stack:**
+| Library | Purpose | RAM Overhead | Critical For |
+|---------|---------|--------------|--------------|
+| **instructor** | Enforce strict JSON schema on LLM output | ~40MB | Zero Hallucination Policy (Pillar 5) |
+| **tiktoken** | Precise token counting & truncation | ~30MB | 2GB RAM Law (Pillar 3), Context Window Discipline |
+| **diskcache** | Disk-backed caching for context & plans | ~20MB | RAM Offloading, Model Hot-Swapping |
+| **watchfiles** | Async file system monitoring | ~15MB | Real-time Validation (<100ms latency) |
+| **liteLLM** | Unified model routing & fallback chains | ~50MB | Model Agnosticism, Future Cloud Fallback |
+| **logfire** | Structured observability & tracing | ~35MB | Debugging, Benchmark Verification |
+| **rich** | Terminal UI for errors & progress | ~25MB | Flow State Latency, Developer Experience |
+
+**Total Stack Overhead:** ~215MB (Negligible compared to model savings).
+
 ---
 
 ## 🏗️ Architecture: The Compiler-Lite Pipeline
 
+```mermaid
+graph TD
+    A[User Input] --> B[Signal Parser + tiktoken]
+    B --> C{Intent Router}
+    C -->|Rule Match 80%| D[Wiki Retriever + diskcache]
+    C -->|Complex 20%| E[liteLLM Router]
+    E --> F[LLM: smollm2/qwen]
+    D --> G[instructor: JSON Schema Validation]
+    F --> G
+    G --> H[Harness Executor]
+    H --> I[Output Formatter + rich]
+    I --> J[Logfire Trace]
+    
+    style B fill:#f9f,stroke:#333
+    style G fill:#f9f,stroke:#333
+    style D fill:#bbf,stroke:#333
+    style H fill:#bfb,stroke:#333
 ```
-User Input
-   ↓
-[1] Signal Parser (Rule-Based, NO LLM)
-   - Strips noise, extracts intent keywords
-   - Latency: <10ms
-   ↓
-[2] Intent Router (Rule-First, LLM Fallback)
-   - 80% resolved via rules (saves RAM)
-   - 20% complex queries → LLM for classification
-   ↓
-[3] Wiki Retriever (Context Enrichment)
-   - Fetches project map + docs BEFORE LLM
-   - Reduces token count by 60%
-   ↓
-[4] LLM (SINGLE PASS ONLY)
-   - Generates JSON Execution Plan (IR)
-   - Model: smollm2:1.7b (default), qwen2.5-coder:7b (on-demand)
-   - Constraint: ≤512 tokens context
-   ↓
-[5] Harness Executor (Deterministic)
-   - Executes plan atomically
-   - No LLM involved here
-   ↓
-[6] Output Formatter (Rule-Based)
-   - Returns result to user
-   - NO summarization step (saves latency/RAM)
-```
+
+**Step-by-Step Flow:**
+
+1.  **Signal Parser (Rule-Based, NO LLM)**
+    -   **Tech:** `watchfiles` (triggers), `tiktoken` (count)
+    -   **Action:** Strips noise, extracts intent keywords, counts tokens immediately.
+    -   **Latency:** <10ms
+    -   **RAM:** Minimal.
+
+2.  **Intent Router (Rule-First, LLM Fallback)**
+    -   **Tech:** `liteLLM` (routing logic)
+    -   **Action:** 80% resolved via rules (saves RAM). 20% complex queries → LLM for classification.
+    -   **RAM:** Saves 1.2GB by avoiding LLM for simple commands.
+
+3.  **Wiki Retriever (Context Enrichment)**
+    -   **Tech:** `diskcache` (caching retrieved docs)
+    -   **Action:** Fetches project map + docs BEFORE LLM. Caches frequent lookups to disk.
+    -   **Benefit:** Reduces token count by 60%, offloads RAM to disk.
+
+4.  **LLM (SINGLE PASS ONLY)**
+    -   **Tech:** `instructor` (schema enforcement), `liteLLM` (model call)
+    -   **Action:** Generates **JSON Execution Plan (IR)**.
+    -   **Constraint:** ≤512 tokens context (enforced by `tiktoken`).
+    -   **Model:** `smollm2:1.7b` (default), `qwen2.5-coder:7b` (on-demand).
+    -   **Guarantee:** Output matches Pydantic schema exactly (No invalid JSON).
+
+5.  **Harness Executor (Deterministic)**
+    -   **Action:** Executes plan atomically. No LLM involved here.
+    -   **Safety:** If plan is invalid, fails fast before execution.
+
+6.  **Output Formatter (Rule-Based)**
+    -   **Tech:** `rich` (terminal rendering)
+    -   **Action:** Returns result to user. NO summarization step (saves latency/RAM).
+    -   **Trace:** `logfire` logs the entire pipeline span.
+
+---
+
+## 🛡️ The 7 Pillars of Excellence (Benchmark-Driven)
+
+Each pillar is enforced by specific libraries in the stack.
+
+| Pillar | Target | Tech Enforcer | Test Metric |
+|--------|--------|---------------|-------------|
+| **1. Silent Killer Detection** | 100% pre-runtime catch | `watchfiles` + Parsers | 50 subtle errors caught, 0 FP, <200ms |
+| **2. Context-Aware Explanation** | Plain English, no jargon | `instructor` (constrained gen) | 20 crashes explained, <3 sentences |
+| **3. 2GB RAM Law** | Peak ≤2.0GB | `diskcache` + `tiktoken` | 1-hour stress test, RAM <2.1GB |
+| **4. T-Shaped Intelligence** | Generic vs. Godot Deep | `liteLLM` (routing) | Correct model selected per query type |
+| **5. Deterministic Core** | 0% hallucination on facts | `instructor` (schema) | 100/100 structural facts correct |
+| **6. Refactor Safety Net** | Atomic changes, ripple check | Parsers + Harness | Safe refactor plan for cascading changes |
+| **7. Flow State Latency** | <100ms validation, <2s explain | `watchfiles` + `rich` | Perceived instant feedback |
+
+---
+
+## 👥 Division of Labor: Core vs. Tools
+
+### **Developer H (You) – Core Architect**
+*Focus: The Brain, The Pipeline, The Constraints.*
+
+| Component | Libraries | Responsibility |
+|-----------|-----------|----------------|
+| **Signal Schema v1.0** | `instructor`, `pydantic` | Define strict JSON IR for all actions. |
+| **Intent Router** | `liteLLM` | Rule-first routing, model fallback logic. |
+| **RAM Monitor** | `psutil`, `diskcache` | Enforce 2GB limit, trigger model unload. |
+| **Token Manager** | `tiktoken` | Hard limits on context window (512 tokens). |
+| **Observability** | `logfire` | Trace every pipeline step for debugging. |
+| **Prompt Engineering** | `instructor` | Write prompts that guarantee valid JSON. |
+
+### **Developer S (Friend) – Domain Specialist**
+*Focus: The Hands, The Godot Knowledge, The Parsers.*
+
+| Component | Libraries | Responsibility |
+|-----------|-----------|----------------|
+| **Scene Parser** | `watchfiles` | Parse `.tscn` into memory tree. Trigger on save. |
+| **Script Parser** | `tiktoken` | Extract `$NodePath`, `@onready` from `.gd`. |
+| **Project Map** | `diskcache` | Build cross-reference graph. Cache to disk. |
+| **Log Watcher** | `watchfiles` | Monitor Godot logs. Trigger error explanation. |
+| **Godot Specialist** | `rich` | Format Godot-specific errors nicely in terminal. |
+| **Validation Logic** | N/A | Rule-based checks for node paths (no LLM). |
+
+---
+
+## 📅 Phase 1: 4-Week Sprint Plan (Compiler Core)
+
+**Goal:** Terminal-based Project Scanner + Error Explainer.
+**RAM Budget:** 1.8GB Base, 3.8GB Burst (must return to base in 30s).
+
+### **Week 1: Foundation (Schema & Parsers)**
+| Day | Dev H (Core) | Dev S (Tools) | Joint Deliverable |
+|-----|--------------|---------------|-------------------|
+| **Mon** | Setup `instructor` schema for `ValidateNodePath`. | Setup `scene_parser.py` skeleton. | **Signal Schema v1.0 Frozen.** |
+| **Tue** | Implement `tiktoken` context limiter. | Implement `.tscn` regex parser. | Parser outputs valid JSON for schema. |
+| **Wed** | Build `liteLLM` router (rule-first). | Build `.gd` script parser. | End-to-end: File → Parse → JSON Plan. |
+| **Thu** | Integrate `logfire` for tracing. | Add `watchfiles` trigger to parsers. | **Real-time file watch → Parse trigger.** |
+| **Fri** | **Test:** Schema validation (100% pass). | **Test:** Parse 3 real projects. | **Milestone:** 0 Hallucination on paths. |
+
+### **Week 2: Knowledge & Validation (Wiki + Disk)**
+| Day | Dev H (Core) | Dev S (Tools) | Joint Deliverable |
+|-----|--------------|---------------|-------------------|
+| **Mon** | Setup `diskcache` for Wiki/Project Map. | Build `project_map.py` (cross-ref). | Project Map cached to disk (RAM safe). |
+| **Tue** | Wire Wiki retrieval *before* LLM. | Implement Node Path Validator (rule-based). | **Validation without LLM (Instant).** |
+| **Wed** | Prompt engineering for `smollm2:1.7b`. | Build `log_watcher.py` for Godot logs. | Log line → Plain English explanation. |
+| **Thu** | Optimize token usage (cut to 512). | Test validator on "Spaghetti Scene". | **Milestone:** <100ms validation latency. |
+| **Fri** | **Test:** RAM usage with cache. | **Test:** False positive rate. | **Milestone:** RAM <1.8GB during scan. |
+
+### **Week 3: RAM Safety & Execution (Hardening)**
+| Day | Dev H (Core) | Dev S (Tools) | Joint Deliverable |
+|-----|--------------|---------------|-------------------|
+| **Mon** | Build `ram_monitor.py` (auto-unload). | Stress test parsers on large projects. | Auto-unload qwen after 10min idle. |
+| **Tue** | Implement fallback chain (smollm2 → tinyllama). | Refine error messages with `rich`. | Graceful degradation at 90% RAM. |
+| **Wed** | Finalize Harness Executor (atomic). | Add "Suggest Fix" generation. | **Milestone:** Safe atomic execution. |
+| **Thu** | Integrate `logfire` dashboards. | Document false positives/negatives. | Full observability of pipeline. |
+| **Fri** | **Test:** 1-hour RAM stress test. | **Test:** 50 hidden bugs detection. | **Milestone:** Pass "2GB Law" Benchmark. |
+
+### **Week 4: Polish & Demo (Shipping)**
+| Day | Dev H (Core) | Dev S (Tools) | Joint Deliverable |
+|-----|--------------|---------------|-------------------|
+| **Mon** | Optimize startup time (<2s). | Create fixture project (50 bugs). | Ready for demo recording. |
+| **Tue** | Record terminal session (logfire traces). | Run benchmark suite (Gold/Silver). | **Benchmark Report Card.** |
+| **Wed** | Write documentation (README). | Clean up code, remove debug prints. | **Repo Ready for Public.** |
+| **Thu** | **Final Rehearsal.** | **Final Rehearsal.** | **Demo Video Recorded.** |
+| **Fri** | **PHASE 1 COMPLETE.** | **PHASE 1 COMPLETE.** | **Release v0.1.0.** |
+
+---
+
+## 🧪 Torture Chamber Tests (Benchmark Integration)
+
+These tests must pass to achieve **Silver Certification**:
+
+1.  **Spaghetti Scene:** Parse a 20-level nested scene. **Target:** <500ms, <50MB RAM spike.
+2.  **RAM Starvation:** Force RAM limit to 512MB. **Target:** Graceful fallback to `tinyllama`, no crash.
+3.  **Hallucination Trap:** Ask "Does node `$NonExistent` exist?". **Target:** 100% "Not found" (via parser, not LLM guess).
+4.  **Schema Strictness:** Feed garbage to LLM. **Target:** `instructor` retries until valid JSON or fails fast.
+5.  **Token Overflow:** Feed 10,000 tokens of context. **Target:** `tiktoken` truncates to 512, no OOM.
+
+---
+
+## 🚀 Immediate Next Steps
+
+1.  **Dev H:** `pip install instructor litellm diskcache watchfiles logfire rich tiktoken`
+2.  **Dev H:** Create `core/signal_schema.py` with `instructor` Pydantic models.
+3.  **Dev S:** Create `tools/godot/` directory, start `scene_parser.py` with `watchfiles`.
+4.  **Both:** 30-min sync to finalize Signal Schema v1.0.
+
+**Let's build the compiler.**
 
 ### Key Constraints
 1. **LLM appears ONCE** – Only to generate the execution plan.
