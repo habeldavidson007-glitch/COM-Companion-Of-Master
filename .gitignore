@@ -1,1 +1,1 @@
-Nothing needs to be added to .gitignore since only a markdown file (GOLDEN_BENCHMARK.md) was modified and no build artifacts, dependencies, or temporary files were changed.
+Nothing should be ignored based on the provided file changes. The changes only include source/config files (.md files) with no build artifacts, dependencies, or temporary files.

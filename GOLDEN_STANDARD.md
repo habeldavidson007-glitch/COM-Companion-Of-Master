@@ -1,250 +1,364 @@
-# 🏆 COM IDE: Golden Standard & Execution Plan
+# 🏆 COM IDE: Golden Standard & Benchmark v5.0
+## The Compiler-AI Architecture for Godot Development
 
-**Version:** 1.0 (Phase 1 - Compiler-Lite Architecture)  
-**Target Hardware:** 2GB RAM Minimum (Optimized for Low-End)  
-**Philosophy:** Polyglot Expert + Godot Specialist  
-**Status:** Active Development  
+> **"The stronger the model for COM IDE to use, the Stronger it becomes. We created an evolving IDE with revolutionary pipeline that already thinks better even with small models. The limit is only your imagination."**
 
 ---
 
-## 🚀 Executive Summary
-
-COM IDE is not just another coding assistant. It is a **signal-driven execution engine** where the LLM acts as a **compiler stage**, not an oracle. 
-
-### The Core Shift
-- **Old Paradigm:** User → LLM → Answer (Black box, high RAM, hallucinations)
-- **New Paradigm (Compiler-Lite):** User → Signal Parser → Wiki → LLM(Plan) → Harness → Output (Deterministic, low RAM, verifiable)
-
-### Why This Works on 2GB RAM
-1. **LLM appears exactly ONCE** in the pipeline (generates a small JSON plan).
-2. **Rule-based parsing first** strips noise before tokens are counted.
-3. **Wiki retrieval happens BEFORE LLM** to inject context, reducing guesswork.
-4. **No summarization step**—the harness output is the final answer.
-5. **Model Hot-Swapping:** `smollm2:1.7b` (1.2GB) stays loaded; `qwen2.5-coder:7b` loads on-demand and unloads after 10 mins.
+## 📖 Table of Contents
+1. [Executive Summary](#1-executive-summary)
+2. [Core Philosophy: The Compiler-AI Paradigm](#2-core-philosophy-the-compiler-ai-paradigm)
+3. [System Architecture](#3-system-architecture)
+4. [The Signal Schema v1.0 (Frozen)](#4-the-signal-schema-v10-frozen)
+5. [Division of Labor](#5-division-of-labor)
+6. [The 7 Pillars of Excellence (Benchmark)](#6-the-7-pillars-of-excellence-benchmark)
+7. [Stress Test Protocols](#7-stress-test-protocols)
+8. [Certification Levels](#8-certification-levels)
+9. [Repository Structure](#9-repository-structure)
+10. [Implementation Roadmap](#10-implementation-roadmap)
 
 ---
 
-## 🏛️ Architecture: The "Compiler-Lite" Pipeline
+## 1. Executive Summary
 
-The system behaves like a compiler, not a chatbot. Every user input is compiled into an **Execution Plan** (JSON), executed deterministically, and returned.
+COM IDE is **not** another AI chatbot wrapper. It is a **static-analysis + execution engine with LLM-assisted planning**.
 
+### The Moat
+While Copilot and Cursor rely on probabilistic text generation, COM IDE relies on **deterministic parsing + structured execution**.
+- **Competitors:** `User → LLM → Text → Maybe Tools` (Black Box, Hallucination Prone)
+- **COM IDE:** `User → Parse → Plan (LLM) → Execute (Deterministic) → Output` (Traceable, Safe)
+
+### The Constraint as a Feature
+Built for **2GB RAM** environments, COM IDE forces architectural discipline that makes it faster and more reliable than bloated cloud-dependent tools.
+- **Base Model:** `smollm2:1.7b` (Always on, ~1.2GB)
+- **Burst Model:** `qwen2.5-coder:7b` (On-demand, auto-unload)
+- **Fallback:** `tinyllama:1.1b` (Emergency mode)
+
+---
+
+## 2. Core Philosophy: The Compiler-AI Paradigm
+
+### LLM Role Definition
+The LLM is **NOT** an executor, oracle, or chatbot.
+**The LLM is a Compiler Stage (IR Generator).**
+
+| Component | Responsibility | LLM Usage? |
+|-----------|----------------|------------|
+| **Signal Parser** | Strip noise, extract intent keywords | ❌ No (Regex/Rules) |
+| **Intent Router** | Classify intent, route to handler | ❌ No (Rules first) |
+| **Wiki Retriever** | Enrich context with project data | ❌ No (TF-IDF/Graph) |
+| **LLM (Compiler)** | Generate JSON Execution Plan | ✅ **YES (Once)** |
+| **Tool Harness** | Execute plan deterministically | ❌ No (Python) |
+| **Formatter** | Render output to user | ❌ No (Template) |
+
+### The Golden Rules
+1. **Single Pass Law:** LLM is invoked exactly **ONCE** per request.
+2. **Context First:** Wiki retrieval happens **BEFORE** LLM invocation.
+3. **Strict Schema:** All LLM outputs must be valid JSON matching `signal_schema.py`.
+4. **No Hallucination Policy:** Structural facts (paths, types) come from parsing, never LLM generation.
+5. **Dual-Mode Latency:**
+   - **Real-time Mode:** <100ms (Heuristics + Cache)
+   - **Deep Scan Mode:** 1–3s (Full Graph Analysis)
+
+---
+
+## 3. System Architecture
+
+```mermaid
+graph TD
+    A[User Input] --> B[Signal Parser (Rule-Based)]
+    B --> C{Intent Router}
+    C -->|Simple Query| D[Direct Answer (Cache/Wiki)]
+    C -->|Complex Intent| E[Wiki Retriever (Context Enrichment)]
+    E --> F[LLM: IR Generator]
+    F -->|JSON Plan| G[Tool Harness Executor]
+    G --> H[Output Formatter]
+    H --> I[User Output]
+    
+    subgraph "RAM Safety Zone (<2GB)"
+    J[RAM Monitor] -.->|Kill Idle Models| F
+    J -.->|Throttle| G
+    end
 ```
-User Input
-   ↓
-[1] Signal Parser (Rule-Based, No LLM)
-   ↓
-[2] Intent Router (Rule-First, LLM Fallback)
-   ↓
-[3] Wiki Retriever (Enrich Context)
-   ↓
-[4] LLM Stage (Generate JSON Plan ONLY)
-   ↓
-[5] Tool Harness (Execute Plan Deterministically)
-   ↓
-[6] Core Formatter (Render Output)
-   ↓
-Final Output
+
+### Data Flow Example: Node Validation
+1. **Input:** `"Why does $Player crash?"`
+2. **Parse:** Extracts target=`$Player`, file=`player.gd`.
+3. **Retrieve:** Wiki finds `MainScene.tscn` has node `PlayerCharacter`, not `Player`.
+4. **LLM Plan:**
+   ```json
+   {
+     "action": "VALIDATE_NODE_PATH",
+     "found": false,
+     "suggestion": "$PlayerCharacter",
+     "confidence": 0.98
+   }
+   ```
+5. **Execute:** Harness formats suggestion into user-readable error.
+6. **Output:** "`$Player` not found. Did you mean `$PlayerCharacter` in `MainScene.tscn`?"
+
+---
+
+## 4. The Signal Schema v1.0 (Frozen)
+
+**⚠️ CRITICAL:** This schema is frozen. Changing it requires a major version bump and full refactor.
+
+### Root Structure
+```typescript
+interface SignalPlan {
+  version: "1.0";
+  intent: IntentType;
+  target: TargetObject;
+  context: ContextObject;
+  constraints: ConstraintObject;
+  expected_output: OutputType;
+}
 ```
 
-### Stage Breakdown
+### Enum Definitions
+```typescript
+type IntentType = 
+  | "VALIDATE_NODE_PATH"
+  | "EXPLAIN_ERROR"
+  | "SUGGEST_FIX"
+  | "REFACTOR_ATOMIC"
+  | "QUERY_PROJECT_KNOWLEDGE"
+  | "GENERATE_GDSCRIPT";
 
-| Stage | Component | Responsibility | LLM Used? |
-|-------|-----------|----------------|-----------|
-| **1. Lexer** | `SignalParser` | Extract entities ($NodePath, signals), strip noise, normalize intent. | ❌ No |
-| **2. Parser** | `IntentRouter` | Map intent to action (`VALIDATE`, `EXPLAIN`, `SEARCH`). Use rules first; LLM only for ambiguity. | ⚠️ Rarely |
-| **3. Semantic** | `WikiRetriever` | Fetch relevant docs/project context *before* LLM sees the prompt. | ❌ No |
-| **4. IR Gen** | `LLM Engine` | **Single Pass:** Generate structured JSON plan `{ "action": "...", "params": {} }`. | ✅ Yes (Once) |
-| **5. Exec** | `ToolHarness` | Execute the JSON plan. No thinking, just doing. | ❌ No |
-| **6. Format** | `CoreFormatter` | Render harness output to human-readable text. | ❌ No |
+type OutputType = 
+  | "validation_report"
+  | "plain_text_explanation"
+  | "code_diff"
+  | "knowledge_summary";
+```
 
----
+### Example: Node Validation Plan
+```json
+{
+  "version": "1.0",
+  "intent": "VALIDATE_NODE_PATH",
+  "target": {
+    "type": "node_path",
+    "value": "$Player",
+    "file": "player.gd",
+    "line": 42
+  },
+  "context": {
+    "scene_tree_hash": "a1b2c3...",
+    "available_nodes": ["PlayerCharacter", "Enemy", "UI"],
+    "godot_version": "4.2"
+  },
+  "constraints": {
+    "strict": true,
+    "suggest_similar": true,
+    "max_suggestions": 3
+  },
+  "expected_output": "validation_report"
+}
+```
 
-## 👥 Division of Labor (Professional Split)
-
-Work is split by **Architecture/Core** vs. **Domain/Tools**. This minimizes merge conflicts and maximizes parallel velocity.
-
-### 👨‍💻 Developer H (You) — Core Architect
-**Focus:** The "Brain". Signal processing, RAM safety, LLM orchestration, and the execution backbone.  
-**Goal:** Ensure the pipeline is deterministic, fits in 2GB RAM, and routes correctly.
-
-| Module | File Path | Key Tasks |
-|--------|-----------|-----------|
-| **Signal Schema** | `core/signal_schema.py` | Define strict JSON schema for Execution Plans. Validate all LLM outputs against this. |
-| **Intent Router** | `core/intent_router.py` | Implement rule-first routing. Add LLM fallback *only* for ambiguous intents. |
-| **RAM Monitor** | `core/ram_monitor.py` | Implement memory tracking. Auto-unload large models when >90% threshold hit. |
-| **LLM Prompts** | `core/prompts/` | Craft "Compiler Prompts" that force JSON output. No conversational fluff. |
-| **Tool Harness** | `tools/tool_harness.py` | Ensure `@GDT` alias is fixed. Verify it accepts JSON plans, not raw text. |
-| **Context Compressor** | `core/context_compressor.py` | Aggressively trim context window to <512 tokens before sending to LLM. |
-
-**Critical Success Factor:** If the LLM ever outputs raw text instead of JSON, or if RAM spikes >2.5GB during idle, the Core is failing.
-
----
-
-### 👨‍🔧 Developer S (Friend) — Domain Specialist
-**Focus:** The "Hands". Godot-specific parsing, project analysis, log monitoring, and domain logic.  
-**Goal:** Build the deepest possible understanding of Godot projects without needing LLM for basic facts.
-
-| Module | File Path | Key Tasks |
-|--------|-----------|-----------|
-| **Scene Parser** | `tools/godot/scene_parser.py` | Parse `.tscn` files into a node tree dict. Handle inheritance and nested scenes. |
-| **Script Parser** | `tools/godot/script_parser.py` | Regex-based extraction of `$NodePath`, `@onready`, and signal connections from `.gd`. |
-| **Project Map** | `tools/godot/project_map.py` | Merge scene + script data. Implement `validate_node_paths()` with similarity suggestions. |
-| **Log Watcher** | `tools/godot/log_watcher.py` | Tail Godot's `output.log`. Pre-process errors before sending to Core. |
-| **Godot Specialist** | `tools/godot/specialist.py` | The bridge: Takes Core's JSON plan and executes Godot-specific logic. |
-| **Test Suite** | `tools/godot/test_phase1.py` | Unit tests for parsers using real Godot project fixtures. |
-
-**Critical Success Factor:** If the parser misses a renamed node, or if the log watcher fails to detect a crash, the Specialist is failing. **No LLM calls allowed in parsers**—they must be 100% regex/string logic for speed and RAM.
-
----
-
-## 🗓️ Phase 1 Execution Plan (4 Weeks)
-
-**Goal:** A terminal-based tool that scans a Godot project, validates node paths, and explains crashes in plain English. **NO UI YET.**
-
-### Week 1: Foundation (Parsing & Schema)
-- **Dev H:** 
-  - [ ] Draft `core/signal_schema.py` (JSON structure for plans).
-  - [ ] Create `core/prompts/compiler_prompt.txt` (forces JSON output).
-  - [ ] Fix `@GDT` alias in `tool_harness.py`.
-- **Dev S:** 
-  - [ ] Build `scene_parser.py` (test on 5 complex `.tscn` files).
-  - [ ] Build `script_parser.py` (extract all `$` paths).
-  - [ ] Create `tools/godot/fixtures/` with test projects.
-- **Joint:** Mid-week sync to align Schema ↔ Parser output.
-
-### Week 2: Knowledge & Validation
-- **Dev H:** 
-  - [ ] Refactor `IntentRouter` to use Rule-First logic.
-  - [ ] Implement `WikiRetriever` pre-fetching (context before LLM).
-  - [ ] Fix Wiki truncation bug in `wiki_compiler.py`.
-- **Dev S:** 
-  - [ ] Build `project_map.py` (merge scene + script).
-  - [ ] Implement `validate_node_paths()` with fuzzy matching.
-  - [ ] Write 10 unit tests for validation edge cases.
-- **Joint:** End-to-end test: Run validator on a broken project.
-
-### Week 3: RAM Safety & Execution
-- **Dev H:** 
-  - [ ] Implement `ram_monitor.py` with auto-unload.
-  - [ ] Optimize context compressor (hard limit 512 tokens).
-  - [ ] Wire `log_watcher` → `LLM` → `Harness` pipeline.
-- **Dev S:** 
-  - [ ] Build `log_watcher.py` (async file tailing).
-  - [ ] Create `specialist.py` to execute validation plans.
-  - [ ] Tune error explanation prompts for `smollm2:1.7b`.
-- **Joint:** Stress test: Run for 1 hour, monitor RAM usage.
-
-### Week 4: Polish & Demo
-- **Dev H:** 
-  - [ ] Finalize error formatting (clear, actionable output).
-  - [ ] Document the Signal Schema for future phases.
-  - [ ] Record terminal demo video.
-- **Dev S:** 
-  - [ ] Test on 3 real-world Godot projects (GitHub repos).
-  - [ ] Fix top 5 false positives from validation.
-  - [ ] Write `README.md` for the Godot module.
-- **Joint:** **Phase 1 Freeze.** No new features. Only bug fixes.
+### Example: Error Explanation Plan
+```json
+{
+  "version": "1.0",
+  "intent": "EXPLAIN_ERROR",
+  "target": {
+    "type": "log_entry",
+    "value": "Invalid call to non-existent function 'jump' in base 'KinematicBody2D'",
+    "stack_trace": ["player.gd:45", "main.gd:12"]
+  },
+  "context": {
+    "script_content": "func _physics_process... ",
+    "node_type": "CharacterBody2D"
+  },
+  "constraints": {
+    "max_tokens": 150,
+    "tone": "direct",
+    "include_fix": true
+  },
+  "expected_output": "plain_text_explanation"
+}
+```
 
 ---
 
-## 🧹 Repository Hygiene (Golden Standard Structure)
+## 5. Division of Labor
 
-A clean repo is a fast repo. We strictly separate concerns.
+### 👤 Developer H (Core Architect)
+**Focus:** The Brain, Schema, Safety, Routing.
+| Module | File | Responsibility |
+|--------|------|----------------|
+| **Signal Schema** | `core/signal_schema.py` | Define & enforce JSON structures |
+| **Intent Router** | `core/intent_router.py` | Rule-first classification logic |
+| **RAM Monitor** | `core/ram_monitor.py` | Model hot-swap, OOM prevention |
+| **LLM Prompts** | `core/prompts/compiler.py` | "IR Generator" system prompts |
+| **Context Compressor** | `core/context_compressor.py` | Token reduction (<512) |
+| **Benchmark Harness** | `tests/benchmark_runner.py` | Automated test execution |
+
+### 👤 Developer S (Domain Specialist)
+**Focus:** The Hands, Godot Parsing, Validation Logic.
+| Module | File | Responsibility |
+|--------|------|----------------|
+| **Scene Parser** | `tools/godot/scene_parser.py` | `.tscn` parsing, tree building |
+| **Script Parser** | `tools/godot/script_parser.py` | `.gd` regex, path extraction |
+| **Project Map** | `tools/godot/project_map.py` | Cross-reference validation |
+| **Log Watcher** | `tools/godot/log_watcher.py` | Real-time log tailing |
+| **Godot Specialist** | `tools/godot/specialist.py` | High-level Godot APIs |
+| **Fixture Project** | `tests/fixtures/godot_project/` | Complex test cases |
+
+---
+
+## 6. The 7 Pillars of Excellence (Benchmark)
+
+### Pillar 1: Silent Killer Detection
+- **Goal:** Detect broken `$NodePaths`, missing signals, type mismatches **pre-runtime**.
+- **Test Suite:** 50 subtle path errors, 20 signal ghosts, 10 resource phantoms.
+- **Target:** 100% detection rate, 0 false positives, <200ms latency (Deep Scan).
+
+### Pillar 2: Context-Aware Explanation
+- **Goal:** Translate engine errors to human meaning using **project context**.
+- **Test Suite:** 20 real-world Godot crashes (RAM, binding, thread).
+- **Target:** Explanation references specific lines/nodes; <3 sentences; <3s latency.
+
+### Pillar 3: 2GB RAM Law
+- **Goal:** Strict **≤2.0GB peak RAM** while running Godot + COM + VS Code.
+- **Stress Test:** 1-hour session with heavy inference; RAM must stay <2.1GB.
+- **Target:** Auto-unload burst models after 10min idle; Graceful degradation at 90%.
+
+### Pillar 4: T-Shaped Intelligence
+- **Goal:** Generic help for Python/JS, **Godot Super-Intelligence** for scenes.
+- **Test Suite:** Mixed language queries (Python generic vs. Godot specific).
+- **Target:** Godot answers reference actual project files; Python answers are fast/generic.
+
+### Pillar 5: Deterministic Core (Zero Hallucination)
+- **Goal:** **0% hallucination rate** on structural facts.
+- **Test Suite:** "Does node X exist?" (100 queries); "List all signals" (50 queries).
+- **Target:** 100% accuracy via parsing; LLM never invents node names.
+
+### Pillar 6: Refactor Safety Net
+- **Goal:** Identify ALL breaking points before renaming/moving nodes.
+- **Test Suite:** Rename central node; Verify ripple effect report.
+- **Target:** Atomic refactor plans; 100% coverage of dependent scripts.
+
+### Pillar 7: Flow State Latency
+- **Goal:** **<100ms** for validation, **<2s** for explanations.
+- **Test Suite:** Real-time typing simulation; Bulk file save.
+- **Target:** Dual-mode switching (Real-time vs. Deep Scan) works seamlessly.
+
+---
+
+## 7. Stress Test Protocols
+
+### 🍝 The Spaghetti Scene
+- **Setup:** 20-level nested inherited scenes, circular dependencies, 500+ nodes.
+- **Task:** Validate all paths, detect cycles, suggest flattening.
+- **Pass Criteria:** Completes in <5s; RAM spike <500MB; No stack overflow.
+
+### 🔄 The Version Jump
+- **Setup:** Project migrated from Godot 4.2 → 4.3 (breaking API changes).
+- **Task:** Identify deprecated nodes, changed signal signatures.
+- **Pass Criteria:** Lists all breaking changes; Suggests migration code.
+
+### 📉 The RAM Starvation
+- **Setup:** Artificially limit COM to 512MB available RAM.
+- **Task:** Continue operating (fallback to tinyllama, disable deep scan).
+- **Pass Criteria:** No crash; Degrades gracefully; Recovers when limit lifted.
+
+### 🧠 The Hallucination Trap
+- **Setup:** Ask about non-existent nodes (`$NonExistentNode`), fake signals.
+- **Task:** Correctly report "Not Found" without inventing alternatives.
+- **Pass Criteria:** 100% negative accuracy; No confident lies.
+
+### 🌐 The Multi-Language Maze
+- **Setup:** Mixed project (GDScript, C# module, Python build scripts).
+- **Task:** Answer questions in all 3 languages appropriately.
+- **Pass Criteria:** Godot questions = deep context; Others = generic expert.
+
+---
+
+## 8. Certification Levels
+
+| Level | Requirements | Badge |
+|-------|--------------|-------|
+| **🥇 Gold** | All 7 Pillars Passed + RAM ≤1.6GB + Latency <80ms | "God-Tier" |
+| **🥈 Silver** | All 7 Pillars Passed + RAM ≤1.8GB + Latency <100ms | "Production Ready" (Phase 1 Target) |
+| **🥉 Bronze** | 6/7 Pillars Passed + RAM ≤2.0GB | "Beta Stable" |
+| **❌ Fail** | Any Pillar <90% OR RAM >2.2GB OR Hallucination Detected | "Unstable" |
+
+---
+
+## 9. Repository Structure
 
 ```text
 /workspace/
-├── core/                      # THE BRAIN (Dev H)
-│   ├── signal_schema.py       # Strict JSON definition
-│   ├── intent_router.py       # Rule-first routing
-│   ├── ram_monitor.py         # Memory safety
-│   ├── context_compressor.py  # Token trimming
-│   └── prompts/               # Compiler-style prompts
-│
-├── tools/                     # THE HANDS (Dev S + Others)
-│   ├── godot/                 # ★ GODOT SPECIALIST (Phase 1 Focus)
+├── core/                   # [Dev H] The Brain
+│   ├── signal_schema.py    # Frozen v1.0
+│   ├── intent_router.py
+│   ├── ram_monitor.py
+│   ├── context_compressor.py
+│   └── prompts/
+├── tools/
+│   ├── godot/              # [Dev S] The Hands
 │   │   ├── scene_parser.py
 │   │   ├── script_parser.py
 │   │   ├── project_map.py
 │   │   ├── log_watcher.py
-│   │   ├── specialist.py      # Executes JSON plans
-│   │   └── test_phase1.py
-│   │
-│   ├── languages/             # Polyglot experts (Python, JS, etc.)
-│   ├── data_ops/              # Wiki compiler, indexer
-│   └── tool_harness.py        # Universal executor
-│
-├── config.py                  # Model configs (smollm2, qwen)
-├── com_chat.py                # Main entry point
-├── GOLDEN_STANDARD.md         # This document
-└── .gitignore                 # Strict exclusion rules
+│   │   └── specialist.py
+│   ├── languages/          # Polyglot Support
+│   └── tool_harness.py     # Deterministic Executor
+├── tests/
+│   ├── fixtures/           # Complex Godot Projects
+│   ├── benchmark_runner.py
+│   └── human_eval/
+├── config.py
+└── README.md
 ```
 
-### 🗑️ What Must Be Deleted (Immediately)
-1. **Legacy Benchmarks:** `benchmark and test review/`, `benchmark_results.json`.
-2. **Node.js Artifacts:** `node_modules/`, `package.json` (accidental commits).
-3. **Unused Office Tools:** Move `tools/excel/`, `tools/ppt/` to `tools/_deferred/`.
-4. **Language Bloat:** If a language isn't Python, JS, C++, or GDScript, move to `_deferred`.
-5. **All `__pycache__/` and `.pyc` files.**
-6. **Old Game Dev Scripts:** Delete and rewrite fresh in `tools/godot/`.
+---
+
+## 10. Implementation Roadmap
+
+### Week 1: Foundation
+- **Dev H:** Finalize `signal_schema.py`, implement `intent_router.py` skeleton.
+- **Dev S:** Build `scene_parser.py`, create `fixtures/godot_project/` (Spaghetti Scene).
+- **Milestone:** Schema frozen; Parser reads `.tscn` successfully.
+
+### Week 2: Knowledge & Validation
+- **Dev H:** Wire Wiki Retriever **before** LLM; Implement RAM Monitor.
+- **Dev S:** Build `project_map.py`, implement node path validation logic.
+- **Milestone:** "Silent Killer" test passes (90% detection).
+
+### Week 3: The Compiler Pipeline
+- **Dev H:** Write LLM "IR Generator" prompts; Enforce JSON output.
+- **Dev S:** Connect Harness to execute validation plans.
+- **Milestone:** End-to-end flow: Input → Plan → Execute → Output.
+
+### Week 4: Stress & Polish
+- **Both:** Run full Benchmark Suite; Optimize RAM/Latency.
+- **Dev S:** Human Eval scripts; Fixture refinement.
+- **Milestone:** Silver Certification achieved.
 
 ---
 
-## ⚠️ Critical Constraints & Rules
+## Appendix: Failure Handling Protocols
 
-### 1. The 2GB RAM Law
-- **Base Load:** `smollm2:1.7b` (~1.2GB) + OS + Python overhead = ~1.8GB.
-- **Burst Load:** `qwen2.5-coder:7b` loads only for complex code gen, unloads after 10 mins idle.
-- **Hard Limit:** If RAM > 90%, immediately unload `qwen` and switch to `tinyllama:1.1b` fallback.
-- **No Buffering:** Stream tokens directly to output. Do not store full responses in memory.
+1. **Invalid JSON from LLM:**
+   - Retry once with stricter prompt.
+   - If fail → Fallback to rule-based default response.
+   - Log error for prompt tuning.
 
-### 2. The "One LLM Pass" Rule
-- **Forbidden:** Using LLM to parse input AND generate output.
-- **Required:** Parse input with Regex/Rules → LLM generates Plan → Harness executes.
-- **Exception:** None. If you need a second LLM call, your prompt or schema is wrong.
+2. **RAM Threshold Breach (>90%):**
+   - Immediately unload burst model (`qwen`).
+   - Switch to `tinyllama` fallback.
+   - Disable Deep Scan mode until memory recovers.
 
-### 3. The "No UI" Rule (Phase 1)
-- **Focus:** Terminal output only.
-- **Why:** UI frameworks (Tkinter, Qt) add complexity and RAM overhead.
-- **Goal:** Perfect the logic first. UI is Week 5+.
-
-### 4. The "Godot First" Principle
-- COM is a polyglot expert, but **Godot is the superpower**.
-- General coding help (Python, JS) uses standard patterns.
-- Godot help uses the **Specialist Module** with deep project awareness.
-- **Differentiation:** No other tool validates `$NodePath` before runtime.
+3. **Parser Failure (Corrupt .tscn):**
+   - Isolate corrupt file; skip parsing.
+   - Report "Unparseable File" to user.
+   - Continue with remaining project.
 
 ---
 
-## 🔮 Future Phases (Vision)
-
-- **Phase 2:** Context-Aware Q&A + Memory (Project indexing, session persistence).
-- **Phase 3:** VS Code Extension (Distribution, inline validation).
-- **Phase 4:** E+ Language Translator (Live E+ → GDScript compilation).
-- **Phase 5:** Standalone COM IDE (Full editor surface).
-
----
-
-## 🤝 Joint Responsibilities
-
-Both developers share these duties:
-1. **Testing:** Every PR must include tests. No tests = no merge.
-2. **Documentation:** Update this file if architecture changes.
-3. **RAM Audits:** Weekly check of memory usage during peak load.
-4. **Code Reviews:** Dev H reviews Godot tools for RAM efficiency; Dev S reviews Core for Godot accuracy.
-
----
-
-## 🚦 Immediate Next Steps (Day 1)
-
-1. **Dev H:** 
-   - Create `core/signal_schema.py` with draft JSON.
-   - Push to branch `feature/signal-schema`.
-2. **Dev S:** 
-   - Create `tools/godot/` directory.
-   - Start `scene_parser.py` with a simple `.tscn` fixture.
-   - Push to branch `feature/scene-parser`.
-3. **Both:** 
-   - Schedule 30-min sync tomorrow to finalize the Signal Schema.
-   - Agree on the exact JSON structure for `VALIDATE_NODE_PATH`.
-
-**Let's build the compiler.** 🛠️
+> **"The limit is only your imagination."**
+> Built for Godot developers, by Godot developers.
+> Local. Private. Evolving.
