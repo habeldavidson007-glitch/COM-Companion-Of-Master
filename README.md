@@ -38,7 +38,6 @@ python tests/harness_runner.py
 
 ## 🏗️ Architecture: Compiler-Lite Pipeline
 
-```mermaid
 graph LR
     A[User Input] --> B[Signal Parser + tiktoken]
     B --> C{Adaptive Router<br/>liteLLM + RAM Monitor}
@@ -54,6 +53,7 @@ graph LR
     
     style C fill:#f9f,stroke:#333,stroke-width:2px
     style D fill:#ff9,stroke:#333,stroke-width:2px
+
 ```
 
 **Key Innovation:** LLM appears **exactly ONCE** to generate an execution plan. All structural facts come from parsing, not probability. `liteLLM` adaptively selects the smartest model that fits current RAM availability.
