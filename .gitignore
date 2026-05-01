@@ -1,8 +1,1 @@
-```
-# Microsoft Office files
-*.docx
-
-# JavaScript build artifacts
-*.js.map
-*.min.js
-```
+Nothing should be ignored based on the provided file changes. The only added file is `GOLDEN_STANDARD_REPOSITORY.md`, which is a markdown documentation file and should not be ignored.
