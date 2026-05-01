@@ -1,9 +1,11 @@
-# 🏆 COM IDE: The "God-Tier" Benchmark Standard v4.0
+# 🏆 COM IDE: The "God-Tier" Benchmark Standard v5.0
 ## *The Ultimate Stress Test for the Next Generation of Game Development Tools*
 
 > **Mission:** To establish a benchmark so rigorous, so unforgiving, and so comprehensive that passing it proves COM IDE is not just "another plugin," but a fundamental evolution in developer tooling.
 >
 > **Philosophy:** We do not test for "features." We test for **survival**, **sanity**, and **super-intelligence**. If an IDE cannot pass these tests on a 2GB RAM machine while handling a chaotic, real-world project, it does not deserve to be called "Intelligent."
+>
+> **Core Principle:** *"The stronger the model for COM IDE to use, the Stronger it becomes. We created an evolving IDE with revolutionary pipeline that already thinks better even with small models. The limit is only your imagination."*
 
 ---
 
@@ -17,10 +19,10 @@ These are not suggestions. These are the **minimum viable standards** for COM ID
 
 #### 🔴 Test Suite 1.1: The Node Path Nightmare
 - **Scenario:** A complex scene (`BossArena.tscn`) with 50+ nodes. The user renames `Player` to `HeroCharacter` in the scene tree but forgets to update 12 scripts referencing `$Player`.
-- **Requirement:** COM must flag all 12 broken references instantly (<200ms) upon file save.
+- **Requirement:** COM must flag all 12 broken references instantly (<200ms Deep Scan, <100ms Real-time) upon file save.
 - **Complexity:** Must handle inherited scenes, dynamic path construction (`get_node("Enemy/" + type)`), and signal connections.
 - **Human Eval:** "Did it catch the one reference I hid inside a nested `call_deferred` string?"
-- **Pass Criteria:** 100% detection rate, 0 false positives, <200ms latency.
+- **Pass Criteria:** 100% detection rate, 0 false positives, dual-mode latency met.
 
 #### 🔴 Test Suite 1.2: The Signal Ghost
 - **Scenario:** A script connects to `on_body_entered` via code, but the node emitting the signal has been removed or renamed.
@@ -101,6 +103,21 @@ These are not suggestions. These are the **minimum viable standards** for COM ID
 - **Requirement:** COM must flag the type mismatch based on the function signature in `player.gd`.
 - **Pass Criteria:** Detects type errors statically without running the code.
 
+#### 🔴 Test Suite 5.3: The Signal Schema Validator (NEW - Critical)
+- **Scenario:** Send 100 queries through the pipeline; verify all LLM outputs are valid JSON execution plans.
+- **Requirement:** 100% of LLM outputs must conform to Signal Schema v1.0; invalid JSON triggers fallback.
+- **Pass Criteria:** 0 malformed JSON outputs; graceful fallback on retry failure.
+
+#### 🔴 Test Suite 5.4: The Single-Pass Verification (NEW - Critical)
+- **Scenario:** Trace 50 queries through the full pipeline.
+- **Requirement:** LLM must be invoked **exactly ONCE** per query (no summarization pass).
+- **Pass Criteria:** 100% compliance with single-pass architecture; latency savings verified.
+
+#### 🔴 Test Suite 5.5: The Wiki-Before-LLM Architecture (NEW - Critical)
+- **Scenario:** Ask project-specific questions that require context retrieval.
+- **Requirement:** Wiki retrieval must occur BEFORE LLM invocation; context must be injected into the prompt.
+- **Pass Criteria:** LLM responses reference retrieved context; token count reduced by ≥40%.
+
 ---
 
 ### PILLAR 6: REFACTOR SAFETY NET (The "Atomic Change" Protocol)
@@ -121,18 +138,23 @@ These are not suggestions. These are the **minimum viable standards** for COM ID
 ---
 
 ### PILLAR 7: FLOW STATE LATENCY (The "Instant" Promise)
-**Standard:** Validation <100ms, Explanations <2s, Refactor Plans <5s.
+**Standard:** Dual-mode latency: Real-time <100ms, Deep Scan <200ms, Explanations <2s, Refactor Plans <5s.
 **Why it matters:** If the tool is slow, developers won't use it. It must feel like part of the editor.
 
 #### 🔴 Test Suite 7.1: The Typing Speed Test
 - **Scenario:** User types a `$NodePath` incorrectly.
-- **Requirement:** COM must underline the error **before** the user finishes typing the line.
+- **Requirement:** COM must underline the error **before** the user finishes typing the line (Real-time mode).
 - **Pass Criteria:** Latency <100ms from keystroke to warning.
 
 #### 🔴 Test Suite 7.2: The Log Stream
 - **Scenario:** Godot outputs 50 lines of errors per second during a crash loop.
 - **Requirement:** COM must parse, explain, and prioritize the **root cause** error in real-time without lagging.
 - **Pass Criteria:** Identifies the first error as the root cause, ignores cascading errors.
+
+#### 🔴 Test Suite 7.3: The Dual-Mode Switch (NEW - Critical)
+- **Scenario:** Trigger Real-time validation (typing) then immediately trigger Deep Scan (save).
+- **Requirement:** System must switch modes seamlessly; Real-time uses cache/heuristics, Deep Scan uses full graph.
+- **Pass Criteria:** Mode switch <10ms; no user-perceptible delay; accuracy difference documented.
 
 ---
 
@@ -165,6 +187,16 @@ These tests are designed to break weak implementations. Only a true "God-Tier" I
 - **Test:** Can COM switch contexts correctly and apply the right rules for each language?
 - **Pass:** Correctly handles syntax and API differences.
 
+### 6. The Compiler Pipeline Integrity (NEW - Critical)
+- **Input:** 100 diverse queries (validation, explanation, refactor, Q&A).
+- **Test:** Verify every query follows: `Parse → Retrieve → LLM(Plan) → Execute → Output`
+- **Pass:** 100% pipeline compliance; zero deviations; all plans are valid JSON.
+
+### 7. The Invalid JSON Recovery (NEW - Critical)
+- **Input:** Simulate LLM outputting malformed JSON (5% of requests).
+- **Test:** Does COM retry once, then fallback to rule-based response without crashing?
+- **Pass:** Graceful degradation; user sees helpful response even on LLM failure.
+
 ---
 
 ## 📊 Scoring & Certification
@@ -176,13 +208,16 @@ To be certified as **"COM IDE Gold Standard"**, a build must achieve:
 | **Pre-Runtime Accuracy** | 100% | <95% = Fail |
 | **Hallucination Rate** | 0% | >1% = Fail |
 | **Peak RAM Usage** | <1.8GB | >2.0GB = Fail |
-| **Validation Latency** | <100ms | >200ms = Fail |
+| **Real-time Latency** | <100ms | >150ms = Fail |
+| **Deep Scan Latency** | <200ms | >300ms = Fail |
+| **Schema Validity** | 100% valid JSON | >2% invalid = Fail |
+| **Single-Pass Compliance** | 100% | Any double-pass = Fail |
 | **Explanation Quality** | Human-Rated 4.5/5 | <3.5/5 = Fail |
 | **Refactor Safety** | 100% Coverage | Missed ref = Fail |
 
 ### 🏅 Certification Levels
-- **🥇 Gold:** All tests passed, RAM ≤1.6GB, Latency <80ms.
-- **🥈 Silver:** All tests passed, RAM ≤1.8GB, Latency <100ms. **(Phase 1 Target)**
+- **🥇 Gold:** All tests passed, RAM ≤1.6GB, Real-time <80ms, Deep Scan <150ms.
+- **🥈 Silver:** All tests passed, RAM ≤1.8GB, Real-time <100ms, Deep Scan <200ms. **(Phase 1 Target)**
 - **🥉 Bronze:** 90% tests passed, RAM ≤2.0GB.
 - **❌ Fail:** Any critical test failed or RAM >2.0GB.
 
@@ -198,12 +233,12 @@ To be certified as **"COM IDE Gold Standard"**, a build must achieve:
 ### Expert Evaluation (The "Architect" Score)
 - **Evaluator:** Senior Engine Programmer
 - **Task:** Review code quality, architectural soundness, and edge case handling.
-- **Metric:** Code correctness, robustness, adherence to Godot best practices.
+- **Metric:** Code correctness, robustness, adherence to Godot best practices, pipeline integrity.
 
 ### Automated Evaluation (The "CI/CD" Score)
 - **Runner:** GitHub Actions / Local CI
 - **Task:** Run the full test suite on every commit.
-- **Metric:** Pass/Fail status, performance regression detection.
+- **Metric:** Pass/Fail status, performance regression detection, schema validity checks.
 
 ---
 
@@ -229,6 +264,8 @@ To be certified as **"COM IDE Gold Standard"**, a build must achieve:
 - **Task 3:** Write `benchmark/run_benchmark.py` - automated test harness
 - **Task 4:** Implement RAM monitoring during tests (`benchmark/ram_monitor.py`)
 - **Task 5:** Create scoring system and certification logic
+- **Task 6:** **NEW:** Implement Signal Schema validator tests (Pillar 5.3-5.5)
+- **Task 7:** **NEW:** Implement pipeline integrity tracer (Pillar 7.3, Torture #6-7)
 
 ### Developer S (Domain Specialist) - Test Validation
 - **Task 1:** Implement node path validation test (Pillar 1, Test Suite 1.1)
@@ -236,6 +273,8 @@ To be certified as **"COM IDE Gold Standard"**, a build must achieve:
 - **Task 3:** Implement resource phantom test (Pillar 1, Test Suite 1.3)
 - **Task 4:** Write human evaluation scripts for explanation quality (Pillar 2)
 - **Task 5:** Create latency measurement tools (Pillar 7)
+- **Task 6:** **NEW:** Implement dual-mode switch tests (Pillar 7.3)
+- **Task 7:** **NEW:** Build torture chamber fixtures (Spaghetti, Version Jump)
 
 ### Joint Tasks (Both Developers)
 - **Week 1:** Run first baseline benchmark (expect Fail, establish baseline score)
@@ -264,6 +303,5 @@ To be certified as **"COM IDE Gold Standard"**, a build must achieve:
 ---
 
 **Compiled by:** COM Development Team  
-**Version:** 4.0 (God-Tier Standard)  
+**Version:** 5.0 (God-Tier Standard with Compiler-AI Architecture)  
 **License:** MIT (Benchmark suite open-source for community verification)
-

@@ -1,1 +1,1 @@
-Nothing should be ignored based on the provided file changes. The changes only include source/config files (.md files) with no build artifacts, dependencies, or temporary files.
+Nothing to output - the change list contains only a markdown file (GOLDEN_BENCHMARK.md) which is a source/config file, and there are no build artifacts, dependencies, or temp files to ignore.
