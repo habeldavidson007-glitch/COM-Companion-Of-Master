@@ -204,6 +204,27 @@ SCHEMA_REGISTRY: Dict[str, type] = {
 }
 
 
+class SchemaRegistry:
+    """Wrapper class for schema registry operations."""
+    
+    _registry = SCHEMA_REGISTRY.copy()
+    
+    @classmethod
+    def get(cls, action: str) -> Optional[type]:
+        """Get schema class by action name."""
+        return cls._registry.get(action)
+    
+    @classmethod
+    def register(cls, action: str, schema_class: type) -> None:
+        """Register a new schema class."""
+        cls._registry[action] = schema_class
+    
+    @classmethod
+    def list_actions(cls) -> List[str]:
+        """List all registered actions."""
+        return list(cls._registry.keys())
+
+
 def get_schema_for_action(action: str) -> Optional[type]:
     """
     Get the schema class for a given action type.
