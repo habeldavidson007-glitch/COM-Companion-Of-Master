@@ -70,10 +70,12 @@ graph TD
     -   **Benefit:** Reduces token count by 60%, offloads RAM to disk.
 
 4.  **LLM (SINGLE PASS ONLY)**
-    -   **Tech:** `instructor` (schema enforcement), `liteLLM` (model call)
+    -   **Tech:** `instructor` (schema enforcement), `liteLLM` (adaptive routing)
     -   **Action:** Generates **JSON Execution Plan (IR)**.
     -   **Constraint:** ≤512 tokens context (enforced by `tiktoken`).
-    -   **Model:** `smollm2:1.7b` (default), `qwen2.5-coder:7b` (on-demand).
+    -   **Adaptive Model Selection:** `liteLLM` checks RAM before loading.
+        -   *Logic:* `Max_Model_RAM = Available_RAM - 1.5GB`.
+        -   *Chain:* `Qwen-7B` (if >5.5GB free) → `Llama-3B` (if >3.5GB free) → `Smol-1.7B` (fallback).
     -   **Guarantee:** Output matches Pydantic schema exactly (No invalid JSON).
 
 5.  **Harness Executor (Deterministic)**
@@ -150,15 +152,15 @@ Each pillar is enforced by specific libraries in the stack.
 |-----|--------------|---------------|-------------------|
 | **Mon** | Setup `diskcache` for Wiki/Project Map. | Build `project_map.py` (cross-ref). | Project Map cached to disk (RAM safe). |
 | **Tue** | Wire Wiki retrieval *before* LLM. | Implement Node Path Validator (rule-based). | **Validation without LLM (Instant).** |
-| **Wed** | Prompt engineering for `smollm2:1.7b`. | Build `log_watcher.py` for Godot logs. | Log line → Plain English explanation. |
+| **Wed** | Tune `liteLLM` adaptive routing logic. | Build `log_watcher.py` for Godot logs. | Log line → Plain English explanation. |
 | **Thu** | Optimize token usage (cut to 512). | Test validator on "Spaghetti Scene". | **Milestone:** <100ms validation latency. |
 | **Fri** | **Test:** RAM usage with cache. | **Test:** False positive rate. | **Milestone:** RAM <1.8GB during scan. |
 
 ### **Week 3: RAM Safety & Execution (Hardening)**
 | Day | Dev H (Core) | Dev S (Tools) | Joint Deliverable |
 |-----|--------------|---------------|-------------------|
-| **Mon** | Build `ram_monitor.py` (auto-unload). | Stress test parsers on large projects. | Auto-unload qwen after 10min idle. |
-| **Tue** | Implement fallback chain (smollm2 → tinyllama). | Refine error messages with `rich`. | Graceful degradation at 90% RAM. |
+| **Mon** | Build `ram_monitor.py` (auto-unload). | Stress test parsers on large projects. | Auto-unload model after 10min idle. |
+| **Tue** | Implement fallback chain (Qwen→Llama→Smol). | Refine error messages with `rich`. | Graceful degradation at 90% RAM. |
 | **Wed** | Finalize Harness Executor (atomic). | Add "Suggest Fix" generation. | **Milestone:** Safe atomic execution. |
 | **Thu** | Integrate `logfire` dashboards. | Document false positives/negatives. | Full observability of pipeline. |
 | **Fri** | **Test:** 1-hour RAM stress test. | **Test:** 50 hidden bugs detection. | **Milestone:** Pass "2GB Law" Benchmark. |
