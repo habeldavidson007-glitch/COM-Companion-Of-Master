@@ -1,31 +1,12 @@
 ```
-# Cache and database files
-.cache/
-*.db
-
-# Python
-__pycache__/
+# Compiled Python files
 *.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.venv/
-.ENV
-.python-version
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
+__pycache__/
+
+# Logs
+logs/
 *.log
-*.tmp
-*.swp
-.DS_Store
-Thumbs.db
+
+# Cache
+.cache/
 ```

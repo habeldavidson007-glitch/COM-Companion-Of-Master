@@ -10,7 +10,9 @@ from datetime import datetime
 from typing import Any
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+BENCHMARK_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(os.path.dirname(BENCHMARK_DIR))
+sys.path.insert(0, ROOT_DIR)
 
 class BenchmarkRunner:
     """Master runner for all benchmark suites."""
@@ -33,22 +35,32 @@ class BenchmarkRunner:
         
         # Run Pillar 1: Silent Killer Detection
         try:
-            from tests.benchmark.suite_pillar1 import run_pillar1_benchmark
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("suite_pillar1", os.path.join(BENCHMARK_DIR, "suite_pillar1.py"))
+            suite_pillar1 = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(suite_pillar1)
             print("\n>>> Running Pillar 1 Suite...")
-            pillar1_results = run_pillar1_benchmark()
+            pillar1_results = suite_pillar1.run_pillar1_benchmark()
             self.results["pillar1"] = pillar1_results
         except Exception as e:
             print(f"ERROR running Pillar 1: {e}")
+            import traceback
+            traceback.print_exc()
             self.results["pillar1"] = {"error": str(e), "passed": False}
         
         # Run Pillar 3: RAM Torture
         try:
-            from tests.benchmark.suite_pillar3 import run_pillar3_benchmark
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("suite_pillar3", os.path.join(BENCHMARK_DIR, "suite_pillar3.py"))
+            suite_pillar3 = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(suite_pillar3)
             print("\n>>> Running Pillar 3 Suite...")
-            pillar3_results = run_pillar3_benchmark()
+            pillar3_results = suite_pillar3.run_pillar3_benchmark()
             self.results["pillar3"] = pillar3_results
         except Exception as e:
             print(f"ERROR running Pillar 3: {e}")
+            import traceback
+            traceback.print_exc()
             self.results["pillar3"] = {"error": str(e), "passed": False}
         
         self.end_time = time.time()
