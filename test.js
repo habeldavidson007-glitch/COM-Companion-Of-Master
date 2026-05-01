@@ -1,0 +1,1 @@
+const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, HeadingLevel, BorderStyle, WidthType, ShadingType, LevelFormat, PageBreak } = require("docx"); const fs = require("fs"); console.log("test");
