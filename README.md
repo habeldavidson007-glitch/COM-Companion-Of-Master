@@ -1,150 +1,127 @@
-# 🚀 COM IDE — Godot AI Companion
+# 🚀 COM IDE: Godot AI Companion
 
 > **"The stronger the model for COM IDE to use, the Stronger it becomes. We created an evolving IDE with revolutionary pipeline that already thinks better even with small models. The limit is only your imagination."**
 
-[![Phase](https://img.shields.io/badge/Phase-1%20Foundation-blue)](./GOLDEN_STANDARD.md)
-[![RAM Target](https://img.shields.io/badge/RAM-%3C2GB-green)](./GOLDEN_STANDARD.md)
-[![License](https://img.shields.io/badge/License-MIT-yellow)](./LICENSE)
+**COM IDE** is a **Compiler-AI Hybrid** that combines deterministic static analysis with LLM-powered planning. It is not a chatbot—it is a development companion that knows your project better than you do, runs on 2GB RAM, and never lies about your code structure.
 
 ---
 
-## 🎯 What is COM IDE?
-
-COM IDE is **not** another AI chatbot wrapper. It is a **static-analysis + execution engine with LLM-assisted planning** built specifically for Godot developers.
-
-### The Problem
-- Godot crashes silently without actionable reasons
-- Node path errors (`$Player`) are only caught at runtime
-- Existing AI tools have no knowledge of your project structure
-- Cloud-based solutions are expensive and privacy-invasive
-
-### The COM Solution
-- **Pre-runtime validation** catches broken node paths before you run the scene
-- **Context-aware explanations** translate engine errors into plain English using YOUR project context
-- **Local inference** runs on 2GB RAM with no internet required
-- **Deterministic execution** ensures zero hallucinations on structural facts
-
----
-
-## ⚡ Quick Start
+## 🎯 Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/com-ide.git
-cd com-ide
-
 # Install dependencies
 pip install -e .
 
-# Pull required models (Ollama)
-ollama pull smollm2:1.7b
-ollama pull qwen2.5-coder:7b
+# Run COM IDE (terminal mode)
+python com_chat.py --project /path/to/godot/project
 
-# Run Phase 1 tests
-python tests/benchmark_runner.py
+# Run benchmark suite
+python tests/harness_runner.py
 ```
 
 ---
 
-## 🏗️ Architecture: Compiler-Lite Pipeline
+## 🔥 Why COM IDE?
 
-COM IDE treats the LLM as a **compiler stage**, not a chatbot:
+| Feature | Traditional AI IDE | COM IDE |
+|---------|-------------------|---------|
+| **Architecture** | `User → LLM → Text` | `Parse → Retrieve → Plan → Execute` |
+| **Hallucination** | Common (guesses facts) | **Zero** (parser verifies everything) |
+| **RAM Usage** | 4-8GB minimum | **<2GB** (model hot-swap) |
+| **Project Awareness** | None (generic answers) | **Deep** (knows your scene tree) |
+| **Latency** | 3-10s per query | **<100ms** real-time validation |
+| **Offline** | No (cloud API) | **Yes** (local Ollama inference) |
+
+---
+
+## 🏗️ Architecture: Compiler-Lite Pipeline
 
 ```
 User Input
    ↓
 [1] Signal Parser (Rule-Based, NO LLM)
    ↓
-[2] Intent Router (Rule-First)
+[2] Intent Router (Rule-First, LLM Fallback)
    ↓
-[3] Wiki Retriever (Context Enrichment)
+[3] Wiki Retriever (Context BEFORE LLM)
    ↓
-[4] LLM (Generate JSON Plan ONLY) ← LLM appears ONCE
+[4] LLM (SINGLE PASS → JSON Plan)
    ↓
-[5] Tool Harness (Execute Deterministically)
+[5] Harness Executor (Deterministic)
    ↓
-[6] Output Formatter (NO LLM)
-   ↓
-Final Output
+[6] Output Formatter (No summarization)
 ```
 
-### Why This Works on 2GB RAM
-1. **Single LLM Pass** — Generates small JSON plans, not verbose text
-2. **Rule-Based First** — Strips noise before tokens are counted
-3. **Context Before LLM** — Wiki retrieval enriches input, reducing guesswork
-4. **Model Hot-Swapping** — `smollm2:1.7b` always loaded; `qwen2.5-coder:7b` on-demand
+**Key Innovation:** LLM appears **exactly ONCE** to generate an execution plan. All structural facts come from parsing, not probability.
 
 ---
 
-## 📦 Features (Phase 1)
+## 📦 Phase 1 Features (Current)
 
-| Feature | Description | Status |
-|---------|-------------|--------|
-| **Node Path Validation** | Catch `$Player` → `$PlayerCharacter` renames pre-runtime | ✅ Built |
-| **Error Explanation** | Translate Godot logs to plain English | ✅ Built |
-| **Project-Aware Q&A** | Answers reference YOUR scene tree, not generic docs | 🚧 In Progress |
-| **RAM Monitor** | Auto-unload models to stay under 2GB | 🚧 In Progress |
-| **Signal Schema** | Frozen v1.0 JSON protocol for deterministic execution | ✅ Frozen |
-
----
-
-## 🧪 Benchmark Standards
-
-COM IDE is held to **god-tier standards** that exceed existing IDEs:
-
-| Pillar | Target | Current |
-|--------|--------|---------|
-| **Silent Killer Detection** | 100% pre-runtime accuracy | 95% |
-| **Zero Hallucination** | 0% on structural facts | 0% |
-| **2GB RAM Law** | ≤2.0GB peak with Godot+VSCode | 1.8GB |
-| **Flow State Latency** | <100ms validation | 85ms |
-| **T-Shaped Intelligence** | Godot superpower, polyglot generalist | ✅ |
-
-See [GOLDEN_STANDARD.md](./GOLDEN_STANDARD.md) for full benchmark details.
+| Feature | Status | Description |
+|---------|--------|-------------|
+| **Node Path Validation** | ✅ Ready | Catches `$Player` → `$PlayerCharacter` renames pre-runtime |
+| **Error Explanation** | ✅ Ready | Translates Godot crashes to plain English |
+| **Project Map** | ✅ Ready | Builds in-memory scene tree from .tscn/.gd files |
+| **Log Watcher** | ✅ Ready | Monitors Godot output.log in real-time |
+| **RAM Monitor** | ✅ Ready | Auto-unloads models after 10min idle |
+| **Signal Schema v1.0** | ✅ Frozen | Strict JSON protocol for all internal comms |
+| **VS Code Extension** | 🚧 Phase 3 | Coming soon |
+| **E+ Language** | 🚧 Phase 4 | English → GDScript compiler |
 
 ---
 
-## 👥 Division of Labor
+## 🏆 Benchmark Standards
+
+COM IDE must pass the **7 Pillars of Excellence** to be certified:
+
+1. **Silent Killer Detection** – 100% pre-runtime error catch rate
+2. **Context-Aware Explanation** – References specific file/line/node
+3. **2GB RAM Law** – Peak memory ≤2.0GB with Godot + VS Code running
+4. **T-Shaped Intelligence** – Polyglot generalist, Godot god
+5. **Deterministic Core** – Zero hallucination on structural facts
+6. **Refactor Safety Net** – Atomic changes with ripple analysis
+7. **Flow State Latency** – <100ms validation, <2s deep scan
+
+*See `GOLDEN_BENCHMARK.md` for full test suites and torture chambers.*
+
+---
+
+## 👥 Team Structure
 
 ### Developer H (Core Architect)
-- Signal Schema (`core/signal_schema.py`)
-- Intent Router (`core/intent_router.py`)
-- RAM Monitor (`core/ram_monitor.py`)
-- LLM Prompts (`core/prompts/`)
-- Benchmark Harness (`tests/`)
+- **Focus:** Signal schema, intent routing, RAM safety, LLM prompts
+- **Files:** `core/signal_schema.py`, `core/intent_router.py`, `core/ram_monitor.py`
+- **Goal:** Keep base RAM <1.2GB, schema validation 100%
 
 ### Developer S (Domain Specialist)
-- Scene Parser (`tools/godot/scene_parser.py`)
-- Script Parser (`tools/godot/script_parser.py`)
-- Project Map (`tools/godot/project_map.py`)
-- Log Watcher (`tools/godot/log_watcher.py`)
-- Fixture Projects (`tests/fixtures/`)
+- **Focus:** Godot parsing, project mapping, error detection
+- **Files:** `tools/godot/scene_parser.py`, `tools/godot/script_parser.py`, `tools/godot/project_map.py`
+- **Goal:** Node validation 100% accurate, <100ms latency
 
 ---
 
 ## 📅 Roadmap
 
-### Phase 1: Foundation (Weeks 1-4)
-- [x] Signal Schema v1.0 frozen
-- [x] Scene & Script parsers built
-- [ ] RAM Monitor implemented
-- [ ] End-to-end compiler pipeline
-- [ ] Silver Certification achieved
+### Phase 1: Project Scanner + Error Explainer (Current)
+- **Timeline:** 4 weeks
+- **Deliverable:** Terminal tool that validates node paths and explains crashes
+- **RAM Target:** ≤2.0GB peak
 
-### Phase 2: Context-Aware Q&A (Weeks 5-8)
-- [ ] Project memory & session persistence
-- [ ] Wiki integration for Godot docs
-- [ ] "Suggest Fix" mode for runtime errors
+### Phase 2: Context-Aware Q&A + Memory
+- **Timeline:** 6-8 weeks
+- **Deliverable:** Persistent chat panel with project memory
+- **Feature:** "Why does my player fall through the floor?" → answers using YOUR CollisionShape2D
 
-### Phase 3: VS Code Extension (Weeks 9-16)
-- [ ] GDScript syntax highlighting with inline validation
-- [ ] Live error explanation panel
-- [ ] IntelliSense with scene tree awareness
+### Phase 3: VS Code Extension
+- **Timeline:** 8-10 weeks
+- **Deliverable:** Marketplace extension with inline validation
+- **Revenue:** Free tier (basic) + Paid tier ($5/mo, unlimited Q&A)
 
-### Phase 4: E+ Language Layer (Weeks 17-26)
-- [ ] E+ → GDScript live translation
-- [ ] Two-way translation (GDScript → E+)
-- [ ] Custom vocabulary for teams
+### Phase 4: E+ Language Translator
+- **Timeline:** 10-14 weeks
+- **Deliverable:** English → GDScript compiler
+- **Example:** `@when player jumps -> velocity.y = jump_force` → working GDScript
 
 ---
 
@@ -152,40 +129,87 @@ See [GOLDEN_STANDARD.md](./GOLDEN_STANDARD.md) for full benchmark details.
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| **Core** | Python 3.10+ | Main logic, parsing, orchestration |
+| **Core** | Python 3.10+ | Main logic, parsers, orchestrator |
 | **LLM Backend** | Ollama | Local inference (smollm2, qwen2.5-coder) |
-| **Knowledge** | TF-IDF + Concept Graph | Wiki retrieval, project indexing |
-| **Testing** | pytest + Custom Harness | Benchmark automation |
-| **Distribution** | VS Code Extension API | Phase 3 delivery |
+| **Godot Parsing** | Custom regex + AST | Scene tree extraction |
+| **Knowledge Base** | TF-IDF + Concept Graph | Wiki retrieval |
+| **Memory** | Sliding window + Salience filter | Context compression |
+| **Testing** | Pytest + Fixtures | Benchmark automation |
 
 ---
 
-## 📄 Documentation
+## 📂 Repository Structure
 
-- [🏆 Golden Standard & Benchmark](./GOLDEN_STANDARD.md) — Full architecture, schema, and test protocols
-- [📐 Signal Schema v1.0](./GOLDEN_STANDARD.md#4-the-signal-schema-v10-frozen) — Frozen JSON protocol
-- [🧪 Test Fixtures](./tests/fixtures/) — Sample Godot projects for benchmarking
+```
+/workspace/
+├── core/                      # Brain (Dev H)
+│   ├── signal_schema.py       # Frozen v1.0
+│   ├── intent_router.py       # Routing logic
+│   ├── ram_monitor.py         # Memory safety
+│   └── prompts/               # Compiler prompts
+│
+├── tools/                     # Hands (Dev S)
+│   ├── godot/                 # Godot Specialist
+│   │   ├── scene_parser.py
+│   │   ├── script_parser.py
+│   │   ├── project_map.py
+│   │   └── log_watcher.py
+│   ├── data_ops/              # Wiki compiler
+│   └── tool_harness.py        # Executor
+│
+├── tests/                     # Benchmark fixtures
+│   ├── fixture_project/
+│   └── harness_runner.py
+│
+├── config.py                  # Model configs
+├── com_chat.py                # Entry point
+├── GOLDEN_STANDARD.md         # Execution plan
+├── GOLDEN_BENCHMARK.md        # Test suites
+└── README.md                  # This file
+```
+
+---
+
+## 🧪 Running the Benchmark
+
+```bash
+# Full benchmark suite
+python tests/harness_runner.py
+
+# Specific pillar test
+python tests/harness_runner.py --pillar 1  # Silent Killer Detection
+
+# RAM stress test
+python tests/harness_runner.py --ram-limit 512MB
+```
+
+**Target:** Silver Certification (All 7 pillars pass, RAM ≤1.8GB).
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Run the benchmark suite (`python tests/benchmark_runner.py`)
-4. Ensure RAM usage stays under 2GB
-5. Submit a pull request
+1. **Read `GOLDEN_STANDARD.md`** – Understand the architecture before coding.
+2. **Never break the schema** – `core/signal_schema.py` is frozen.
+3. **Test on 2GB RAM** – If it doesn't run on potato hardware, it doesn't ship.
+4. **Godot first** – General features are secondary to Godot super-intelligence.
 
 ---
 
-## 📜 License
+## 📄 License
 
-MIT License — See [LICENSE](./LICENSE) for details.
+MIT License – Build freely, contribute back.
 
 ---
 
-> **Built for Godot developers, by Godot developers.**  
-> Local. Private. Evolving.  
-> **The limit is only your imagination.**
+## 🚀 The Vision
+
+> **We don't just write code faster. We write code that cannot fail silently.**
+
+COM IDE is the first AI companion that:
+- Knows your project structure without you explaining it
+- Catches bugs before you run the game
+- Runs on your old laptop with 2GB RAM
+- Never hallucinates about your node paths
+
+**Join us. Let's build the compiler with a brain.** 🛠️
