@@ -290,6 +290,50 @@ class ContextCompressor:
         return text
 
 
+    def compress_many_with_budget(
+        self,
+        texts: list[str],
+        max_total_tokens: int,
+        per_item_floor: int = 64
+    ) -> list[str]:
+        """Compress multiple contexts so total tokens stay within one hard budget.
+
+        DEV H Phase-2 focus: deterministic token budgeting before LLM call.
+        """
+        if not texts:
+            return []
+
+        compressed = [self.compress(t, max_tokens=max(per_item_floor, self.max_tokens)) for t in texts]
+        counts = [self.count_tokens(t) for t in compressed]
+        total = sum(counts)
+        if total <= max_total_tokens:
+            return compressed
+
+        while total > max_total_tokens:
+            idx = max(range(len(compressed)), key=lambda i: (counts[i], -i))
+            if counts[idx] <= per_item_floor:
+                break
+
+            new_limit = max(per_item_floor, int(counts[idx] * 0.8))
+            compressed[idx] = self.compress(compressed[idx], max_tokens=new_limit)
+            old = counts[idx]
+            counts[idx] = self.count_tokens(compressed[idx])
+            if counts[idx] >= old:
+                compressed[idx] = self._simple_truncate(compressed[idx], max(per_item_floor, old - 8))
+                counts[idx] = self.count_tokens(compressed[idx])
+            total = sum(counts)
+
+            if all(c <= per_item_floor for c in counts) and total > max_total_tokens:
+                for i in range(len(compressed)):
+                    if total <= max_total_tokens:
+                        break
+                    compressed[i] = self._simple_truncate(compressed[i], max(8, counts[i] - 8))
+                    counts[i] = self.count_tokens(compressed[i])
+                    total = sum(counts)
+
+        return compressed
+
+
 # Convenience function
 def compress_context(
     text: str,
