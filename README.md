@@ -38,8 +38,8 @@ python tests/harness_runner.py
 
 ## 🏗️ Architecture: Compiler-Lite Pipeline
 
+```mermaid
 graph LR
- graph LR
     A[User Input] --> B[Signal Parser + tiktoken]
     B --> C{Adaptive Router<br/>liteLLM + RAM Monitor}
     C -->|Check RAM| D{Select Model}
