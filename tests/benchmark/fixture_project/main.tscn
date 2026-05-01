@@ -1,0 +1,26 @@
+[gd_scene load_steps=3 format=3 uid="uid://main_scene"]
+
+[ext_resource type="Script" path="res://player.gd" id="1_player"]
+
+[node name="Main" type="Node2D"]
+
+[node name="Player" type="CharacterBody2D" parent="."]
+script = ExtResource("1_player")
+# INTENTIONAL ERROR: Signal connection typo below
+signal player_hit something # Wrong signal name (should be "hit")
+
+[node name="Enemy" type="CharacterBody2D" parent="."]
+# INTENTIONAL ERROR: Broken node path reference
+position = Vector2(500, 300)
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="ScoreLabel" type="Label" parent="UI"]
+# INTENTIONAL ERROR: References non-existent node
+text = "Score: 0"
+
+[node name="GameOver" type="ColorRect" parent="UI"]
+visible = false
+
+# INTENTIONAL ERROR: Missing node that should exist ($Player/HitBox)
+# Referenced in player.gd but not defined here

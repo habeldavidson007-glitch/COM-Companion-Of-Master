@@ -1,40 +1,31 @@
 ```
+# Cache and database files
+.cache/
+*.db
+
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
-# Build and distribution artifacts
-dist/
-build/
-*.egg-info/
-
-# Logs
-*.log
-
-# Environment variables
-.env
-.env.local
-*.env.*
-
-# Coverage reports
+.Python
+env/
+venv/
+.venv/
+.ENV
+.python-version
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
 .coverage
-coverage/
-htmlcov/
-
-# IDE specific
-.vscode/
-.idea/
-*.swp
-*.swo
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
 *.tmp
-
-# OS generated files
+*.swp
 .DS_Store
 Thumbs.db
-
-# Testing
-.pytest_cache/
-.mypy_cache/
 ```

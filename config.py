@@ -1,12 +1,60 @@
 """
-COM Configuration Module - Centralized configuration management
+COM Configuration Module - Centralized configuration management.
+
+CRITICAL: RAM limits are enforced to ensure operation on 2GB machines.
+SAFETY_BUFFER_GB reserves memory for OS, Godot engine, and Python overhead.
+
 Supports model switching, routing modes, and system settings.
 """
 
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import json
 from pathlib import Path
+
+
+# =============================================================================
+# RAM CONSTRAINTS (CRITICAL FOR 2GB MACHINES)
+# =============================================================================
+TOTAL_RAM_GB = 2.0  # Target minimum system RAM
+SAFETY_BUFFER_GB = 1.5  # Reserve for OS + Godot + Python overhead
+AVAILABLE_FOR_MODEL_GB = TOTAL_RAM_GB - SAFETY_BUFFER_GB  # 0.5 GB usable for models
+
+# =============================================================================
+# MODEL CHAIN (Ordered by size, largest first)
+# Format: {"name": model_identifier, "ram": estimated_ram_gb}
+# The adaptive router will select the first model that fits in available RAM.
+# =============================================================================
+MODEL_CHAIN: List[Dict[str, object]] = [
+    {"name": "qwen2.5-coder:7b", "ram": 4.5},   # Best quality, requires ~4.5GB
+    {"name": "llama3.2:3b", "ram": 2.0},        # Good balance, requires ~2.0GB
+    {"name": "smollm2:1.7b", "ram": 1.2},       # Minimum viable, requires ~1.2GB
+]
+
+# Fallback for extremely constrained environments (<1.2GB available)
+FALLBACK_MODEL = "smollm2:1.7b"
+
+# =============================================================================
+# CONTEXT LIMITS
+# =============================================================================
+MAX_CONTEXT_TOKENS = 512  # Hard limit for LLM context window
+CONTEXT_TRUNCATION_STRATEGY = "head_tail"  # Keep start/end, truncate middle
+
+# =============================================================================
+# RETRIEVER CONFIG
+# =============================================================================
+WIKI_TOP_K = 3  # Number of relevant snippets to retrieve before LLM call
+
+# =============================================================================
+# INSTRUCTOR / SCHEMA CONFIG
+# =============================================================================
+INSTRUCTOR_MAX_RETRIES = 3  # Auto-retry count for schema validation failures
+
+# =============================================================================
+# LOGGING CONFIG
+# =============================================================================
+LOGFIRE_ENABLED = True
+LOGFIRE_SERVICE_NAME = "com-ide-core"
 
 
 @dataclass

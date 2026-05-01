@@ -1,488 +1,309 @@
 """
-Intent Router: Two-stage classification (Keyword + LLM Tie-Breaker) with Wiki Integration
-Handles ambiguous queries like "make a godot asset spreadsheet".
-Routes signals to appropriate expert modules and harnesses.
-Supports Reflective Signal Protocol (v4) with <reflection> block parsing.
+Intent Router Module - Rule-first routing with LLM fallback.
+
+CRITICAL: This module classifies user input into specific signal types.
+Strategy: Rule-based classifier first (regex for "validate", "explain", "refactor").
+If rules fail, use a TINY model (via adaptive_router) to classify intent.
+
+Output: Returns the specific SignalSchema type to use.
+
+Architecture Principle: Fast path for common cases, LLM only when needed.
 """
 
 import re
-import json
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Optional, Type, Tuple
+import sys
 
-MODES = {
-    "GODOT": ["godot", "gdscript", "2d", "3d", "scene", "node", "physics", "animation", "player", "signal", "characterbody", "rigidbody", "area2d"],
-    "OFFICE": ["excel", "pdf", "ppt", "spreadsheet", "report", "dokumen", "laporan", "buat file", "tabel", "save"],
-    "CODE": ["python", "py", "pip", "package", "module", "javascript", "js", "typescript", "ts", "react", "npm", "cpp", "c++", "json", "schema", "api"],
-    "DESKTOP": ["file", "folder", "browser", "clipboard", "screenshot", "open", "create", "delete", "copy", "move", "node_modules"],
-    "WIKI": ["wiki", "what is", "explain", "how does", "define", "concept", "tutorial", "guide", "history of", "difference between"],
-    "GENERAL": []
-}
+try:
+    from config import INSTRUCTOR_MAX_RETRIES
+except ImportError:
+    INSTRUCTOR_MAX_RETRIES = 3
 
-# Signal prefixes for routing to harnesses
-SIGNAL_PREFIXES = {
-    "GODOT": "@GODOT:",
-    "OFFICE": "@OFFICE:",
-    "CODE": "@CODE:",
-    "DESKTOP": "@DESK:",
-    "WIKI": "@WIKI:"
-}
+from .signal_schema import (
+    SignalSchema,
+    ValidateNodePath,
+    ExplainError,
+    RefactorSafe,
+    SCHEMA_REGISTRY,
+)
+from .wiki_retriever import WikiRetriever, create_default_retriever
+from .adaptive_router import AdaptiveRouter
 
 
-TOP_LEVEL_MODE_MAP = {
-    "GODOT": "EXECUTE",
-    "OFFICE": "EXECUTE",
-    "CODE": "EXECUTE",
-    "DESKTOP": "EXECUTE",
-    "WIKI": "KNOWLEDGE",
-    "GENERAL": "GENERAL",
+# Rule-based patterns for common intents
+INTENT_PATTERNS = {
+    "validate_node_path": [
+        r"\b(validate|check|verify|test)\s+(node\s+)?path\b",
+        r"\b(path\s+is\s+(wrong|correct|valid))\b",
+        r"\bget_node\s*\(",
+        r"\$[\w/]+",  # Godot shorthand node path
+        r"\bnode\s+path\b",
+    ],
+    "explain_error": [
+        r"\b(error|exception|crash|fail|bug)\b",
+        r"\b(null instance|nil|undefined)\b",
+        r"\b(what does|why|explain|help)\b.*\b(error|message)\b",
+        r"Traceback\s+most\s+recent",
+        r"\bGodot\s+Runtime\s+Error\b",
+    ],
+    "refactor_safe": [
+        r"\b(refactor|restructure|reorganize|clean\s+up)\b",
+        r"\b(extract|move|rename)\s+(function|method|variable)\b",
+        r"\b(make\s+(better|cleaner|safer))\b",
+        r"\b(optimize|improve)\s+code\b",
+    ],
 }
 
 
 class IntentRouter:
     """
-    Two-stage classification with Wiki integration and Reflective Signal Protocol support:
-    Stage 1: Keyword fast-path
-    Stage 2: If ambiguous (2+ modes match), ask LLM for 1-token classification
-    Stage 3: Route to appropriate harness/expert with signal format
-    Stage 4 (NEW): Parse and validate <reflection> blocks from LLM responses
+    Routes user input to appropriate schema type.
+    
+    Uses rule-based classification first for speed and determinism.
+    Falls back to LLM-based classification only when rules are inconclusive.
+    
+    Attributes:
+        retriever: WikiRetriever for context enrichment.
+        router: AdaptiveRouter for LLM fallback classification.
+    
+    Example:
+        >>> router = IntentRouter()
+        >>> schema_class, confidence = router.classify("Check if my node path is valid")
+        >>> print(schema_class)
+        <class 'ValidateNodePath'>
     """
     
-    AMBIGUOUS_THRESHOLD = 2
-    ROUTER_PROMPT = """Classify this input into exactly one word: GODOT, OFFICE, CODE, DESKTOP, WIKI, or GENERAL.
-Input: {query}
-Reply with one word only."""
-    
-    # Reflection block pattern for parsing LLM responses
-    REFLECTION_PATTERN = re.compile(
-        r'<reflection>\s*(.*?)\s*</reflection>',
-        re.DOTALL | re.IGNORECASE
-    )
-    
-    # Route signal pattern
-    ROUTE_PATTERN = re.compile(
-        r'@ROUTE:([A-Z]+):([a-zA-Z_]+):(.+?)(?=\n@ROUTE:|\n*$)',
-        re.DOTALL
-    )
-
-    def _keyword_match(self, text: str, keywords: List[str]) -> bool:
-        for keyword in keywords:
-            pattern = rf"\b{re.escape(keyword)}\b"
-            if re.search(pattern, text):
-                return True
-        return False
-
-    def __init__(self, client=None, wiki_indexer=None):
-        self.client = client
-        self.wiki_indexer = wiki_indexer
-        self.signal_history = []
-        self.reflection_history = []
-    
-    def route(self, query: str) -> dict:
+    def __init__(
+        self,
+        retriever: Optional[WikiRetriever] = None,
+        adaptive_router: Optional[AdaptiveRouter] = None
+    ):
         """
-        Route query to appropriate harness/expert.
-        Returns dict with mode, signal, and confidence.
+        Initialize the intent router.
+        
+        Args:
+            retriever: Optional WikiRetriever instance.
+            adaptive_router: Optional AdaptiveRouter for LLM fallback.
+        """
+        self.retriever = retriever or create_default_retriever()
+        self.adaptive_router = adaptive_router or AdaptiveRouter()
+        self._compiled_patterns = self._compile_patterns()
+    
+    def _compile_patterns(self) -> dict:
+        """
+        Pre-compile regex patterns for efficiency.
+        
+        Returns:
+            Dict mapping intent names to compiled regex patterns.
+        """
+        compiled = {}
+        for intent, patterns in INTENT_PATTERNS.items():
+            compiled[intent] = [re.compile(p, re.IGNORECASE) for p in patterns]
+        return compiled
+    
+    def classify(
+        self,
+        user_input: str
+    ) -> Tuple[Optional[Type[SignalSchema]], float, str]:
+        """
+        Classify user input into a schema type.
+        
+        Args:
+            user_input: User's natural language input.
+        
+        Returns:
+            Tuple of (schema_class, confidence, matched_rule).
+            - schema_class: The SignalSchema subclass to use.
+            - confidence: Confidence score (0.0 to 1.0).
+            - matched_rule: Description of what matched ("rule:*" or "llm").
+        
+        Logic:
+            1. Try rule-based matching first.
+            2. If multiple rules match, pick highest confidence.
+            3. If no rules match, use LLM fallback.
+            4. Return None if classification fails.
+        """
+        # Try rule-based classification first
+        schema_class, confidence, rule = self._classify_by_rules(user_input)
+        
+        if schema_class is not None and confidence >= 0.7:
+            # High confidence rule match - use it
+            return schema_class, confidence, f"rule:{rule}"
+        
+        # Fall back to LLM classification
+        schema_class, confidence = self._classify_by_llm(user_input)
+        return schema_class, confidence, "llm"
+    
+    def _classify_by_rules(
+        self,
+        user_input: str
+    ) -> Tuple[Optional[Type[SignalSchema]], float, str]:
+        """
+        Classify using rule-based pattern matching.
+        
+        Args:
+            user_input: User input text.
+        
+        Returns:
+            Tuple of (schema_class, confidence, matched_pattern_name).
         """
         matches = []
-        text = query.lower()
         
-        # Stage 1: Keyword Matching
-        for mode, keywords in MODES.items():
-            if mode == "GENERAL":
-                continue
-            if self._keyword_match(text, keywords):
-                matches.append(mode)
+        for intent, patterns in self._compiled_patterns.items():
+            for pattern in patterns:
+                match = pattern.search(user_input)
+                if match:
+                    # Calculate confidence based on match quality
+                    match_text = match.group()
+                    confidence = len(match_text) / len(user_input)
+                    confidence = min(1.0, confidence * 1.5)  # Boost slightly
+                    matches.append((intent, confidence, pattern.pattern))
         
-        # Clear cases
-        if len(matches) == 1:
-            mode = matches[0]
-            confidence = "high"
-        elif len(matches) == 0:
-            mode = "GENERAL"
-            confidence = "low"
-        else:
-            # Ambiguous case: Use LLM tie-breaker
-            if self.client:
-                try:
-                    result = self.client.generate(
-                        [{"role": "user", 
-                          "content": self.ROUTER_PROMPT.format(query=query)}],
-                        max_tokens=4,
-                        temperature=0.0
-                    ).strip().upper()
-                    
-                    if result in MODES.keys():
-                        mode = result
-                        confidence = "medium"
-                    else:
-                        mode = matches[0]
-                        confidence = "fallback"
-                except Exception:
-                    mode = matches[0]
-                    confidence = "fallback"
-            else:
-                mode = matches[0]
-                confidence = "fallback"
+        if not matches:
+            return None, 0.0, ""
         
-        # Generate signal
-        signal_prefix = SIGNAL_PREFIXES.get(mode, "@GENERAL:")
-        signal = f"{signal_prefix}{query}"
+        # Pick best match
+        matches.sort(key=lambda x: x[1], reverse=True)
+        best_intent, confidence, pattern = matches[0]
         
-        # Store in history
-        self.signal_history.append({
-            "query": query,
-            "mode": mode,
-            "signal": signal,
-            "confidence": confidence
-        })
-        
-        return {
-            "mode": mode,
-            "signal": signal,
-            "confidence": confidence,
-            "matches": matches if len(matches) > 1 else []
-        }
+        schema_class = SCHEMA_REGISTRY.get(best_intent)
+        return schema_class, confidence, pattern[:50]
     
-    def route_mode(self, query: str) -> dict:
-        """Route query with top-level contract mode (EXECUTE/KNOWLEDGE/GENERAL)."""
-        route_result = self.route(query)
-        mode = route_result.get("mode", "GENERAL")
-        top_mode = TOP_LEVEL_MODE_MAP.get(mode, "GENERAL")
-        return {
-            "top_mode": top_mode,
-            "mode": mode,
-            "signal": route_result.get("signal", ""),
-            "confidence": route_result.get("confidence", "low"),
-            "matches": route_result.get("matches", []),
-            "route": route_result,
-        }
-
-    def parse_reflective_response(self, llm_response: str) -> dict:
+    def _classify_by_llm(
+        self,
+        user_input: str
+    ) -> Tuple[Optional[Type[SignalSchema]], float]:
         """
-        Parse LLM response containing <reflection> block and @ROUTE signals.
+        Classify using LLM fallback.
         
         Args:
-            llm_response: Raw LLM output with reflection and route signals
+            user_input: User input text.
         
         Returns:
-            Dict with parsed reflection data and route signals
+            Tuple of (schema_class, confidence).
+        
+        Note:
+            Uses a tiny model via adaptive_router to minimize RAM usage.
         """
-        result = {
-            "reflection": None,
-            "routes": [],
-            "errors": [],
-            "raw_response": llm_response
-        }
-        
-        # Extract reflection block
-        reflection_match = self.REFLECTION_PATTERN.search(llm_response)
-        if reflection_match:
-            reflection_text = reflection_match.group(1).strip()
-            reflection_data = self._parse_reflection_content(reflection_text)
-            result["reflection"] = reflection_data
-            self.reflection_history.append(reflection_data)
-        else:
-            result["errors"].append("No <reflection> block found in response")
-        
-        # Extract route signals
-        route_matches = self.ROUTE_PATTERN.findall(llm_response)
-        for match in route_matches:
-            domain, action, payload_str = match
-            try:
-                # Try to parse payload as JSON
-                payload = json.loads(payload_str.strip())
-            except json.JSONDecodeError:
-                # If not JSON, treat as plain text payload
-                payload = payload_str.strip()
+        classification_prompt = f"""Classify this user request into one of these categories:
+1. validate_node_path - Checking if a Godot node path exists or is correct
+2. explain_error - Understanding an error message or bug
+3. refactor_safe - Improving or restructuring code safely
+
+User request: "{user_input}"
+
+Output ONLY the category name (e.g., "validate_node_path")."""
+
+        try:
+            messages = [{"role": "user", "content": classification_prompt}]
+            response = self.adaptive_router.complete(
+                messages,
+                temperature=0.0,  # Deterministic for classification
+                max_tokens=20
+            )
             
-            route = {
-                "domain": domain.upper(),
-                "action": action,
-                "payload": payload,
-                "signal": f"@ROUTE:{domain}:{action}:{payload_str.strip()}"
-            }
-            result["routes"].append(route)
-        
-        # Validate that we have both reflection and at least one route
-        if not result["reflection"] and not result["routes"]:
-            result["errors"].append("Invalid response: missing both reflection and routes")
-        
-        return result
+            # Parse response
+            if hasattr(response, "choices") and response.choices:
+                content = response.choices[0].message.content.strip().lower()
+                
+                # Map response to schema
+                for intent, schema_class in SCHEMA_REGISTRY.items():
+                    if intent in content:
+                        return schema_class, 0.6  # Lower confidence for LLM
+            
+            # Default fallback
+            return ExplainError, 0.3  # Assume error explanation if unclear
+            
+        except Exception as e:
+            print(f"LLM classification failed: {e}", file=sys.stderr)
+            return None, 0.0
     
-    def _parse_reflection_content(self, reflection_text: str) -> dict:
+    def route(
+        self,
+        user_input: str,
+        context: Optional[str] = None
+    ) -> Optional[SignalSchema]:
         """
-        Parse the content inside <reflection> block into structured data.
-        
-        Expected format:
-        - Intent: [text]
-        - Domain: [domain]
-        - Action: [action]
-        - Payload: {json}
-        - Confidence: [level]
-        """
-        reflection_data = {
-            "intent": "",
-            "domain": "",
-            "action": "",
-            "payload": {},
-            "confidence": "",
-            "raw_text": reflection_text
-        }
-        
-        # Parse each line
-        lines = reflection_text.split('\n')
-        for line in lines:
-            line = line.strip()
-            if not line or not line.startswith('-'):
-                continue
-            
-            # Remove leading dash and split on colon
-            line = line.lstrip('-').strip()
-            if ':' not in line:
-                continue
-            
-            key, value = line.split(':', 1)
-            key = key.strip().lower()
-            value = value.strip()
-            
-            if key == "intent":
-                reflection_data["intent"] = value
-            elif key == "domain":
-                reflection_data["domain"] = value.upper()
-            elif key == "action":
-                reflection_data["action"] = value
-            elif key == "payload":
-                try:
-                    reflection_data["payload"] = json.loads(value)
-                except json.JSONDecodeError:
-                    reflection_data["payload"] = value
-            elif key == "confidence":
-                reflection_data["confidence"] = value.lower()
-        
-        return reflection_data
-    
-    def route_with_reflection(self, query: str, use_llm: bool = True) -> dict:
-        """
-        Enhanced routing using Reflective Signal Protocol.
-        
-        This method either:
-        1. Uses LLM to generate a reflective response (if use_llm=True and client available)
-        2. Falls back to standard routing with auto-generated reflection
+        Full routing pipeline: classify + enrich + create schema.
         
         Args:
-            query: User query
-            use_llm: Whether to use LLM for reflection generation
+            user_input: User's natural language input.
+            context: Optional additional context.
         
         Returns:
-            Dict with reflection, routes, and routing metadata
+            SignalSchema instance ready for LLM processing.
+            None if classification fails.
+        
+        Pipeline:
+            1. Classify intent
+            2. Retrieve relevant wiki snippets
+            3. Create schema with enriched context
         """
-        if use_llm and self.client:
-            # Prompt LLM to generate reflective response
-            reflection_prompt = f"""Analyze this user query and respond with EXACTLY this format:
+        # Step 1: Classify
+        schema_class, confidence, source = self.classify(user_input)
+        
+        if schema_class is None:
+            return None
+        
+        # Step 2: Enrich with wiki context
+        wiki_snippets = self.retriever.get_snippets(user_input, k=3)
+        wiki_context = "\n".join(wiki_snippets) if wiki_snippets else ""
+        
+        # Step 3: Create schema instance
+        full_context = f"{context}\n\nWiki:\n{wiki_context}" if context else wiki_context
+        
+        schema = schema_class(
+            params={"raw_input": user_input},
+            context=full_context[:1000],  # Limit context size
+            constraints=["Use wiki facts, do not hallucinate"]
+        )
+        
+        return schema
 
-<reflection>
-- Intent: [one sentence intent detection]
-- Domain: [GODOT/OFFICE/CPP/PYTHON/JS/JSON/DESKTOP/WIKI/GENERAL]
-- Action: [specific action]
-- Payload: {{"query": "{query[:100]}..."}}
-- Confidence: [high/medium/low]
-</reflection>
-@ROUTE:[DOMAIN]:[action]:{{"query": "{query[:100]}"}}
 
-User Query: {query}
-
-Remember: ONLY output the reflection block and route signal. No explanations."""
-            
-            try:
-                llm_response = self.client.generate(
-                    [{"role": "user", "content": reflection_prompt}],
-                    max_tokens=500,
-                    temperature=0.1
-                )
-                
-                # Parse the reflective response
-                parsed = self.parse_reflective_response(llm_response)
-                parsed["query"] = query
-                parsed["method"] = "llm_reflective"
-                
-                return parsed
-            except Exception as e:
-                # Fallback to standard routing
-                pass
-        
-        # Fallback: Generate reflection automatically from standard routing
-        standard_result = self.route(query)
-        
-        auto_reflection = {
-            "intent": f"User wants to {standard_result['mode']} operation based on query",
-            "domain": standard_result["mode"],
-            "action": "auto_detected",
-            "payload": {"query": query},
-            "confidence": standard_result["confidence"],
-            "raw_text": f"Auto-generated reflection for: {query}"
-        }
-        
-        auto_route = {
-            "domain": standard_result["mode"],
-            "action": "auto_detected",
-            "payload": {"query": query},
-            "signal": standard_result["signal"]
-        }
-        
-        return {
-            "reflection": auto_reflection,
-            "routes": [auto_route],
-            "errors": [],
-            "query": query,
-            "method": "auto_reflective"
-        }
+# Convenience function
+def route_intent(
+    user_input: str,
+    context: Optional[str] = None
+) -> Optional[SignalSchema]:
+    """
+    Convenience function for intent routing.
     
-    def route_with_wiki(self, query: str) -> dict:
-        """
-        Enhanced routing with wiki lookup for knowledge-based queries.
-        """
-        # First check if it's a wiki query
-        wiki_keywords = ["what is", "explain", "concept", "define", "meaning", "how does"]
-        is_wiki_query = any(kw in query.lower() for kw in wiki_keywords)
-        
-        if is_wiki_query and self.wiki_indexer:
-            # Search wiki first
-            wiki_results = self.wiki_indexer.search(query, top_k=3)
-            
-            if wiki_results and len(wiki_results) > 0:
-                return {
-                    "mode": "WIKI",
-                    "signal": f"@WIKI:{query}",
-                    "confidence": "high",
-                    "wiki_results": wiki_results,
-                    "action": "retrieve_and_synthesize"
-                }
-        
-        # Fall back to standard routing
-        return self.route(query)
+    Creates a temporary router and routes the input.
+    For repeated use, instantiate IntentRouter directly.
     
-    def parse_signal(self, signal: str) -> dict:
-        """
-        Parse a COM signal string into structured format.
-        Example: "@DESK:open_browser:https://example.com"
-        """
-        if not signal.startswith("@"):
-            return {"error": "Invalid signal format", "signal": signal}
-        
-        parts = signal.split(":", 2)
-        
-        if len(parts) < 2:
-            return {"error": "Incomplete signal", "signal": signal}
-        
-        harness = parts[0][1:]  # Remove @ prefix
-        action_or_payload = parts[1] if len(parts) > 1 else ""
-        payload = parts[2] if len(parts) > 2 else ""
-        
-        return {
-            "harness": harness,
-            "action": action_or_payload,
-            "payload": payload,
-            "full_signal": signal
-        }
+    Args:
+        user_input: User input text.
+        context: Optional additional context.
     
-    def get_routing_stats(self) -> dict:
-        """Get statistics about routing decisions."""
-        if not self.signal_history:
-            return {"total": 0, "message": "No signals routed yet"}
-        
-        mode_counts = {}
-        confidence_counts = {}
-        
-        for entry in self.signal_history:
-            mode = entry["mode"]
-            confidence = entry["confidence"]
-            
-            mode_counts[mode] = mode_counts.get(mode, 0) + 1
-            confidence_counts[confidence] = confidence_counts.get(confidence, 0) + 1
-        
-        return {
-            "total": len(self.signal_history),
-            "by_mode": mode_counts,
-            "by_confidence": confidence_counts,
-            "recent_signals": self.signal_history[-10:]
-        }
-    
-    def get_reflection_stats(self) -> dict:
-        """Get statistics about reflection patterns."""
-        if not self.reflection_history:
-            return {"total": 0, "message": "No reflections parsed yet"}
-        
-        domain_counts = {}
-        confidence_counts = {}
-        
-        for reflection in self.reflection_history:
-            domain = reflection.get("domain", "UNKNOWN")
-            confidence = reflection.get("confidence", "unknown")
-            
-            domain_counts[domain] = domain_counts.get(domain, 0) + 1
-            confidence_counts[confidence] = confidence_counts.get(confidence, 0) + 1
-        
-        return {
-            "total": len(self.reflection_history),
-            "by_domain": domain_counts,
-            "by_confidence": confidence_counts,
-            "recent_reflections": self.reflection_history[-10:]
-        }
+    Returns:
+        SignalSchema instance or None.
+    """
+    router = IntentRouter()
+    return router.route(user_input, context)
 
 
 if __name__ == "__main__":
-    # Test the Reflective Signal Protocol parsing
-    import json
+    # Test the intent router
+    print("=" * 50)
+    print("Intent Router Test")
+    print("=" * 50)
     
     router = IntentRouter()
     
-    # Test case 1: Parse a reflective response
-    test_response = """<reflection>
-- Intent: User wants to create Excel spreadsheet for inventory
-- Domain: OFFICE
-- Action: create_excel
-- Payload: {"filename": "inventory", "columns": ["Item", "Quantity", "Price"]}
-- Confidence: high
-</reflection>
-@ROUTE:OFFICE:create_excel:{"filename": "inventory", "columns": ["Item", "Quantity", "Price"]}"""
+    test_cases = [
+        "Check if the node path root/Player is valid",
+        "I'm getting an error: Attempt to call on null instance",
+        "Refactor this code to be cleaner",
+        "What does get_node do?",
+        "Help me understand this crash",
+    ]
     
-    print("Test 1: Parsing reflective response")
-    print("=" * 60)
-    result = router.parse_reflective_response(test_response)
-    print(f"Reflection: {json.dumps(result['reflection'], indent=2)}")
-    print(f"Routes: {json.dumps(result['routes'], indent=2)}")
-    print(f"Errors: {result['errors']}")
-    print()
+    for test_input in test_cases:
+        print(f"\nInput: '{test_input}'")
+        schema_class, confidence, source = router.classify(test_input)
+        print(f"  Schema: {schema_class.__name__ if schema_class else 'None'}")
+        print(f"  Confidence: {confidence:.2f}")
+        print(f"  Source: {source}")
     
-    # Test case 2: Route with reflection (fallback mode)
-    print("Test 2: Route with reflection (auto-generated)")
-    print("=" * 60)
-    query = "Create a PDF report about sales data"
-    result = router.route_with_reflection(query, use_llm=False)
-    print(f"Query: {query}")
-    print(f"Method: {result['method']}")
-    print(f"Reflection: {json.dumps(result['reflection'], indent=2)}")
-    print(f"Routes: {json.dumps(result['routes'], indent=2)}")
-    print()
-    
-    # Test case 3: Multi-route response
-    print("Test 3: Multi-route response")
-    print("=" * 60)
-    multi_response = """<reflection>
-- Intent: User seeks AI trends info AND project recommendations
-- Domain: WIKI, GENERAL
-- Action: multi_search_and_synthesize
-- Payload: {"queries": ["AI trends", "passive income projects"]}
-- Confidence: medium
-</reflection>
-@ROUTE:WIKI:search:{"query": "AI innovation trends 2024"}
-@ROUTE:GENERAL:synthesize:{"context": "ai_and_income_projects"}"""
-    
-    result = router.parse_reflective_response(multi_response)
-    print(f"Reflection: {json.dumps(result['reflection'], indent=2)}")
-    print(f"Number of routes: {len(result['routes'])}")
-    for i, route in enumerate(result['routes']):
-        print(f"Route {i+1}: {route['signal']}")
-    print()
-    
-    print("All tests completed successfully!")
-
+    print("\n" + "=" * 50)
