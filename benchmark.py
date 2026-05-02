@@ -8,6 +8,7 @@ import tempfile
 import re
 import traceback
 import logging
+from functools import wraps
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Tuple, Optional
@@ -70,6 +71,7 @@ CRASHED_SUITES: List[str] = []
 
 
 def suite(fn):
+    @wraps(fn)
     def wrapped():
         name = fn.__name__.replace("test_", "").replace("_", " ").title()
         line = "-" * 60
@@ -81,7 +83,20 @@ def suite(fn):
         color = GREEN if sr.pct >= 90 else YELLOW if sr.pct >= 70 else RED
         print(f"{color}Score: {sr.passed}/{sr.total} ({sr.pct:.1f}%){RESET}")
         ALL.append(sr)
+    wrapped._suite_name = fn.__name__
     return wrapped
+
+
+def benchmark_dependency_preflight():
+    """Return missing runtime deps needed by benchmark suites."""
+    required = ["pydantic", "pandas"]
+    missing = []
+    for dep in required:
+        try:
+            __import__(dep)
+        except Exception:
+            missing.append(dep)
+    return missing
 
 
 @suite
@@ -568,6 +583,10 @@ if __name__ == "__main__":
         sys.exit(1)
     sys.path.insert(0, str(root))
     os.chdir(root)
+    missing_deps = benchmark_dependency_preflight()
+    if missing_deps:
+        print(warn(f"Missing benchmark dependencies: {', '.join(missing_deps)}"))
+
     suites = [
         test_01_intent_router,
         test_02_signal_parser,
@@ -589,7 +608,7 @@ if __name__ == "__main__":
         try:
             fn()
         except Exception as e:
-            CRASHED_SUITES.append(fn.__name__)
+            CRASHED_SUITES.append(getattr(fn, "_suite_name", fn.__name__))
             print(f"{RED}SUITE CRASHED: {e}{RESET}")
             traceback.print_exc()
     strict_mode = "--strict" in sys.argv
@@ -598,6 +617,7 @@ if __name__ == "__main__":
     payload_path = Path("benchmark_results.json")
     payload = json.loads(payload_path.read_text(encoding="utf-8"))
     dependency_errors = []
+    dependency_errors.extend([f"missing_dependency:{d}" for d in missing_deps])
     if CRASHED_SUITES:
         dependency_errors.append("suite_crash_detected")
     payload["suite_crashes"] = len(CRASHED_SUITES)

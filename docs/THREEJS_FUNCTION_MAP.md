@@ -13,6 +13,7 @@ This utility builds a Three.js-ready project map and runs strict benchmark loops
 3. Runs `benchmark.py --strict` in a loop.
 4. Every loop writes health summary and improvement suggestions.
 5. Every 15th loop adds harder guidance (lower budget + deterministic replay gate suggestion).
+6. Classifies each loop blocker as `env`, `logic`, or `perf`, and tracks strict-pass streak + crash slope trend.
 
 ## Run
 ```bash

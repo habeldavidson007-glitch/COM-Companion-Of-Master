@@ -106,12 +106,21 @@ function deriveSuggestions(resultJson, loopIndex) {
   return suggestions;
 }
 
+function blockerClass(resultJson) {
+  if (!resultJson) return 'env';
+  const deps = resultJson.dependency_errors || [];
+  if (deps.some((d) => String(d).startsWith('missing_dependency:'))) return 'env';
+  if ((resultJson.suite_crashes || 0) > 0) return 'logic';
+  return 'perf';
+}
+
 function main() {
   const loops = Number(process.argv[2] || 1);
   const map = buildMap();
   fs.writeFileSync('threejs_function_map.json', JSON.stringify(map, null, 2));
 
   const loopSummary = [];
+  let strictPassStreak = 0;
   for (let i = 0; i < loops; i++) {
     const strictMode = true;
     const res = runBenchmark(strictMode);
@@ -121,20 +130,31 @@ function main() {
       parsed = JSON.parse(fs.readFileSync('benchmark_results.json', 'utf-8'));
     } catch (_) {}
 
+    const strictPass = !!parsed?.strict_pass;
+    strictPassStreak = strictPass ? strictPassStreak + 1 : 0;
+    const bclass = blockerClass(parsed);
     loopSummary.push({
       loop: i + 1,
       strict_mode: strictMode,
       exit_code: res.status,
       suite_crashes: parsed?.suite_crashes ?? null,
-      strict_pass: parsed?.strict_pass ?? null,
+      strict_pass: strictPass,
+      strict_pass_streak: strictPassStreak,
+      blocker_class: bclass,
       suggestions: deriveSuggestions(parsed, i),
     });
   }
+
+  const crashSeries = loopSummary.map((x) => Number(x.suite_crashes ?? 0));
+  const crashSlope = crashSeries.length > 1
+    ? (crashSeries[crashSeries.length - 1] - crashSeries[0]) / (crashSeries.length - 1)
+    : 0;
 
   const output = {
     generated_at: new Date().toISOString(),
     loops,
     map_file: 'threejs_function_map.json',
+    crash_slope_per_loop: crashSlope,
     summary: loopSummary,
   };
   fs.writeFileSync('threejs_benchmark_loop_report.json', JSON.stringify(output, null, 2));
