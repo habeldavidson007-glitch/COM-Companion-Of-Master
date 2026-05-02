@@ -1,0 +1,10 @@
+# Simple E+ Example - Admin Check
+# This demonstrates basic input, conditionals, and output
+
+@user = input("Name")
+
+if (@user == "admin") {
+    say("Welcome Admin")
+} else {
+    say("Hello User")
+}

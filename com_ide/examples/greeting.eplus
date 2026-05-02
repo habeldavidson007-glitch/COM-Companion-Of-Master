@@ -1,0 +1,44 @@
+# Example E+ Script - User Greeting System
+# This demonstrates the core features of the E+ language
+
+# Get user input
+@name = input("Enter your name")
+
+# Get user age
+@age = input("Enter your age")
+
+# Convert age to number for comparison (E+ handles this internally)
+# Check if adult using condition
+if (@age > 18) {
+    say("Welcome Adult User")
+    
+    # Nested condition
+    if (@name == "admin") {
+        say("Special admin privileges granted")
+    } else {
+        say("Standard user access")
+    }
+} else {
+    say("Welcome Young User")
+    say("Parental guidance recommended")
+}
+
+# Demonstrate loop
+say("Counting from 1 to 5:")
+repeat (@i, 5) {
+    say(@i)
+}
+
+# Demonstrate function
+function CalculateSum(@a, @b) {
+    @result = (@a + @b)
+    return(@result)
+}
+
+@sum_result = call CalculateSum(10, 20)
+say("Sum of 10 and 20 is:")
+say(@sum_result)
+
+# Final greeting
+say("Thank you for using E+")
+say(@name)
