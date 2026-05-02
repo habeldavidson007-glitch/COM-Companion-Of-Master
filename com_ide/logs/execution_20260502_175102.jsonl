@@ -1,0 +1,1 @@
+{"timestamp": "2026-05-02T17:51:02.034769", "session_id": "2026-05-02T17:51:02.034372", "event_type": "ERROR", "error": {"type": "PARSER", "message": "Parse error at line 2, column 6: Expected '(' for container expression or function call"}, "context": {"source_code": "\n@x = 10\nsay(@x)\n"}, "source_code": "\n@x = 10\nsay(@x)\n"}

@@ -1,32 +1,5 @@
 ```
-# Cache and database files
-.cache/
-*.db
+# Documentation
+*.md
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.venv/
-.ENV
-.python-version
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-*.tmp
-*.swp
-.DS_Store
-Thumbs.db
-benchmark_results.json
 ```

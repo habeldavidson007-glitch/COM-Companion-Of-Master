@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "created_at": "2026-05-02T17:51:02.034446",
+  "entries": [
+    {
+      "id": "KB_0001",
+      "created_at": "2026-05-02T17:51:02.034456",
+      "problem": "Missing parentheses in assignment",
+      "cause": "E+ requires all values to be wrapped in parentheses ()",
+      "fix": "Wrap the value in parentheses: @x = (10) instead of @x = 10",
+      "prevention": "Always use parentheses for literal values and expressions",
+      "tags": [
+        "syntax",
+        "assignment",
+        "parentheses"
+      ],
+      "verified": false,
+      "usage_count": 0
+    }
+  ]
+}
