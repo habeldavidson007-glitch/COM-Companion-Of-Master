@@ -340,7 +340,7 @@ class COMCore:
         
         # Initialize new modules
         self.router = IntentRouter(client=self.client)
-        self.compressor = ContextCompressor(client=self.client)
+        self.compressor = ContextCompressor()
         self.logger = SessionLogger()
         self.project_intel = None
         self._project_index_hits = 0

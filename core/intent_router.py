@@ -75,6 +75,7 @@ class IntentRouter:
     
     def __init__(
         self,
+        client=None,
         retriever: Optional[WikiRetriever] = None,
         adaptive_router: Optional[AdaptiveRouter] = None
     ):
@@ -82,6 +83,7 @@ class IntentRouter:
         Initialize the intent router.
         
         Args:
+            client: Backward-compatible placeholder (unused).
             retriever: Optional WikiRetriever instance.
             adaptive_router: Optional AdaptiveRouter for LLM fallback.
         """
