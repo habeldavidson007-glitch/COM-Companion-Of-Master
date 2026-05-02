@@ -1,246 +1,497 @@
-# E+ Language Dictionary & User Guide
+# E+ Language — 10 Minute Learning Model
 
-## 📘 Overview
+## Goal
 
-**E+** is a human-readable, intent-driven Domain Specific Language (DSL) designed for clarity and deterministic execution. It serves as the user-facing language for the COM IDE, translating directly into an internal **Signal IR** before execution in Python.
-
-This guide serves as the definitive dictionary for all E+ syntax, keywords, and concepts.
+Teach complete beginners the core of E+ in under 10 minutes while preserving full power.
 
 ---
 
-## 🧠 Core Philosophy
+## 1. Mental Model (1 minute)
 
-1.  **Intent First**: Code expresses *what* you want, not *how* the machine does it.
-2.  **Explicit Structure**: No implicit behavior; blocks and assignments are always clear.
-3.  **Keyword Driven**: Meaningful words (`say`, `input`, `repeat`) over cryptic symbols.
-4.  **Deterministic**: Every E+ line maps 1:1 to a specific Signal instruction.
+E+ is based on 3 ideas:
+
+1. **You create things** → `@name`
+2. **You do actions** → `say()`, `input()`
+3. **You control flow** → `if`, `repeat`
+
+Think of it as:
+
+> "Tell the system what you want, step by step"
 
 ---
 
-## 🔑 Key Symbols
+## 🧠 VISUAL MODEL (Flow → Block → Signal)
+
+**Human Intent:**
+"Ask name → greet user"
+
+↓
+
+**E+ Code:**
+```e+
+@name = input("Name?")
+say("Hello " + @name)
+```
+
+↓
+
+**Signal (Internal):**
+```
+INPUT → ASSIGN → OUTPUT
+```
+
+↓
+
+**Execution (Python):**
+```python
+name = input("Name?")
+print("Hello " + name)
+```
+
+👉 **E+** = readable layer  
+👉 **Signal** = execution brain
+
+---
+
+## 2. Variables (1 minute)
+
+```e+
+@name = ("John")
+```
+
+* `@` means "this is something I created"
+* `( )` holds data
+
+---
+
+## 3. Input & Output (2 minutes)
+
+```e+
+@name = input("What is your name?")
+say("Hello " + @name)
+```
+
+* `input()` = ask user
+* `say()` = show output
+
+---
+
+## 4. Condition (2 minutes)
+
+```e+
+if (@age > 18) {
+    say("Adult")
+} else {
+    say("Minor")
+}
+```
+
+* `if` = check something
+* `{ }` = block of actions
+
+---
+
+## 5. Loop (2 minutes)
+
+```e+
+repeat (@i, 5) {
+    say(@i)
+}
+```
+
+* repeat something multiple times
+
+---
+
+## 6. Function (1 minute)
+
+```e+
+function greet(@name) {
+    say("Hello " + @name)
+}
+
+call greet("David")
+```
+
+* `function` = reusable action
+* `call` = run it
+
+---
+
+## 🚀 MINI PROJECT (15 Minutes)
+
+### Goal: Simple Login System
+
+**Step 1 — Ask user name**
+```e+
+@name = input("Enter your name")
+```
+
+**Step 2 — Ask age**
+```e+
+@age = input("Enter your age")
+```
+
+**Step 3 — Add condition**
+```e+
+if (@age > 17) {
+    say("Access granted")
+} else {
+    say("Access denied")
+}
+```
+
+**Step 4 — Personalize response**
+```e+
+say("Hello " + @name)
+```
+
+---
+
+### Final Program
+
+```e+
+@name = input("Enter your name")
+@age = input("Enter your age")
+
+if (@age > 17) {
+    say("Access granted")
+} else {
+    say("Access denied")
+}
+
+say("Hello " + @name)
+```
+
+---
+
+## 🧠 What You Just Learned
+
+* Variables
+* Input / Output
+* Conditions
+* Program flow
+
+👉 This is already enough to build real programs.
+
+---
+
+## 7. Rules to Remember (30 sec)
+
+* Always use `@` for variables
+* Always use `( )` for values
+* Always use `{ }` for blocks
+* Use clear words: `say`, `input`, `repeat`
+
+---
+
+## 8. Why It Works
+
+* Same structure everywhere
+* No hidden syntax
+* Reads like instructions
+
+---
+
+## ❌ Common Mistakes (Debug Mindset)
+
+### 1. Forgetting `@`
+
+```e+
+name = ("John")   ❌
+@name = ("John")  ✅
+```
+👉 Always mark your variables.
+
+---
+
+### 2. Missing parentheses
+
+```e+
+say "Hello"   ❌
+say("Hello")  ✅
+```
+👉 Actions always use `( )`
+
+---
+
+### 3. Missing block `{ }`
+
+```e+
+if (@x > 0) say("Hi") ❌
+if (@x > 0) { say("Hi") } ✅
+```
+👉 Blocks are never optional.
+
+---
+
+### 4. Treating E+ like Python
+
+```e+
+print("Hello") ❌
+say("Hello")   ✅
+```
+👉 Use E+ intent, not Python syntax.
+
+---
+
+## 🧠 How E+ Thinks vs Python Thinks
+
+### Python Thinking
+* How do I write this correctly?
+* Where do I put `:`?
+* Indentation matters
+
+Example:
+```python
+if x > 0:
+    print("Hi")
+```
+
+---
+
+### E+ Thinking
+* What do I want to happen?
+* What is the condition?
+* What should the system do?
+
+Example:
+```e+
+if (@x > 0) {
+    say("Hi")
+}
+```
+
+---
+
+### Key Difference
+
+**Python:** "Write correct syntax"  
+**E+:** "Express clear intent"
+
+---
+
+## 🧭 Final Thought
+
+E+ is not about writing less.  
+It is about thinking less while staying powerful.
+
+And once you understand the intent,  
+E+ becomes predictable, readable, and scalable.
+
+---
+
+# 📖 Complete Symbol & Keyword Dictionary
+
+## 🔣 Symbols
 
 | Symbol | Name | Usage | Example |
-| :--- | :--- | :--- | :--- |
-| `@` | **Entity Prefix** | Marks all user-defined variables. | `@name` |
-| `( )` | **Data Container** | Wraps values, expressions, or arguments. | `("Hello")`, `(@a + 1)` |
-| `{ }` | **Block Scope** | Defines the body of loops, functions, or conditions. | `{ say("Hi") }` |
-| `=` | **Assignment** | Assigns a value to a variable. | `@x = (10)` |
-| `.` | **Property Access** | Accesses properties of an object. | `@car.color` |
+|--------|------|-------|---------|
+| `@` | Entity Marker | Prefix for all variables | `@name` |
+| `( )` | Data Container | Wraps values and expressions | `("Hello")`, `(@a + @b)` |
+| `{ }` | Block Delimiter | Groups statements in control flow | `if (...) { ... }` |
+| `=` | Assignment | Assigns value to variable | `@x = (10)` |
+| `+ - * /` | Math Operators | Arithmetic operations | `(@a + @b)` |
+| `> < == !=` | Comparators | Conditional checks | `if (@x > 5)` |
+| `"` | String Delimiter | Defines text literals | `"Hello World"` |
 
 ---
 
-## 📖 Keyword Dictionary
+## 🔑 Keywords Reference
 
-### 1. Data & Variables
+### Core Actions
 
-#### `@` (Variable Declaration)
-*   **Definition**: All variables must start with `@`.
-*   **Syntax**: `@variable_name`
-*   **Example**:
-    ```eplus
-    @score = (0)
-    ```
+| Keyword | Purpose | Syntax | Example |
+|---------|---------|--------|---------|
+| `input` | Request user input | `@var = input("prompt")` | `@name = input("Name?")` |
+| `say` | Display output | `say(expression)` | `say("Hello")` |
+| `return` | Return from function | `return(expression)` | `return(@result)` |
 
-#### `input`
-*   **Definition**: Requests text input from the user.
-*   **Syntax**: `@var = input("Prompt Message")`
-*   **Signal Mapping**: `INPUT`
-*   **Example**:
-    ```eplus
-    @name = input("What is your name?")
-    ```
+### Control Flow
 
----
+| Keyword | Purpose | Syntax | Example |
+|---------|---------|--------|---------|
+| `if` | Conditional branch | `if (cond) { ... }` | `if (@x > 0) { ... }` |
+| `else if` | Alternative condition | `else if (cond) { ... }` | `else if (@x < 0) { ... }` |
+| `else` | Default branch | `else { ... }` | `else { say("Default") }` |
+| `repeat` | Loop (range or while) | `repeat (var, count) { ... }`<br>`repeat while (cond) { ... }` | `repeat (@i, 5) { ... }` |
+| `break` | Exit loop | `break` | `if (@x > 10) { break }` |
+| `exit` | Terminate program | `exit` | `if (@error) { exit }` |
 
-### 2. Output & Interaction
+### Functions
 
-#### `say`
-*   **Definition**: Displays output to the user (standard output).
-*   **Syntax**: `say(Content)`
-*   **Signal Mapping**: `OUTPUT`
-*   **Example**:
-    ```eplus
-    say("Hello World")
-    say(@name)
-    say(@score + 10)
-    ```
+| Keyword | Purpose | Syntax | Example |
+|---------|---------|--------|---------|
+| `function` | Define reusable block | `function Name(@args) { ... }` | `function Add(@a, @b) { ... }` |
+| `call` | Invoke function | `call Name(args)` | `call Add(10, 20)` |
 
 ---
 
-### 3. Control Flow
+## 🔄 Signal Mapping Reference
 
-#### `if` / `else if` / `else`
-*   **Definition**: Conditional execution logic.
-*   **Syntax**:
-    ```eplus
-    if (Condition) {
-        // Code block
-    } else if (Condition) {
-        // Code block
-    } else {
-        // Code block
-    }
-    ```
-*   **Rules**:
-    *   Conditions must be wrapped in `( )`.
-    *   Blocks must be wrapped in `{ }`.
-*   **Signal Mapping**: `IF`
-*   **Example**:
-    ```eplus
-    if (@age > 18) {
-        say("Adult")
-    } else {
-        say("Minor")
-    }
-    ```
+Every E+ construct maps 1:1 to a Signal IR type:
 
-#### `repeat` (Range Loop)
-*   **Definition**: Executes a block a specific number of times.
-*   **Syntax**: `repeat (@iterator, Count) { ... }`
-*   **Signal Mapping**: `LOOP_RANGE`
-*   **Example**:
-    ```eplus
-    repeat (@i, 5) {
-        say(@i)
-    }
-    ```
-
-#### `repeat while` (While Loop)
-*   **Definition**: Executes a block while a condition is true.
-*   **Syntax**: `repeat while (Condition) { ... }`
-*   **Signal Mapping**: `LOOP_WHILE`
-*   **Example**:
-    ```eplus
-    repeat while (@x > 0) {
-        @x = (@x - 1)
-    }
-    ```
-
-#### `break`
-*   **Definition**: Immediately exits the nearest enclosing loop.
-*   **Syntax**: `break`
-*   **Signal Mapping**: `BREAK`
-
-#### `exit`
-*   **Definition**: Terminates the entire program execution.
-*   **Syntax**: `exit`
-*   **Signal Mapping**: `EXIT`
+| E+ Construct | Signal Type | Description |
+|--------------|-------------|-------------|
+| `@x = (...)` | `ASSIGN` | Variable assignment |
+| `input(...)` | `INPUT` | User input request |
+| `say(...)` | `OUTPUT` | Display output |
+| `if (...) { }` | `IF` | Conditional branch |
+| `repeat (...) { }` | `LOOP` | Iteration |
+| `function ...` | `FUNCTION_DEF` | Function definition |
+| `call ...` | `CALL` | Function invocation |
+| `return(...)` | `RETURN` | Function return |
+| `break` | `BREAK` | Loop termination |
+| `exit` | `EXIT` | Program termination |
 
 ---
 
-### 4. Functions
+## 📝 Grammar Rules (Strict)
 
-#### `function`
-*   **Definition**: Defines a reusable block of code.
-*   **Syntax**:
-    ```eplus
-    function FunctionName(@arg1, @arg2) {
-        // Body
-        return(Value)
-    }
-    ```
-*   **Signal Mapping**: `FUNCTION_DEF`
+1. **Variables must start with `@`**
+   - ✅ `@name`
+   - ❌ `name`
 
-#### `return`
-*   **Definition**: Returns a value from a function.
-*   **Syntax**: `return(Value)`
-*   **Signal Mapping**: `RETURN`
+2. **All values must be in parentheses**
+   - ✅ `@x = (10)`
+   - ❌ `@x = 10`
 
-#### `call`
-*   **Definition**: Invokes a defined function.
-*   **Syntax**: `@result = call FunctionName(Arg1, Arg2)`
-*   **Signal Mapping**: `CALL`
-*   **Example**:
-    ```eplus
-    function Add(@a, @b) {
-        return(@a + @b)
-    }
+3. **All actions require parentheses**
+   - ✅ `say("Hello")`
+   - ❌ `say "Hello"`
 
-    @sum = call Add(10, 20)
-    say(@sum)
-    ```
+4. **Blocks are mandatory for control flow**
+   - ✅ `if (@x > 0) { say("Hi") }`
+   - ❌ `if (@x > 0) say("Hi")`
 
----
-
-## ⚙️ Grammar Rules (Strict)
-
-To ensure the compiler works correctly, you must follow these rules:
-
-1.  **No Implicit Calls**: You cannot say `say @x`. You must use parentheses: `say(@x)`.
-2.  **Mandatory Blocks**: Single-line `if` statements are forbidden. Always use `{ }`.
-    *   ❌ `if (@x > 0) say("Hi")`
-    *   ✅ `if (@x > 0) { say("Hi") }`
-3.  **Explicit Assignment**: You cannot just write `@x (10)`. You need the equals sign.
-    *   ✅ `@x = (10)`
-4.  **Variable Prefix**: Forgetting `@` on a user variable will cause a parse error.
-    *   ❌ `name = ("John")`
-    *   ✅ `@name = ("John")`
+5. **No implicit behavior**
+   - Every operation must be explicit
+   - No automatic type coercion
 
 ---
 
 ## 🧪 Complete Examples
 
-### Example 1: Simple Greeting
-```eplus
-@user = input("Enter your name")
+### Example 1: Greeting Program
 
-if (@user == "admin") {
-    say("Welcome Admin")
+```e+
+@name = input("What is your name?")
+say("Hello " + @name)
+```
+
+**Signal:**
+```json
+[
+  {"type": "INPUT", "target": "name", "prompt": "What is your name?"},
+  {"type": "OUTPUT", "content": {"op": "+", "left": "Hello ", "right": "@name"}}
+]
+```
+
+---
+
+### Example 2: Age Checker
+
+```e+
+@age = input("Enter your age")
+
+if (@age > 17) {
+    say("Access granted")
 } else {
-    say("Hello ")
-    say(@user)
+    say("Access denied")
 }
 ```
 
-### Example 2: Countdown Loop
-```eplus
-@count = (5)
-
-repeat while (@count > 0) {
-    say(@count)
-    @count = (@count - 1)
-}
-
-say("Liftoff!")
-```
-
-### Example 3: Custom Function
-```eplus
-function CalculateArea(@width, @height) {
-    @area = (@width * @height)
-    return(@area)
-}
-
-@w = (10)
-@h = (20)
-@result = call CalculateArea(@w, @h)
-
-say("The area is:")
-say(@result)
+**Signal:**
+```json
+[
+  {"type": "INPUT", "target": "age", "prompt": "Enter your age"},
+  {
+    "type": "IF",
+    "condition": {"op": ">", "left": "@age", "right": 17},
+    "then": [{"type": "OUTPUT", "content": "Access granted"}],
+    "else": [{"type": "OUTPUT", "content": "Access denied"}]
+  }
+]
 ```
 
 ---
 
-## 🔍 Troubleshooting
+### Example 3: Counter Loop
 
-| Error | Likely Cause | Fix |
-| :--- | :--- | :--- |
-| `Parse Error: Expected '('` | Missing parentheses around value | Change `@x = 10` to `@x = (10)` |
-| `Parse Error: Expected '{'` | Missing block braces | Add `{ }` around your `if` or `loop` body |
-| `Undefined Variable` | Missing `@` prefix | Ensure variable is written as `@name` |
-| `Signal Generation Failed` | Invalid nesting | Check that all `{ }` are properly closed |
+```e+
+repeat (@i, 5) {
+    say("Count: " + @i)
+}
+```
+
+**Signal:**
+```json
+[
+  {
+    "type": "LOOP",
+    "kind": "range",
+    "variable": "i",
+    "count": 5,
+    "body": [
+      {"type": "OUTPUT", "content": {"op": "+", "left": "Count: ", "right": "@i"}}
+    ]
+  }
+]
+```
 
 ---
 
-## 🚀 How to Run
+### Example 4: Function Definition & Call
 
-1.  Save your code in a file ending with `.eplus` (e.g., `script.eplus`).
-2.  Run the compiler:
-    ```bash
-    python main.py script.eplus
-    ```
-3.  The system will:
-    *   Parse your E+ code.
-    *   Generate Signal IR.
-    *   Execute via Python.
-    *   Save logs to `logs/execution_log.jsonl`.
+```e+
+function Add(@a, @b) {
+    @result = (@a + @b)
+    return(@result)
+}
+
+@sum = call Add(10, 20)
+say("Sum: " + @sum)
+```
+
+**Signal:**
+```json
+[
+  {
+    "type": "FUNCTION_DEF",
+    "name": "Add",
+    "params": ["a", "b"],
+    "body": [
+      {"type": "ASSIGN", "target": "result", "value": {"op": "+", "left": "@a", "right": "@b"}},
+      {"type": "RETURN", "value": "@result"}
+    ]
+  },
+  {"type": "CALL", "function": "Add", "args": [10, 20], "target": "sum"},
+  {"type": "OUTPUT", "content": {"op": "+", "left": "Sum: ", "right": "@sum"}}
+]
+```
+
+---
+
+## 🔍 Troubleshooting Guide
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `Expected '@'` | Variable missing `@` prefix | Add `@` before variable name |
+| `Expected '('` | Missing parentheses around value | Wrap value in `( )` |
+| `Expected '{'` | Missing block delimiter | Add `{ }` around block |
+| `Unknown keyword` | Typo or invalid keyword | Check spelling against dictionary |
+| `Unmatched ')'` | Missing opening parenthesis | Ensure all `( )` are paired |
+| `Unmatched '}'` | Missing opening brace | Ensure all `{ }` are paired |
+
+---
+
+## 📚 Next Steps
+
+Once you master these basics:
+
+1. **Practice**: Build small programs using the mini-project template
+2. **Explore**: Try nested conditions and loops
+3. **Extend**: Create reusable functions for common tasks
+4. **Debug**: Use the structured logs to understand execution flow
+
+Remember: **Clarity over brevity. Intent over syntax.**
