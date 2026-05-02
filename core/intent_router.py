@@ -237,6 +237,10 @@ Output ONLY the category name (e.g., "validate_node_path")."""
         office_hits = sum(1 for k in office_kw if k in text)
         godot_hits = sum(1 for k in godot_kw if k in text)
 
+        # If office intent is explicit (spreadsheet/excel/pdf/ppt), prefer OFFICE even with godot token noise.
+        explicit_office = any(k in text for k in ["spreadsheet", "excel", "xlsx", "pdf", "ppt"])
+        if explicit_office and office_hits > 0:
+            return {"top_mode": "EXECUTE", "mode": "OFFICE", "confidence": 0.92}
         if office_hits > godot_hits and office_hits > 0:
             return {"top_mode": "EXECUTE", "mode": "OFFICE", "confidence": 0.9}
         if godot_hits > office_hits and godot_hits > 0:

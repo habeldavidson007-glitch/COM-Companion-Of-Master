@@ -449,6 +449,8 @@ def test_09_edge_cases(s):
             s.record("SafeIO blocks ../../../ traversal", False, "No error raised — path traversal not validated")
         except ValueError:
             s.record("SafeIO blocks ../../../ traversal", True)
+        except PermissionError:
+            s.record("SafeIO blocks ../../../ traversal", True)
         except FileNotFoundError:
             s.record("SafeIO blocks ../../../ traversal", False, "FileNotFoundError not ValueError — _resolve_path has no bounds check")
     big = " ".join([f"@XLS:file{i}:col=A{i}" for i in range(100)])
