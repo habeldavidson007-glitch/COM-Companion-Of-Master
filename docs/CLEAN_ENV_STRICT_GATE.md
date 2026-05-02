@@ -6,7 +6,7 @@ Use this when preparing to merge into `master`.
 Require all conditions:
 - `suite_crashes = 0`
 - `strict_pass = true`
-- pass on 5 consecutive `benchmark.py --strict` runs
+- pass on 5 consecutive `golden_benchmark.py --strict` runs
 
 ## One-command flow
 ```bash

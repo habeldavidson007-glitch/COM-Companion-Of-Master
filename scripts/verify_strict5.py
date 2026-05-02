@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run benchmark strict mode 5x and fail if gate is not clean."""
+"""Run GOLDEN_BENCHMARK strict mode 5x and fail if gate is not clean."""
 import json
 import subprocess
 import sys
@@ -36,7 +36,7 @@ if missing_deps:
     sys.exit(3)
 
 for i in range(1, TARGET_RUNS + 1):
-    proc = subprocess.run([sys.executable, "benchmark.py", "--strict"], capture_output=True, text=True)
+    proc = subprocess.run([sys.executable, "golden_benchmark.py", "--strict"], capture_output=True, text=True)
     payload = {}
     if Path("benchmark_results.json").exists():
         payload = json.loads(Path("benchmark_results.json").read_text(encoding="utf-8"))
