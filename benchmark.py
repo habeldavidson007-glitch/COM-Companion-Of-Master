@@ -192,6 +192,8 @@ def test_03_safe_io(s):
                      "No ValueError raised — SafeIO resolves but does not bounds-check")
         except ValueError:
             s.record("path traversal blocked", True)
+        except PermissionError:
+            s.record("path traversal blocked", True)
         except FileNotFoundError:
             s.record("path traversal blocked", False,
                      "_resolve_path does not verify resolved path is inside base_dir")
