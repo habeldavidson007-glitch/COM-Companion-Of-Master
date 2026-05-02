@@ -1,4 +1,1 @@
-```
-# Logs
-com_ide/logs/
-```
+Nothing needs to be added to .gitignore since only a markdown file (.md) was added and no build artifacts, dependencies, or temporary files are present in the changes.
