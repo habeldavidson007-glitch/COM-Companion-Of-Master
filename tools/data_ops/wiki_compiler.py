@@ -181,7 +181,11 @@ Concepts:"""
         }
 
     def compile_all(self, incremental: bool = True) -> List[Dict[str, Any]]:
-        """Compile all raw files incrementally."""
+        """Compile all raw files.
+
+        incremental=True: skip files whose compiled wiki output is newer/equal.
+        incremental=False: force recompile of all raw files.
+        """
         results = []
 
         # Ensure directories exist
@@ -197,7 +201,17 @@ Concepts:"""
         print(f"Found {len(raw_files)} raw files to process")
 
         for raw_path in raw_files:
-            result = self.compile_file(raw_path) if incremental else self.compile_file(raw_path)
+            if incremental:
+                rel = str(raw_path).replace("\\", "/")
+                wiki_out = f"{self.wiki_dir}/{Path(rel).stem}.md"
+                if self.io.exists(wiki_out):
+                    try:
+                        if self.io.get_mtime(wiki_out) >= self.io.get_mtime(raw_path):
+                            continue
+                    except Exception:
+                        pass
+
+            result = self.compile_file(raw_path)
             if result:
                 results.append(result)
 

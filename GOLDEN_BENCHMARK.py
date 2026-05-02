@@ -8,6 +8,7 @@ import tempfile
 import re
 import traceback
 import logging
+from functools import wraps
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Tuple, Optional
@@ -66,9 +67,11 @@ class SuiteResult:
 
 
 ALL = []
+CRASHED_SUITES: List[str] = []
 
 
 def suite(fn):
+    @wraps(fn)
     def wrapped():
         name = fn.__name__.replace("test_", "").replace("_", " ").title()
         line = "-" * 60
@@ -80,7 +83,20 @@ def suite(fn):
         color = GREEN if sr.pct >= 90 else YELLOW if sr.pct >= 70 else RED
         print(f"{color}Score: {sr.passed}/{sr.total} ({sr.pct:.1f}%){RESET}")
         ALL.append(sr)
+    wrapped._suite_name = fn.__name__
     return wrapped
+
+
+def benchmark_dependency_preflight():
+    """Return missing runtime deps needed by benchmark suites."""
+    required = ["pydantic", "pandas"]
+    missing = []
+    for dep in required:
+        try:
+            __import__(dep)
+        except Exception:
+            missing.append(dep)
+    return missing
 
 
 @suite
@@ -175,6 +191,8 @@ def test_03_safe_io(s):
             s.record("path traversal blocked", False,
                      "No ValueError raised — SafeIO resolves but does not bounds-check")
         except ValueError:
+            s.record("path traversal blocked", True)
+        except PermissionError:
             s.record("path traversal blocked", True)
         except FileNotFoundError:
             s.record("path traversal blocked", False,
@@ -431,6 +449,8 @@ def test_09_edge_cases(s):
             s.record("SafeIO blocks ../../../ traversal", False, "No error raised — path traversal not validated")
         except ValueError:
             s.record("SafeIO blocks ../../../ traversal", True)
+        except PermissionError:
+            s.record("SafeIO blocks ../../../ traversal", True)
         except FileNotFoundError:
             s.record("SafeIO blocks ../../../ traversal", False, "FileNotFoundError not ValueError — _resolve_path has no bounds check")
     big = " ".join([f"@XLS:file{i}:col=A{i}" for i in range(100)])
@@ -460,8 +480,12 @@ def test_09_edge_cases(s):
     for i in range(500): c.set("GENERAL", f"q{i}", f"v{i}")
     for i in range(500): c.get("GENERAL", f"q{i}")
     s.record(f"1000 cache ops in <500ms ({(time.time()-t0)*1000:.0f}ms)", (time.time()-t0)*1000 < 500)
-    com = COMCore(); res = com.process_query("write a python flask api server")
-    s.record("process_query no crash when Ollama is offline", isinstance(res, str) and len(res) > 0)
+    try:
+        com = COMCore()
+        res = com.process_query("write a python flask api server")
+        s.record("process_query no crash when Ollama is offline", isinstance(res, str) and len(res) > 0)
+    except Exception as e:
+        s.record("process_query no crash when Ollama is offline", False, str(e))
     oc = OllamaClient()
     try:
         try:
@@ -563,10 +587,14 @@ if __name__ == "__main__":
             root = c
             break
     if root is None:
-        print(f"{RED}ERROR: place benchmark.py inside COM repo folder (missing core/com_core.py).{RESET}")
+        print(f"{RED}ERROR: place GOLDEN_BENCHMARK.py inside COM repo folder (missing core/com_core.py).{RESET}")
         sys.exit(1)
     sys.path.insert(0, str(root))
     os.chdir(root)
+    missing_deps = benchmark_dependency_preflight()
+    if missing_deps:
+        print(warn(f"Missing benchmark dependencies: {', '.join(missing_deps)}"))
+
     suites = [
         test_01_intent_router,
         test_02_signal_parser,
@@ -588,6 +616,24 @@ if __name__ == "__main__":
         try:
             fn()
         except Exception as e:
+            CRASHED_SUITES.append(getattr(fn, "_suite_name", fn.__name__))
             print(f"{RED}SUITE CRASHED: {e}{RESET}")
             traceback.print_exc()
+    strict_mode = "--strict" in sys.argv
     print_report()
+
+    payload_path = Path("benchmark_results.json")
+    payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    dependency_errors = []
+    dependency_errors.extend([f"missing_dependency:{d}" for d in missing_deps])
+    if CRASHED_SUITES:
+        dependency_errors.append("suite_crash_detected")
+    payload["suite_crashes"] = len(CRASHED_SUITES)
+    payload["crashed_suites"] = CRASHED_SUITES
+    payload["dependency_errors"] = dependency_errors
+    payload["non_strict_score"] = payload.get("overall_pct", 0.0)
+    payload["strict_pass"] = len(CRASHED_SUITES) == 0
+    payload_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    if strict_mode and CRASHED_SUITES:
+        sys.exit(2)

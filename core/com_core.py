@@ -10,11 +10,13 @@ import time
 import re
 from datetime import datetime
 from collections import deque
+from pathlib import Path
 from typing import Optional, List, Dict, Tuple
 
 from .intent_router import IntentRouter
 from .context_compressor import ContextCompressor
 from .session_logger import SessionLogger
+from .project_intelligence import ProjectIntelligence
 
 # Import wiki components for knowledge integration
 try:
@@ -338,8 +340,15 @@ class COMCore:
         
         # Initialize new modules
         self.router = IntentRouter(client=self.client)
-        self.compressor = ContextCompressor(client=self.client)
+        self.compressor = ContextCompressor()
         self.logger = SessionLogger()
+        self.project_intel = None
+        self._project_index_hits = 0
+        try:
+            self.project_intel = ProjectIntelligence(str(Path.cwd()))
+            self.project_intel.index_project()
+        except Exception:
+            self.project_intel = None
         
         # Initialize wiki retriever for knowledge integration (FIX: Integration Gap)
         if WIKI_AVAILABLE:
@@ -591,6 +600,23 @@ class COMCore:
             pass
         
         return None
+
+    def _project_context_hint(self, query: str, limit: int = 3) -> Optional[str]:
+        """Fetch deterministic project facts without opening files repeatedly."""
+        if not self.project_intel:
+            return None
+        try:
+            files = self.project_intel.query_relevant_files(query, limit=limit)
+            if not files:
+                return None
+            self._project_index_hits += 1
+            lines = [
+                f"{f.path} (lines={f.lines}, importance={f.importance}, symbols={','.join(f.symbols[:4])})"
+                for f in files
+            ]
+            return "\n".join(lines)
+        except Exception:
+            return None
     
     def check_status(self) -> Dict:
         """Check system status"""
@@ -673,6 +699,9 @@ class COMCore:
             context = self.memory.get_context()
             messages = [{"role": "system", "content": system}]
             messages.append({"role": "system", "content": MODE_OUTPUT_CONTRACTS[mode_runtime]})
+            project_hint = self._project_context_hint(query)
+            if project_hint:
+                messages.append({"role": "system", "content": f"[Project Index Facts]\n{project_hint}"})
             
             # Add wiki context if available (FIX: Integration Gap)
             if wiki_context and top_mode == "KNOWLEDGE":
@@ -693,14 +722,18 @@ class COMCore:
             
             # Check Ollama connection before calling
             if not self.client.check_connection():
-                if top_mode == "GENERAL":
-                    offline = self._offline_general_reply(normalized_query)
-                    if callback:
-                        callback(offline)
-                    elapsed_ms = int((time.time() - start_time) * 1000)
-                    self.logger.log("OFFLINE", query, offline, cache_hit, elapsed_ms)
-                    return offline
-                raise ConnectionError("Ollama is not running. Please start 'ollama serve' and ensure the model is installed.")
+                offline = self._offline_general_reply(normalized_query)
+                if top_mode != "GENERAL":
+                    offline = (
+                        "• Ollama is currently offline.\n"
+                        "• I cannot execute model-backed generation right now.\n"
+                        "• Please start `ollama serve`, then retry."
+                    )
+                if callback:
+                    callback(offline)
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                self.logger.log("OFFLINE", query, offline, cache_hit, elapsed_ms)
+                return offline
             
             # Core policy: OFFICE only needs final signal, so avoid stream callbacks.
             # GODOT/GENERAL keep token streaming for real-time UX.
@@ -766,6 +799,12 @@ class COMCore:
             
             elapsed_ms = int((time.time() - start_time) * 1000)
             self.logger.log(mode, query, full_response, cache_hit, elapsed_ms)
+            if hasattr(self.compressor, "compress_many_with_budget_stats"):
+                _, stats = self.compressor.compress_many_with_budget_stats(
+                    [query, full_response], max_total_tokens=TOKEN_LIMITS.get(mode_runtime, 256)
+                )
+                stats["project_index_hits"] = self._project_index_hits
+                self.logger.log_metrics("token_budget", stats)
             
             return full_response
             

@@ -28,4 +28,5 @@ coverage.xml
 *.swp
 .DS_Store
 Thumbs.db
+benchmark_results.json
 ```

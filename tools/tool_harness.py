@@ -220,6 +220,8 @@ class ToolHealthChecker:
             'PDF': self._check_pdf_tool(),
             'GODOT': self._check_godot_tool()
         }
+        # Backward-compatible alias used across benchmark/tests.
+        self.tool_status['GDT'] = self.tool_status['GODOT']
     
     def _check_excel_tool(self) -> Dict[str, Any]:
         """Check if Excel tool dependencies are available."""
