@@ -480,8 +480,12 @@ def test_09_edge_cases(s):
     for i in range(500): c.set("GENERAL", f"q{i}", f"v{i}")
     for i in range(500): c.get("GENERAL", f"q{i}")
     s.record(f"1000 cache ops in <500ms ({(time.time()-t0)*1000:.0f}ms)", (time.time()-t0)*1000 < 500)
-    com = COMCore(); res = com.process_query("write a python flask api server")
-    s.record("process_query no crash when Ollama is offline", isinstance(res, str) and len(res) > 0)
+    try:
+        com = COMCore()
+        res = com.process_query("write a python flask api server")
+        s.record("process_query no crash when Ollama is offline", isinstance(res, str) and len(res) > 0)
+    except Exception as e:
+        s.record("process_query no crash when Ollama is offline", False, str(e))
     oc = OllamaClient()
     try:
         try:
