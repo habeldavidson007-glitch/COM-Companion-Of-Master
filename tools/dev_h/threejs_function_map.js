@@ -11,6 +11,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const ROOT = process.cwd();
+const PYTHON_BIN = process.env.PYTHON_BIN || 'python3';
 const IGNORE_DIRS = new Set(['.git', '__pycache__', '.pytest_cache', 'node_modules', 'venv', '.venv']);
 
 function walk(dir, out = []) {
@@ -83,7 +84,7 @@ function buildMap() {
 function runBenchmark(strictMode) {
   const args = ['GOLDEN_BENCHMARK.py'];
   if (strictMode) args.push('--strict');
-  return spawnSync('python', args, { encoding: 'utf-8' });
+  return spawnSync(PYTHON_BIN, args, { encoding: 'utf-8' });
 }
 
 function deriveSuggestions(resultJson, loopIndex) {
