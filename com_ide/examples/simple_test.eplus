@@ -1,0 +1,22 @@
+# Simple E+ Test Script
+# This demonstrates basic features without type issues
+
+@name = input("Enter your name")
+
+say("Hello")
+say(@name)
+
+# Demonstrate loop
+say("Counting from 1 to 5:")
+repeat (@i, 5) {
+    say(@i)
+}
+
+# Simple condition with string comparison
+if (@name == "admin") {
+    say("Welcome Admin")
+} else {
+    say("Welcome User")
+}
+
+say("Thank you for using E+")

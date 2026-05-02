@@ -120,7 +120,7 @@ class Parser:
             self.skip_newlines()
             
             # Parse the value expression
-            value = self.parse_container_expression()
+            value = self.parse_value_expression()
             return Assignment(var_name, value)
         else:
             # Standalone variable reference (unusual but valid)
@@ -140,6 +140,44 @@ class Parser:
         self.expect(TokenType.RPAREN, "container closing")
         
         return expr
+
+    def parse_value_expression(self) -> ASTNode:
+        """Parse a value expression - either container (...) or function call."""
+        if self.match(TokenType.LPAREN):
+            return self.parse_container_expression()
+        elif self.match(TokenType.INPUT):
+            return self.parse_input_call()
+        elif self.match(TokenType.CALL):
+            return self.parse_function_call_standalone()
+        else:
+            raise ParseError("Expected '(' for container expression or function call", self.current_token())
+
+    def parse_function_call_standalone(self) -> FunctionCall:
+        """Parse a standalone function call (for use in assignments)."""
+        self.expect(TokenType.CALL, "call keyword")
+
+        name_token = self.expect(TokenType.IDENTIFIER, "function name")
+        name = name_token.value
+
+        self.expect(TokenType.LPAREN, "function arguments")
+        self.skip_newlines()
+
+        args = []
+        if not self.match(TokenType.RPAREN):
+            while True:
+                arg = self.parse_expression()
+                args.append(arg)
+
+                if not self.match(TokenType.COMMA):
+                    break
+                self.advance()
+                self.skip_newlines()
+
+        self.skip_newlines()
+        self.expect(TokenType.RPAREN, "function arguments closing")
+
+        return FunctionCall(name, args)
+
     
     def parse_expression(self) -> ASTNode:
         """Parse an expression (handles operator precedence)."""

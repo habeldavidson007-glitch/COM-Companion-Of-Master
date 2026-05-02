@@ -230,7 +230,8 @@ class SignalExecutor:
         
         elif signal_type == "RETURN":
             value_code = self._expr_to_python(signal.get("value"))
-            return f"{prefix}_return_value = {value_code}; break"
+            # Only use break if inside a loop, otherwise just assign return value
+            return f"{prefix}_return_value = {value_code}"
         
         elif signal_type == "BREAK":
             return f"{prefix}_break_requested = True; break"
@@ -298,6 +299,8 @@ class SignalExecutor:
             # Create restricted execution environment
             exec_globals = {
                 "__builtins__": {
+                    "__import__": __import__,  # Needed for datetime module
+                    "input": input,  # Needed for input() calls
                     "range": range,
                     "len": len,
                     "str": str,
