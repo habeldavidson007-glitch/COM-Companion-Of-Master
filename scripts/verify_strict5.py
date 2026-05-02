@@ -8,6 +8,33 @@ from pathlib import Path
 TARGET_RUNS = 5
 rows = []
 
+
+def dependency_preflight():
+    required = ["pydantic", "pandas"]
+    missing = []
+    for dep in required:
+        try:
+            __import__(dep)
+        except Exception:
+            missing.append(dep)
+    return missing
+
+
+missing_deps = dependency_preflight()
+if missing_deps:
+    print(
+        json.dumps(
+            {
+                "status": "blocked_environment",
+                "reason": "missing_python_dependencies",
+                "missing_dependencies": missing_deps,
+                "next_step": "Install missing deps in a clean environment, then rerun scripts/verify_strict5.py",
+            },
+            indent=2,
+        )
+    )
+    sys.exit(3)
+
 for i in range(1, TARGET_RUNS + 1):
     proc = subprocess.run([sys.executable, "benchmark.py", "--strict"], capture_output=True, text=True)
     payload = {}
@@ -30,6 +57,9 @@ ok = all(
 )
 if not ok:
     print("\nFAIL: strict gate not clean across 5 runs.")
+    print("Hints:")
+    print("- Fix suite crashes until suite_crashes == 0.")
+    print("- Ensure strict_pass is true for every run.")
     sys.exit(2)
 
 print("\nPASS: strict gate clean across 5 runs.")

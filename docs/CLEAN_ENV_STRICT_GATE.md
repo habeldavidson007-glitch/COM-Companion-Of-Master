@@ -21,3 +21,8 @@ bash scripts/prepare_clean_env.sh
 
 ## CI/Review contract
 Do not merge if `scripts/verify_strict5.py` exits non-zero.
+
+## Exit codes
+- `0`: strict gate clean (5/5 passes, zero crashes).
+- `2`: benchmark executed but strict criteria failed.
+- `3`: blocked environment (missing required Python deps such as `pydantic`/`pandas`).
