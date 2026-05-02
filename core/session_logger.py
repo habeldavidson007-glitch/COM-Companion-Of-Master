@@ -31,3 +31,17 @@ class SessionLogger:
                 f.write(json.dumps(entry) + "\n")
         except Exception as e:
             print(f"[Logger Error] Failed to write log: {e}")
+
+    def log_metrics(self, name: str, metrics: dict):
+        """Append structured metrics entry."""
+        entry = {
+            "ts": datetime.now().isoformat(),
+            "type": "metrics",
+            "name": name,
+            "metrics": metrics,
+        }
+        try:
+            with open(self.path, "a") as f:
+                f.write(json.dumps(entry) + "\n")
+        except Exception as e:
+            print(f"[Logger Error] Failed to write metrics log: {e}")

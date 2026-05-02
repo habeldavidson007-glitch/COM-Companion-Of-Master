@@ -25,3 +25,18 @@ def test_compress_many_with_budget_is_deterministic():
     out1 = c.compress_many_with_budget(texts, max_total_tokens=220, per_item_floor=40)
     out2 = c.compress_many_with_budget(texts, max_total_tokens=220, per_item_floor=40)
     assert out1 == out2
+
+
+def test_compress_many_with_budget_stats_fields():
+    c = ContextCompressor(max_tokens=256)
+    texts = ["alpha " * 300, "beta " * 250]
+    out, stats = c.compress_many_with_budget_stats(texts, max_total_tokens=180, per_item_floor=32)
+    assert isinstance(out, list)
+    assert set(stats.keys()) == {
+        "input_tokens_total",
+        "output_tokens_total",
+        "compression_ratio",
+        "budget_enforced",
+    }
+    assert stats["output_tokens_total"] <= 180
+    assert stats["budget_enforced"] is True

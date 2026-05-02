@@ -66,6 +66,7 @@ class SuiteResult:
 
 
 ALL = []
+CRASHED_SUITES: List[str] = []
 
 
 def suite(fn):
@@ -588,6 +589,23 @@ if __name__ == "__main__":
         try:
             fn()
         except Exception as e:
+            CRASHED_SUITES.append(fn.__name__)
             print(f"{RED}SUITE CRASHED: {e}{RESET}")
             traceback.print_exc()
+    strict_mode = "--strict" in sys.argv
     print_report()
+
+    payload_path = Path("benchmark_results.json")
+    payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    dependency_errors = []
+    if CRASHED_SUITES:
+        dependency_errors.append("suite_crash_detected")
+    payload["suite_crashes"] = len(CRASHED_SUITES)
+    payload["crashed_suites"] = CRASHED_SUITES
+    payload["dependency_errors"] = dependency_errors
+    payload["non_strict_score"] = payload.get("overall_pct", 0.0)
+    payload["strict_pass"] = len(CRASHED_SUITES) == 0
+    payload_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    if strict_mode and CRASHED_SUITES:
+        sys.exit(2)

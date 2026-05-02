@@ -333,6 +333,29 @@ class ContextCompressor:
 
         return compressed
 
+    def compress_many_with_budget_stats(
+        self,
+        texts: list[str],
+        max_total_tokens: int,
+        per_item_floor: int = 64
+    ) -> tuple[list[str], dict]:
+        """Same as compress_many_with_budget, plus deterministic telemetry."""
+        input_tokens_total = sum(self.count_tokens(t) for t in texts)
+        compressed = self.compress_many_with_budget(
+            texts=texts,
+            max_total_tokens=max_total_tokens,
+            per_item_floor=per_item_floor,
+        )
+        output_tokens_total = sum(self.count_tokens(t) for t in compressed)
+        ratio = (output_tokens_total / input_tokens_total) if input_tokens_total else 0.0
+        stats = {
+            "input_tokens_total": input_tokens_total,
+            "output_tokens_total": output_tokens_total,
+            "compression_ratio": ratio,
+            "budget_enforced": output_tokens_total <= max_total_tokens,
+        }
+        return compressed, stats
+
 
 # Convenience function
 def compress_context(
