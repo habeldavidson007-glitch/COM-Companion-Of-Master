@@ -722,14 +722,18 @@ class COMCore:
             
             # Check Ollama connection before calling
             if not self.client.check_connection():
-                if top_mode == "GENERAL":
-                    offline = self._offline_general_reply(normalized_query)
-                    if callback:
-                        callback(offline)
-                    elapsed_ms = int((time.time() - start_time) * 1000)
-                    self.logger.log("OFFLINE", query, offline, cache_hit, elapsed_ms)
-                    return offline
-                raise ConnectionError("Ollama is not running. Please start 'ollama serve' and ensure the model is installed.")
+                offline = self._offline_general_reply(normalized_query)
+                if top_mode != "GENERAL":
+                    offline = (
+                        "• Ollama is currently offline.\n"
+                        "• I cannot execute model-backed generation right now.\n"
+                        "• Please start `ollama serve`, then retry."
+                    )
+                if callback:
+                    callback(offline)
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                self.logger.log("OFFLINE", query, offline, cache_hit, elapsed_ms)
+                return offline
             
             # Core policy: OFFICE only needs final signal, so avoid stream callbacks.
             # GODOT/GENERAL keep token streaming for real-time UX.
