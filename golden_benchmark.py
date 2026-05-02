@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""GOLDEN_BENCHMARK runner entrypoint.
+"""Compatibility runner for lowercase command.
 
-Canonical benchmark command for CI/local verification.
+Canonical benchmark entrypoint is now `GOLDEN_BENCHMARK.py`.
 """
 import subprocess
 import sys
 
 
 def main() -> int:
-    args = [sys.executable, "benchmark.py", *sys.argv[1:]]
+    args = [sys.executable, "GOLDEN_BENCHMARK.py", *sys.argv[1:]]
     proc = subprocess.run(args)
     return proc.returncode
 

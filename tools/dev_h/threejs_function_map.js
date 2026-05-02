@@ -81,7 +81,7 @@ function buildMap() {
 }
 
 function runBenchmark(strictMode) {
-  const args = ['golden_benchmark.py'];
+  const args = ['GOLDEN_BENCHMARK.py'];
   if (strictMode) args.push('--strict');
   return spawnSync('python', args, { encoding: 'utf-8' });
 }
